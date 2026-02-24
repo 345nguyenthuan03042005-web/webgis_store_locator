@@ -1,0 +1,42 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls admin_modify %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap:10px;">
+  <div>
+    <h4 class="mb-0">{% if add %}Thêm{% else %}Sửa{% endif %} {{ opts.verbose_name }}</h4>
+    <small class="text-muted">{% if add %}Tạo mới{% else %}Cập nhật{% endif %}</small>
+  </div>
+
+  <a class="btn btn-outline-secondary btn-sm" href="{% url opts|admin_urlname:'changelist' %}">
+    <i class="mdi mdi-arrow-left"></i> Quay lại
+  </a>
+</div>
+
+<form method="post" {% if has_file_field %}enctype="multipart/form-data"{% endif %} novalidate>
+  {% csrf_token %}
+
+  {% if errors %}
+    <div class="alert alert-danger">Vui lòng kiểm tra lại dữ liệu.</div>
+  {% endif %}
+
+  {% for fieldset in adminform %}
+    <div class="card mb-3">
+      <div class="card-body">
+        {% if fieldset.name %}
+          <h5 class="card-title">{{ fieldset.name }}</h5>
+        {% endif %}
+        {% include "admin/includes/fieldset.html" %}
+      </div>
+    </div>
+  {% endfor %}
+
+  {% for inline_admin_formset in inline_admin_formsets %}
+    {% include inline_admin_formset.opts.template %}
+  {% endfor %}
+
+  <div class="mt-3">
+    {% submit_row %}
+  </div>
+</form>
+{% endblock %}

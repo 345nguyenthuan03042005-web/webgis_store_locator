@@ -1,0 +1,16 @@
+﻿{% load static %}
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}WebGIS Store Locator{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'store/css/style.css' %}" />
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  {% block content %}{% endblock %}
+  <script src="{% static 'store/js/map.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

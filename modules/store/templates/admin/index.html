@@ -1,0 +1,36 @@
+﻿{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="row">
+    {% for app in app_list %}
+    <div class="col-md-6 grid-margin stretch-card">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title">
+                    {% if app.app_label == "auth" %}
+                        Xác thực và phân quyền
+                    {% else %}
+                        {{ app.name }}
+                    {% endif %}
+                </h4>
+                <ul class="list-group">
+                    {% for model in app.models %}
+                    <li class="list-group-item d-flex justify-content-between">
+                        {% if app.app_label == "auth" and model.object_name == "Group" %}
+                            Nhóm quyền
+                        {% elif app.app_label == "auth" and model.object_name == "User" %}
+                            Người dùng
+                        {% else %}
+                            {{ model.name }}
+                        {% endif %}
+                        <a href="{{ model.admin_url }}" class="btn btn-sm btn-primary">Mở</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

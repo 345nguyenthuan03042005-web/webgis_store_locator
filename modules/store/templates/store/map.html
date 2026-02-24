@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WebGIS - Smart Search Map</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root{
+      --bg:#f5f7fb; --card:#ffffff; --text:#0f172a; --muted:#64748b;
+      --border:#e2e8f0; --shadow: 0 10px 25px rgba(2,6,23,.08);
+      --primary:#2563eb; --danger:#ef4444; --ok:#16a34a;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+    .app{height:100vh;display:grid;grid-template-columns:380px 1fr}
+    .panel{padding:16px;border-right:1px solid var(--border);background:linear-gradient(180deg,#fff,#f7f9ff)}
+    .brand{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+    .logo{width:38px;height:38px;border-radius:12px;background:var(--primary);box-shadow:var(--shadow)}
+    .brand h1{font-size:16px;margin:0;line-height:1.1}
+    .brand p{margin:0;color:var(--muted);font-size:12px}
+
+    .searchBar{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:10px;box-shadow:var(--shadow)}
+    .row{display:flex;gap:8px;align-items:center}
+    input{width:100%;border:none;outline:none;font-size:14px;padding:10px;background:transparent;color:var(--text)}
+    .btn{border:none;cursor:pointer;padding:10px 12px;border-radius:12px;background:var(--primary);color:#fff;font-weight:700;font-size:13px;white-space:nowrap}
+    .hint{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.4}
+    .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+    select,.chip{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:8px 10px;font-size:12px;color:var(--text)}
+    .chip{cursor:pointer;user-select:none}
+
+    .card{margin-top:14px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px;box-shadow:var(--shadow)}
+    .card h3{margin:0 0 8px 0;font-size:14px}
+    .kv{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;font-size:13px}
+    .k{color:var(--muted)}
+    .v{color:var(--text);word-break:break-word}
+    .small{font-size:12px;color:var(--muted);margin-top:10px}
+    .copy{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+    .btnGhost{border:1px solid var(--border);background:var(--card);color:var(--text);padding:8px 10px;border-radius:12px;cursor:pointer;font-size:12px}
+
+    #map{height:100vh;width:100%}
+
+    @media (max-width:900px){
+      .app{grid-template-columns:1fr;grid-template-rows:380px 1fr}
+      .panel{border-right:none;border-bottom:1px solid var(--border)}
+      #map{height:calc(100vh - 380px)}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="panel">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>WebGIS Smart Search</h1>
+          <p>Nhập “lat,lon” hoặc “tên đường/địa chỉ”</p>
+        </div>
+      </div>
+
+      <div class="searchBar">
+        <div class="row">
+          <input id="q" placeholder="VD: 10.762622,106.660172 hoặc Nguyễn Trãi, Q5, TP.HCM" />
+          <button class="btn" id="btnSearch">Tìm</button>
+        </div>
+
+        <div class="controls">
+          <select id="brand">
+            <option value="CIRCLEK">Circle K</option>
+            <option value="GS25">GS25</option>
+          </select>
+
+          <select id="maxKm">
+            <option value="0.05">Bắt dính 50m</option>
+            <option value="0.1">Bắt dính 100m</option>
+            <option value="0.2" selected>Bắt dính 200m</option>
+            <option value="0.5">Bắt dính 500m</option>
+            <option value="1">Bắt dính 1km</option>
+            <option value="2">Bắt dính 2km</option>
+          </select>
+
+          <div class="chip" id="btnMyLoc">📍 Vị trí tôi</div>
+          <div class="chip" id="btnClear">🧹 Xoá</div>
+        </div>
+
+        <div class="hint">
+          • Click lên bản đồ để lấy tọa độ và tìm nhanh.<br/>
+          • Nếu không thấy cửa hàng → tăng “Bắt dính”.
+        </div>
+
+        <div class="hint" id="smartHint" style="display:none;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Kết quả</h3>
+        <div class="kv" id="kv"></div>
+        <div class="copy">
+          <button class="btnGhost" id="btnCopyCoord">Copy tọa độ</button>
+          <button class="btnGhost" id="btnCopyAddr">Copy địa chỉ</button>
+        </div>
+        <div class="small" id="status"></div>
+      </div>
+    </aside>
+
+    <div id="map"></div>
+  </div>
+
+<script>
+  const map = L.map('map', { zoomControl: true }).setView([10.7769, 106.7009], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+  let markerQuery = null;
+  let markerStore = null;
+  let line = null;
+
+  const kv = document.getElementById('kv');
+  const statusEl = document.getElementById('status');
+  const hintEl = document.getElementById('smartHint');
+
+  const qInput = document.getElementById('q');
+  const brandSel = document.getElementById('brand');
+  const maxKmSel = document.getElementById('maxKm');
+
+  function setStatus(text, ok=true){
+    statusEl.textContent = text || "";
+    statusEl.style.color = ok ? "#16a34a" : "#ef4444";
+  }
+
+  function showHint(html){
+    if(!html){
+      hintEl.style.display = "none";
+      hintEl.innerHTML = "";
+      return;
+    }
+    hintEl.style.display = "block";
+    hintEl.innerHTML = html;
+  }
+
+  function clearAll(){
+    if(markerQuery) map.removeLayer(markerQuery), markerQuery=null;
+    if(markerStore) map.removeLayer(markerStore), markerStore=null;
+    if(line) map.removeLayer(line), line=null;
+    kv.innerHTML = "";
+    showHint("");
+    setStatus("");
+  }
+
+  function renderKV(obj){
+    kv.innerHTML = "";
+    const add = (k,v) => {
+      const dk = document.createElement('div');
+      dk.className='k'; dk.textContent = k;
+      const dv = document.createElement('div');
+      dv.className='v'; dv.textContent = v ?? "";
+      kv.appendChild(dk); kv.appendChild(dv);
+    };
+
+    add("Chế độ", obj.mode);
+    add("Tọa độ", `${obj.location.lat.toFixed(6)}, ${obj.location.lon.toFixed(6)}`);
+    add("Tên đường", obj.location.road || "(không có)");
+    add("Địa chỉ", obj.location.display_address || "(không có)");
+
+    if(obj.store){
+      add("Cửa hàng", obj.store.name);
+      add("Thương hiệu", obj.store.brand);
+      add("Địa chỉ (DB)", obj.store.address_db || "(trống)");
+      add("Khoảng cách", `${obj.store.distance_km} km`);
+    } else {
+      add("Cửa hàng", "Không tìm thấy cửa hàng gần điểm này");
+    }
+  }
+
+  function popupHtmlQuery(obj){
+    const lat = obj.location.lat.toFixed(6);
+    const lon = obj.location.lon.toFixed(6);
+    return `
+      <b>Điểm truy vấn</b><br/>
+      <b>Tọa độ:</b> ${lat}, ${lon}<br/>
+      <b>Tên đường:</b> ${obj.location.road || "(không có)"}<br/>
+      <b>Địa chỉ:</b> ${obj.location.display_address || "(không có)"}
+    `;
+  }
+
+  function popupHtmlStore(s){
+    return `
+      <b>${s.name}</b><br/>
+      <b>Brand:</b> ${s.brand}<br/>
+      <b>DB Address:</b> ${s.address_db || "(trống)"}<br/>
+      <b>Tọa độ:</b> ${s.lat.toFixed(6)}, ${s.lon.toFixed(6)}<br/>
+      <b>Khoảng cách:</b> ${s.distance_km} km
+    `;
+  }
+
+  async function smartSearch(q, maxKmOverride=null){
+    const brand = brandSel.value;
+    const maxKm = maxKmOverride ?? maxKmSel.value;
+
+    setStatus("Đang tìm...");
+    showHint("");
+
+    const url = `/tools/smart-search/?q=${encodeURIComponent(q)}&brand=${encodeURIComponent(brand)}&max_km=${encodeURIComponent(maxKm)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if(!res.ok){
+      setStatus(data.error || "Lỗi", false);
+      return;
+    }
+
+    renderKV(data);
+    setStatus(data.message || "OK", !!data.store);
+
+    const qLat = data.location.lat;
+    const qLon = data.location.lon;
+
+    if(markerQuery) map.removeLayer(markerQuery);
+    markerQuery = L.marker([qLat, qLon]).addTo(map).bindPopup(popupHtmlQuery(data));
+
+    if(markerStore) map.removeLayer(markerStore);
+    if(line) map.removeLayer(line);
+
+    if(data.store){
+      markerStore = L.marker([data.store.lat, data.store.lon]).addTo(map).bindPopup(popupHtmlStore(data.store));
+      line = L.polyline([[qLat, qLon], [data.store.lat, data.store.lon]]).addTo(map);
+      map.fitBounds(line.getBounds(), { padding: [30, 30] });
+      markerStore.openPopup();
+    } else {
+      map.setView([qLat, qLon], 18);
+      markerQuery.openPopup();
+
+      if(data.suggested_max_km){
+        showHint(`
+          <div style="margin-top:10px;">
+            <b>Gợi ý:</b> thử tăng bán kính bắt dính.<br/>
+            <button class="btn" id="btnExpand" style="margin-top:8px;">
+              Mở rộng lên ${data.suggested_max_km} km
+            </button>
+          </div>
+        `);
+        setTimeout(() => {
+          const btn = document.getElementById('btnExpand');
+          if(btn) btn.onclick = () => smartSearch(q, data.suggested_max_km);
+        }, 0);
+      }
+    }
+  }
+
+  // Search button / Enter
+  document.getElementById('btnSearch').onclick = () => {
+    const q = qInput.value.trim();
+    if(!q) return setStatus("Nhập lat,lon hoặc địa chỉ.", false);
+    smartSearch(q);
+  };
+  qInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') document.getElementById('btnSearch').click(); });
+
+  // Clear
+  document.getElementById('btnClear').onclick = ()=>{
+    qInput.value = "";
+    clearAll();
+  };
+
+  // My location
+  document.getElementById('btnMyLoc').onclick = ()=>{
+    if(!navigator.geolocation){ setStatus("Trình duyệt không hỗ trợ GPS.", false); return; }
+    setStatus("Đang lấy vị trí...");
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const q = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+        qInput.value = q;
+        smartSearch(q);
+      },
+      ()=> setStatus("Không lấy được vị trí (hãy cấp quyền GPS).", false),
+      { enableHighAccuracy:true, timeout:8000 }
+    );
+  };
+
+  // Copy coord/address
+  document.getElementById('btnCopyCoord').onclick = async ()=>{
+    const vals = Array.from(kv.querySelectorAll('.v'));
+    const coord = vals[1]?.textContent || "";
+    try{ await navigator.clipboard.writeText(coord); setStatus("Đã copy tọa độ ✅"); }
+    catch{ setStatus("Không copy được.", false); }
+  };
+  document.getElementById('btnCopyAddr').onclick = async ()=>{
+    const vals = Array.from(kv.querySelectorAll('.v'));
+    const addr = vals[3]?.textContent || "";
+    try{ await navigator.clipboard.writeText(addr); setStatus("Đã copy địa chỉ ✅"); }
+    catch{ setStatus("Không copy được.", false); }
+  };
+
+  // Click map => search latlon
+  map.on('click', (e)=>{
+    const q = `${e.latlng.lat.toFixed(6)},${e.latlng.lng.toFixed(6)}`;
+    qInput.value = q;
+    smartSearch(q);
+  });
+
+  // Auto-run from URL
+  (function autoFromUrl(){
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    const brand = params.get('brand');
+    const maxKm = params.get('max_km');
+
+    if(brand && (brand === 'CIRCLEK' || brand === 'GS25')) brandSel.value = brand;
+    if(maxKm) maxKmSel.value = maxKm;
+
+    if(q){
+      qInput.value = q;
+      smartSearch(q, maxKm ? Number(maxKm) : null);
+    }
+  })();
+</script>
+</body>
+</html>

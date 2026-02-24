@@ -1,0 +1,130 @@
+﻿{% load static i18n %}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    {% block extrastyle %}{% endblock %}
+    {% block extrahead %}{% endblock %}
+</head>
+
+<body>
+    <div class="container-scroller">
+
+        <nav class="sidebar sidebar-offcanvas" id="sidebar">
+            <div class="sidebar-brand-wrapper d-none d-lg-flex align-items-center justify-content-center fixed-top">
+                <a class="sidebar-brand brand-logo" href="{% url 'admin:index' %}">
+                    <span style="color:#fff;font-weight:700;">SmartGIS Admin</span>
+                </a>
+            </div>
+
+            <ul class="nav">
+                <li class="nav-item profile">
+                    <div class="profile-desc">
+                        <div class="profile-name">
+                            <h5 class="mb-0 font-weight-normal">{{ request.user.username }}</h5>
+                            <span>Quản trị viên</span>
+                        </div>
+                    </div>
+                </li>
+
+                <li class="nav-item nav-category">
+                    <span class="nav-link">{% trans "Menu" %}</span>
+                </li>
+
+                <li class="nav-item menu-items">
+                    <a class="nav-link" href="{% url 'admin:index' %}">
+                        <span class="menu-icon"><i class="mdi mdi-speedometer"></i></span>
+                        <span class="menu-title">Tổng quan</span>
+                    </a>
+                </li>
+
+                {% for app in available_apps %}
+                <li class="nav-item menu-items">
+                    <a class="nav-link" data-toggle="collapse" href="#app-{{ forloop.counter }}">
+                        <span class="menu-icon"><i class="mdi mdi-folder"></i></span>
+                        <span class="menu-title">
+                            {% if app.app_label == "auth" %}
+                                Xác thực và phân quyền
+                            {% else %}
+                                {{ app.name }}
+                            {% endif %}
+                        </span>
+                        <i class="menu-arrow"></i>
+                    </a>
+                    <div class="collapse" id="app-{{ forloop.counter }}">
+                        <ul class="nav flex-column sub-menu">
+                            {% for model in app.models %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ model.admin_url }}">
+                                    {% if app.app_label == "auth" and model.object_name == "Group" %}
+                                        Nhóm quyền
+                                    {% elif app.app_label == "auth" and model.object_name == "User" %}
+                                        Người dùng
+                                    {% else %}
+                                        {{ model.name }}
+                                    {% endif %}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </li>
+                {% endfor %}
+
+                <li class="nav-item nav-category" style="margin-top:10px;">
+                    <span class="nav-link">Tiện ích</span>
+                </li>
+
+                <li class="nav-item menu-items mt-3">
+                    <a class="nav-link" href="/">
+                        <span class="menu-icon"><i class="mdi mdi-wrench"></i></span>
+                        <span class="menu-title">Tra cứu cửa hàng</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="container-fluid page-body-wrapper">
+            <nav class="navbar p-0 fixed-top d-flex flex-row">
+                <div class="navbar-menu-wrapper flex-grow d-flex align-items-stretch">
+                    <button class="navbar-toggler" type="button" data-toggle="minimize">
+                        <span class="mdi mdi-menu"></span>
+                    </button>
+
+                    <ul class="navbar-nav navbar-nav-right">
+                        <li class="nav-item">
+                            <form method="post" action="{% url 'admin:logout' %}">
+                                {% csrf_token %}
+                                <button class="btn btn-link nav-link">
+                                    <i class="mdi mdi-logout"></i> Đăng xuất
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <div class="main-panel">
+                <div class="content-wrapper" style="padding-top:70px;">
+                    <div class="row">
+                        <div class="col-12 grid-margin">
+                            <div class="card">
+                                <div class="card-body">
+                                    {% block content %}{% endblock %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{% static 'assets/js/off-canvas.js' %}"></script>
+    <script src="{% static 'assets/js/hoverable-collapse.js' %}"></script>
+    <script src="{% static 'assets/js/misc.js' %}"></script>
+</body>
+</html>

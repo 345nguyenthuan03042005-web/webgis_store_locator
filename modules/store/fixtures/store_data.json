@@ -1,0 +1,58 @@
+﻿[
+  {
+    "model": "gis_store.thuonghieu",
+    "pk": 1,
+    "fields": {
+      "ten": "Circle K"
+    }
+  },
+  {
+    "model": "gis_store.thuonghieu",
+    "pk": 2,
+    "fields": {
+      "ten": "GS25"
+    }
+  },
+  {
+    "model": "gis_store.chuoicuahang",
+    "pk": 1,
+    "fields": {
+      "ten": "CIRCLEK",
+      "mo_ta": "Chuoi cua hang Circle K"
+    }
+  },
+  {
+    "model": "gis_store.chuoicuahang",
+    "pk": 2,
+    "fields": {
+      "ten": "GS25",
+      "mo_ta": "Chuoi cua hang GS25"
+    }
+  },
+  {
+    "model": "gis_store.cuahang",
+    "pk": 1,
+    "fields": {
+      "chuoi": 1,
+      "ten": "Circle K Nguyen Hue",
+      "dia_chi": "123 Nguyen Hue, Quan 1, TP.HCM",
+      "quan_huyen": "Quan 1",
+      "vi_do": 10.7739,
+      "kinh_do": 106.7046,
+      "san_pham": []
+    }
+  },
+  {
+    "model": "gis_store.cuahang",
+    "pk": 2,
+    "fields": {
+      "chuoi": 2,
+      "ten": "GS25 Le Loi",
+      "dia_chi": "89 Le Loi, Quan 1, TP.HCM",
+      "quan_huyen": "Quan 1",
+      "vi_do": 10.7728,
+      "kinh_do": 106.6982,
+      "san_pham": []
+    }
+  }
+]

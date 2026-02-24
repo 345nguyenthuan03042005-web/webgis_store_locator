@@ -1,0 +1,1432 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Circle K & GS25 – Tìm cửa hàng gần bạn</title>
+
+  <!-- ================= LEAFLET & PLUGINS ================= -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+  <!-- ================= STYLE ================= -->
+  <style>
+    :root {
+      --bg: #f8f9ff;
+      --card: #ffffff;
+      --border: #e0e7ff;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --shadow: 0 10px 30px rgba(0,0,0,.08);
+
+      --red: #e31c23;
+      --red2: #c3141a;
+      --yellow: #ffd100;
+      --blue: #2563eb;
+      --green: #16a34a;
+
+      --container: 1280px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: linear-gradient(180deg, #f8f9ff 0%, #eef2ff 100%);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+    a { text-decoration: none; color: inherit; }
+
+    /* ================= HEADER ================= */
+    header {
+      background: linear-gradient(135deg, var(--red) 0%, var(--red2) 100%);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 6px 20px rgba(227,28,35,.25);
+    }
+    header .wrap {
+      max-width: var(--container);
+      margin: auto;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .logo {
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: white;
+    }
+    .logo span { color: var(--yellow); }
+    nav {
+      display: flex;
+      gap: 32px;
+    }
+    nav a {
+      color: white;
+      font-weight: 700;
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+    nav a:hover {
+      color: var(--yellow);
+      transform: translateY(-1px);
+    }
+    .btnFind {
+      background: var(--yellow);
+      color: #111;
+      padding: 12px 28px;
+      border-radius: 999px;
+      font-weight: 800;
+      box-shadow: 0 4px 16px rgba(255,209,0,.4);
+      transition: all 0.25s;
+    }
+    .btnFind:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(255,209,0,.5);
+    }
+
+    /* ================= HERO ================= */
+.hero {
+  height: calc(100vh - 80px); /* trừ chiều cao header */
+  min-height: 600px;
+  background:
+    linear-gradient(rgba(75, 67, 67, 0.45), rgba(89, 84, 84, 0.45)),
+    url("https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=2000&q=80")
+    center / cover no-repeat;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 900px;
+      padding: 0 20px;
+    }
+    .hero h1 {
+      font-size: clamp(48px, 9vw, 84px);
+      font-weight: 900;
+      margin: 0 0 20px;
+      letter-spacing: -1px;
+      text-shadow: 0 6px 20px rgba(226, 209, 209, 0.5);
+    }
+   .hero p {
+  color: #f1f5f9;                  /* trắng xám nhẹ */
+  font-size: 22px;
+  text-shadow: 0 4px 18px rgba(239, 230, 230, 0.45);
+}
+    .hero .btn {
+      background: var(--yellow);
+      color: #111827;
+      padding: 18px 48px;
+      border-radius: 999px;
+      font-size: 20px;
+      font-weight: 800;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      transition: all 0.3s;
+    }
+    .hero .btn:hover {
+      transform: translateY(-4px) scale(1.05);
+      box-shadow: 0 16px 40px rgba(255,209,0,0.6);
+    }
+
+    /* ================= SECTION ================= */
+    section { padding: 100px 20px; }
+
+    section h2 {
+      text-align: center;
+      font-size: 42px;
+      font-weight: 900;
+      margin: 0 0 50px;
+      color: var(--ink);
+    }
+
+    /* ================= ABOUT ================= */
+    .about {
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(10px);
+      border-radius: 24px;
+      margin: 0 auto;
+      max-width: 1100px;
+      padding: 60px 40px;
+      box-shadow: var(--shadow);
+    }
+    .about p {
+      max-width: 920px;
+      margin: auto;
+      text-align: center;
+      font-size: 18px;
+      line-height: 1.8;
+      color: #334155;
+    }
+
+    /* ================= PRODUCTS ================= */
+    .products {
+      background: linear-gradient(180deg, #f0f5ff 0%, #e5edff 100%);
+    }
+    .product-grid {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 28px;
+    }
+    .product-card {
+      background: white;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: all 0.28s ease;
+      position: relative;
+    }
+    .product-card:hover {
+      transform: translateY(-12px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    }
+    .product-card img {
+      width: 100%;
+      height: 240px;
+      object-fit: cover;
+      transition: transform 0.4s;
+    }
+    .product-card:hover img {
+      transform: scale(1.08);
+    }
+    .product-info {
+      padding: 24px;
+      text-align: center;
+    }
+    .product-info h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--ink);
+    }
+    .product-info p {
+      color: var(--muted);
+      font-size: 15px;
+      margin: 0;
+    }
+
+    /* ================= STORE LOCATOR ================= */
+    .store-locator {
+      background: linear-gradient(180deg, #f8f9ff, #ffffff);
+      padding: 100px 0;
+    }
+
+    .wrapMain {
+      max-width: var(--container);
+      margin: 40px auto 0;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: 440px 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 1024px) {
+      .wrapMain { grid-template-columns: 1fr; }
+    }
+
+    /* ================= LEFT PANEL (CONTROL + LIST) ================= */
+    .panel {
+      background: #fff;
+      border-radius: 24px;
+      padding: 18px;
+      box-shadow: 0 14px 36px rgba(0,0,0,.14);
+      overflow: hidden;
+    }
+
+    .topbar {
+      background: linear-gradient(180deg, var(--red), var(--red2));
+      color: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: var(--shadow);
+    }
+    .topbar .wrap {
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 10px 14px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .brandPill {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.22);
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-weight: 900;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tab {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.22);
+      padding: 8px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      user-select: none;
+      font-weight: 900;
+    }
+    .tab.active {
+      background: #fff;
+      color: var(--red);
+      border-color: transparent;
+    }
+
+    .cardHead {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(180deg, #fff, #fff8f8);
+      font-weight: 1000;
+      font-size: 13px;
+    }
+    .cardBody { padding: 12px 14px; }
+
+    .status {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--muted);
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--green);
+    }
+    .dot.bad { background: #ef4444; }
+
+    .searchBox {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 10px 12px;
+      background: #fff;
+    }
+    .pin {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: rgba(37,99,235,.12);
+      border: 1px solid rgba(37,99,235,.25);
+      color: var(--blue);
+      font-weight: 1000;
+    }
+    .searchBox input {
+      width: 100%;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .btn {
+      border: none;
+      cursor: pointer;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-weight: 1000;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btnPrimary { background: linear-gradient(180deg, #ffd100, #ffc400); color: #111827; }
+    .btnWhite { background: #fff; color: #111827; border: 1px solid var(--border); }
+    .btnBlue { background: linear-gradient(180deg, #3b82f6, #2563eb); color: #fff; }
+
+    .hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.45;
+    }
+
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+    .field {
+      flex: 1;
+      min-width: 150px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: #fff;
+    }
+    label { display: block; font-size: 12px; color: var(--muted); font-weight: 900; margin-bottom: 6px; }
+    select, input { width: 100%; border: none; outline: none; background: transparent; font-size: 13px; font-weight: 800; }
+
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 45vh;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .item {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 12px;
+      cursor: pointer;
+      background: #fff;
+      transition: transform .08s ease, box-shadow .12s ease;
+    }
+    .item:hover {
+      box-shadow: 0 8px 18px rgba(0,0,0,.10);
+      transform: translateY(-1px);
+    }
+    .item b { display: block; font-size: 13px; }
+    .item small { display: block; color: var(--muted); margin-top: 4px; line-height: 1.35; }
+    .actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .mini { padding: 6px 10px; border-radius: 999px; }
+
+    #map { height: 72vh; min-height: 520px; border-radius: 18px; }
+
+    /* Autocomplete */
+    .acWrap { position: relative; }
+    .acList {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 6px);
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      z-index: 50;
+      max-height: 260px;
+      overflow: auto;
+      display: none;
+    }
+    .acItem {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .acItem:last-child { border-bottom: none; }
+    .acItem:hover { background: #f8fafc; }
+
+    /* ================= FOOTER ================= */
+    footer {
+      background: #0f172a;
+      color: #cbd5f5;
+      text-align: center;
+      padding: 40px 20px;
+      font-size: 14px;
+    }
+
+    /* Thu nhỏ attribution Leaflet */
+    .leaflet-control-attribution {
+     font-size: 10px;
+     opacity: 0.4;
+      background: rgba(255,255,255,0.3);
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ================= HEADER ================= -->
+<header>
+  <div class="wrap">
+    <div class="logo">CIRCLE <span>K & GS25</span></div>
+
+    <nav>
+      <a href="#about">Giới thiệu</a>
+      <a href="#products">Sản phẩm</a>
+      <a href="#stores">Cửa hàng</a>
+    </nav>
+
+    <div style="display:flex;gap:10px;align-items:center">
+      <a href="#stores" class="btnFind">Tìm cửa hàng</a>
+      <a href="/admin/" class="btn btnWhite mini">Admin</a>
+    </div>
+  </div>
+</header>
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="hero-content">
+    <h1>Tiện lợi 24/7</h1>
+    <p>Circle K & GS25 - Luôn bên bạn mọi lúc, mọi nơi</p>
+    <a href="#stores" class="btn">Tìm cửa hàng gần bạn</a>
+  </div>
+</section>
+
+<!-- ================= ABOUT ================= -->
+<section id="about" class="about">
+  <h2>Về Circle K & GS25</h2>
+  <p>
+    Circle K & GS25 là chuỗi cửa hàng tiện lợi hàng đầu, hoạt động 24/7,
+    mang đến đa dạng sản phẩm từ đồ ăn nhanh, nước uống, cà phê, kem,
+    đến các dịch vụ tiện ích thiết yếu cho cuộc sống hiện đại.
+  </p>
+</section>
+
+<!-- ================= PRODUCTS ================= -->
+<section id="products" class="products">
+  <h2>Sản phẩm nổi bật</h2>
+  <div class="product-grid">
+    <div class="product-card">
+      <img src="https://www.circlek.com/sites/default/files/2023-06/circle_k_coffee_canada_920x575.jpg" alt="Nước uống & trà sữa">
+      <div class="product-info">
+        <h3>🥤 Nước uống & trà sữa</h3>
+        <p>Trà sữa trân châu, trà trái cây, nước tăng lực, nước ngọt</p>
+      </div>
+    </div>
+    <div class="product-card">
+      <img src="https://www.circlek.com/sites/default/files/2024-03/our_products_920x575.jpg" alt="Đồ ăn nhanh & bánh mì">
+      <div class="product-info">
+        <h3>🍔 Đồ ăn nhanh & bánh mì</h3>
+        <p>Bánh mì kẹp, gà rán, hotdog, cơm nắm, sandwich</p>
+      </div>
+    </div>
+    <div class="product-card">
+      <img src="https://www.circlek.com/sites/default/files/2023-06/circle_k_coffee_canada_920x575.jpg" alt="Cà phê & đồ uống nóng">
+      <div class="product-info">
+        <h3>☕ Cà phê & đồ uống nóng</h3>
+        <p>Cà phê đen, latte, cappuccino, trà nóng, matcha</p>
+      </div>
+    </div>
+    <div class="product-card">
+      <img src="https://www.circlek.com/sites/default/files/2024-03/our_products_920x575.jpg" alt="Kem & snack">
+      <div class="product-info">
+        <h3>🍦 Kem & snack</h3>
+        <p>Kem que, kem hộp, snack, bánh kẹo, đồ ăn vặt</p>
+      </div>
+    </div>
+    <div class="product-card">
+      <img src="https://assets1.ccentral.ca/images/v/max_width_1440/s3fs-public/2024-09/20240905_174355.jpg" alt="Bia & đồ uống có cồn">
+      <div class="product-info">
+        <h3>🍺 Bia & đồ uống có cồn</h3>
+        <p>Bia lon, rượu nhẹ, đồ uống giải khát có gas</p>
+      </div>
+    </div>
+    <div class="product-card">
+      <img src="https://imgproxy.divecdn.com/xCWrndKRHbwmxjMxtC5HkdhiULqSmh6gxopTsNWfMAg/g:ce/rs:fit:1600:0/Z3M6Ly9kaXZlc2l0ZS1zdG9yYWdlL2RpdmVpbWFnZS9DLVN0b3JlX0NhbmR5LmpwZWc=.webp" alt="Bánh kẹo & đồ ngọt">
+      <div class="product-info">
+        <h3>🍬 Bánh kẹo & đồ ngọt</h3>
+        <p>Kẹo dẻo, sô cô la, bánh quy, đồ ngọt nhập khẩu</p>
+      </div>
+    </div>
+    <div class="product-card">
+      <img src="https://www.circlek.com/sites/default/files/2024-03/car_wash_920x575px.jpg" alt="Đồ dùng cá nhân">
+      <div class="product-info">
+        <h3>🧴 Đồ dùng cá nhân</h3>
+        <p>Kem đánh răng, bàn chải, khăn giấy, sản phẩm vệ sinh</p>
+      </div>
+    </div>
+    <div class="product-card">
+      <img src="https://www.circlek.com/sites/default/files/2024-09/b2b_ck_pro_920x575.jpg" alt="Đồ ăn sẵn">
+      <div class="product-info">
+        <h3>🍱 Đồ ăn sẵn</h3>
+        <p>Cơm hộp, salad, trái cây tươi, đồ ăn chay</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= STORE LOCATOR ================= -->
+<section id="stores" class="store-locator">
+  <h2>Hệ thống cửa hàng Circle K & GS25</h2>
+  <p style="text-align:center; color:#64748b; margin-bottom:30px; font-size:18px;">
+    Nhập địa chỉ hoặc bật GPS để tìm cửa hàng gần bạn nhất
+  </p>
+
+  <div class="wrapMain">
+    <!-- LEFT PANEL: Controls & List -->
+    <div class="panel">
+      <div class="topbar">
+        <div class="wrap">
+          <div class="brandPill">🗺️ WebGIS Stores</div>
+          <div class="tabs">
+            <div class="tab active" data-brand="CIRCLEK">Circle K & GS25</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cardHead">
+          <span>Điều khiển & Danh sách</span>
+          <span class="status"><span id="dot" class="dot"></span><span id="status">Sẵn sàng.</span></span>
+        </div>
+
+        <div class="cardBody">
+          <!-- Search -->
+          <div class="acWrap">
+            <div class="searchBox">
+              <div class="pin">📍</div>
+              <input id="q" placeholder="Nhập địa chỉ hoặc tên cửa hàng..." autocomplete="off"/>
+              <button class="btn btnPrimary" id="btnSearch">Tìm</button>
+              <button class="btn btnWhite" id="btnMyLoc">Vị trí tôi</button>
+            </div>
+            <div class="acList" id="acList"></div>
+          </div>
+          <div class="hint">
+            Tip: Không muốn bật GPS 👉 click trực tiếp lên bản đồ để chọn vị trí.
+          </div>
+
+          <div class="toggleRow" style="margin-top:12px">
+            <label style="display:flex;gap:8px;align-items:center;margin:0">
+              <input type="checkbox" id="autoBounds"/>
+              Auto tải theo khung bản đồ
+            </label>
+            <span>• Enter để tìm nhanh</span>
+          </div>
+
+          <!-- Filters -->
+          <div class="row" style="margin-top:12px">
+            <div class="field" style="max-width:150px">
+              <label>Bán kính (km)</label>
+              <select id="radiusKm">
+                <option value="0.2">0.2</option>
+                <option value="0.5" selected>0.5</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="5">5</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Quận / Huyện</label>
+              <select id="districtSel">
+                <option value="">Tất cả</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <button class="btn btnBlue" id="btnNearby">Tìm quanh vị trí</button>
+            <button class="btn btnWhite" id="btnLoadBounds">Tải trong khung</button>
+            <button class="btn btnWhite" id="btnToggleMarkers">Ẩn marker</button>
+            <button class="btn btnWhite" id="btnClearRoute">Xóa đường</button>
+            <button class="btn btnWhite" id="btnReset">Reset</button>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <div class="field">
+              <label>Lọc trong danh sách</label>
+              <input id="filterText" placeholder="Gõ tên / địa chỉ..." />
+            </div>
+            <button class="btn btnWhite" id="btnSortNear">Gần nhất</button>
+          </div>
+
+          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btnWhite mini" id="btnExport">Export CSV</button>
+            <button class="btn btnWhite mini" id="btnFav">⭐ Favorites</button>
+            <button class="btn btnWhite mini" id="btnHistory">🕘 History</button>
+          </div>
+
+          <div style="margin-top:12px;font-weight:1000;font-size:13px">Danh sách cửa hàng</div>
+          <div class="list" id="storeList" style="margin-top:10px"></div>
+
+          <!-- Directions panel -->
+          <div id="dirBox" style="margin-top:12px; display:none; border:1px solid var(--border); border-radius:14px; overflow:hidden">
+            <div style="padding:10px 12px; font-weight:1000; font-size:13px; background:#f8fafc; border-bottom:1px solid var(--border)">
+              🧭 Chỉ đường
+              <span id="dirSummary" style="color:#64748b; font-weight:900; margin-left:6px"></span>
+            </div>
+            <div id="dirSteps" style="padding:10px 12px; font-size:13px; line-height:1.5; max-height:220px; overflow:auto"></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: Map -->
+    <div class="panel">
+      <div class="cardHead">
+        <span>Bản đồ</span>
+        <span class="status">Click map để chọn vị trí • Click store để xem • Chỉ đường </span>
+      </div>
+      <div id="map"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer>
+  © 2026 Circle K & GS25 – WebGIS Store Locator  
+  <br>
+  Design & Development by <b>Thuan</b>
+</footer>
+
+<!-- ================= JAVASCRIPT ================= -->
+<script>
+// ======================
+// DOM Elements
+// ======================
+const out = document.getElementById('result');
+const statusEl = document.getElementById('status');
+const dot = document.getElementById('dot');
+
+const qInput = document.getElementById('q');
+const acList = document.getElementById('acList');
+
+const radiusSel = document.getElementById('radiusKm');
+const districtSel = document.getElementById('districtSel');
+const filterText = document.getElementById('filterText');
+const autoBounds = document.getElementById('autoBounds');
+
+const storeListEl = document.getElementById('storeList');
+
+const dirBox = document.getElementById("dirBox");
+const dirSummary = document.getElementById("dirSummary");
+const dirSteps = document.getElementById("dirSteps");
+
+// ======================
+// State
+// ======================
+let ACTIVE_BRAND = "CIRCLEK";
+let currentCenter = null; // {lat, lng, display?}
+let markersVisible = true;
+
+let STORES = [];
+let STORES_VIEW = [];
+let lastNearbyItems = [];
+
+let LIST_LIMIT = 60;
+
+let routingControl = null;
+let radiusCircle = null;
+
+const LS_FAV = "webgis:favs:v1";
+const LS_HIS = "webgis:history:v1";
+
+// ======================
+// Utils
+// ======================
+function setStatus(text, ok=true){
+  statusEl.textContent = text || '';
+  dot.className = ok ? "dot" : "dot bad";
+  statusEl.style.color = ok ? '#16a34a' : '#ef4444';
+}
+
+function showJSON(obj){
+  if(!out) return;              
+  out.textContent = JSON.stringify(obj, null, 2);
+}
+
+
+function esc(s){
+  return (s??"").toString().replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+}
+
+function debounce(fn, ms=250){
+  let t=null;
+  return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); };
+}
+
+function haversineKm(lat1,lng1,lat2,lng2){
+  const R=6371.0;
+  const toRad=x=>x*Math.PI/180;
+  const dlat=toRad(lat2-lat1);
+  const dlng=toRad(lng2-lng1);
+  const a=Math.sin(dlat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dlng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+
+function getRadiusKm(){ return Number(radiusSel.value || 0.5); }
+function getDistrict(){ return (districtSel.value||"").trim(); }
+
+function parseLatLng(text){
+  const m = (text||"").trim().match(/^\s*(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if(!m) return null;
+  const lat = Number(m[1]), lng = Number(m[2]);
+  if(Number.isFinite(lat) && Number.isFinite(lng) && lat>=-90 && lat<=90 && lng>=-180 && lng<=180){
+    return {lat, lng};
+  }
+  return null;
+}
+
+async function fetchJSON(url){
+  try{
+    const res = await fetch(url);
+    const text = await res.text();
+    let data = null;
+    try{ data = JSON.parse(text); }
+    catch{ data = { ok:false, error:"Loading...", raw:text.slice(0,250) }; }
+    showJSON(data);
+    if(!res.ok || data.ok === false){
+      setStatus(data.error || `HTTP ${res.status}`, false);
+    }else{
+      setStatus(data.message || "OK ✅", true);
+    }
+    return {res, data};
+  }catch(e){
+    showJSON({ok:false, error:String(e)});
+    setStatus("Lỗi mạng/Fetch ❌", false);
+    return {res:null, data:null};
+  }
+}
+
+async function postJSON(url, body){
+  try{
+    const res = await fetch(url, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(body)
+    });
+    const text = await res.text();
+    let data = null;
+    try{ data = JSON.parse(text); }
+    catch{ data = { ok:false, error:"Response is not JSON", raw:text.slice(0,250) }; }
+    showJSON(data);
+    if(!res.ok || data.ok === false){
+      setStatus(data.error || `HTTP ${res.status}`, false);
+    }else{
+      setStatus(data.message || "OK ✅", true);
+    }
+    return {res, data};
+  }catch(e){
+    showJSON({ok:false, error:String(e)});
+    setStatus("Lỗi mạng/Fetch ❌", false);
+    return {res:null, data:null};
+  }
+}
+
+function showDirections(summaryText, stepsHtml){
+  dirBox.style.display = "block";
+  dirSummary.textContent = summaryText || "";
+  dirSteps.innerHTML = stepsHtml || "";
+}
+function hideDirections(){
+  dirBox.style.display = "none";
+  dirSummary.textContent = "";
+  dirSteps.innerHTML = "";
+}
+
+// ======================
+// Map Initialization
+// ======================
+const map = L.map("map").setView([10.7769, 106.7009], 12);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors | WebGIS Project – Thuan"
+}).addTo(map);
+
+const userIcon = L.divIcon({
+  className:"",
+  html:`<div style="width:16px;height:16px;border-radius:999px;background:#2563eb;border:3px solid #fff;box-shadow:0 10px 20px rgba(37,99,235,.35)"></div>`,
+  iconSize:[16,16], iconAnchor:[8,8]
+});
+const storeIcon = L.divIcon({
+  className:"",
+  html:`<div style="width:18px;height:18px;border-radius:7px;background:linear-gradient(180deg,#e31c23,#c3141a);border:2px solid #fff;box-shadow:0 12px 22px rgba(227,28,35,.35)"></div>`,
+  iconSize:[18,18], iconAnchor:[9,9]
+});
+
+const cluster = L.markerClusterGroup();
+map.addLayer(cluster);
+
+let userMarker = null;
+
+function clearRoute(){
+  if(routingControl){
+    map.removeControl(routingControl);
+    routingControl = null;
+  }
+  hideDirections();
+}
+
+function drawRadiusCircle(){
+  if(!currentCenter) return;
+  const m = getRadiusKm() * 1000;
+  if(radiusCircle) radiusCircle.remove();
+  radiusCircle = L.circle([currentCenter.lat, currentCenter.lng], {
+    radius: m,
+    weight: 2,
+    opacity: .9,
+    fillOpacity: .10
+  }).addTo(map);
+}
+
+function setUser(lat, lng, display=""){
+  currentCenter = {lat, lng, display};
+  if(userMarker) userMarker.remove();
+  userMarker = L.marker([lat, lng], {icon:userIcon}).addTo(map);
+  userMarker.bindPopup(`<b>Vị trí</b><br/>${esc(display || (lat.toFixed(6)+", "+lng.toFixed(6)))}`).openPopup();
+  map.setView([lat, lng], 16);
+  clearRoute();
+  drawRadiusCircle();
+}
+
+function renderMarkers(list){
+  cluster.clearLayers();
+  if(!markersVisible) return;
+  list.forEach(s=>{
+    const m = L.marker([s.lat, s.lng], {icon:storeIcon});
+    m.on("click", ()=> openStorePopup(s));
+    cluster.addLayer(m);
+  });
+}
+
+function openStorePopup(s){
+  const html = `
+    <b>${esc(s.name || "Cửa hàng")}</b><br/>
+    ${esc(s.address_db || "")}<br/>
+    <small style="color:#64748b">Quận: ${esc(s.district || "")}</small><br/>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btnWhite mini" onclick="routeToStore(${s.lat},${s.lng},'${esc(s.name||"Store")}')">🧭 Chỉ đường</button>
+      <button class="btn btnWhite mini" onclick="toggleFav(${s.id})">⭐ Yêu thích</button>
+    </div>
+  `;
+  L.popup({maxWidth:360})
+    .setLatLng([s.lat, s.lng])
+    .setContent(html)
+    .openOn(map);
+}
+
+window.routeToStore = function(lat, lng, name){
+  if(!currentCenter){
+    setStatus("Chưa có vị trí. Click map hoặc bấm Vị trí tôi.", false);
+    return;
+  }
+  clearRoute();
+
+  routingControl = L.Routing.control({
+    waypoints: [
+      L.latLng(currentCenter.lat, currentCenter.lng),
+      L.latLng(lat, lng),
+    ],
+    addWaypoints:false,
+    draggableWaypoints:false,
+    routeWhileDragging:false,
+    show: false
+  }).addTo(map);
+
+  routingControl.on("routesfound", (e)=>{
+    const r = e.routes[0];
+    const km = (r.summary.totalDistance/1000).toFixed(2);
+    const min = (r.summary.totalTime/60).toFixed(0);
+    setStatus(`Tới ${name}: ${km} km ~ ${min} phút`, true);
+
+    const inst = (r.instructions || []).map((it, idx)=>{
+      const dkm = it.distance ? (it.distance/1000).toFixed(2)+" km" : "";
+      const txt = (it.text || "").replaceAll("<","&lt;").replaceAll(">","&gt;");
+      return `<div style="padding:8px 0;border-bottom:1px dashed #e5e7eb">
+                <b>${idx+1}.</b> ${txt}
+                <div style="color:#64748b;font-weight:800">${dkm}</div>
+              </div>`;
+    }).join("");
+
+    showDirections(`${km} km • ${min} phút`, inst || `<div style="color:#64748b;font-weight:900">Không có hướng dẫn chi tiết.</div>`);
+  });
+
+  routingControl.on("routingerror", ()=>{
+    setStatus("Không tìm được đường. Thử lại!", false);
+  });
+};
+
+// ======================
+// Map Events
+// ======================
+map.on("click", async (e)=>{
+  const lat = e.latlng.lat;
+  const lng = e.latlng.lng;
+  setUser(lat, lng, "Đang lấy địa chỉ...");
+
+  const {res, data} = await fetchJSON(`/tools/reverse-geo/?lat=${lat}&lon=${lng}`);
+  if(res && res.ok && data.ok && data.display){
+    setUser(lat, lng, data.display_address);
+    qInput.value = data.display_address;
+  }else{
+    setUser(lat, lng, "Không lấy được địa chỉ — dùng tọa độ");
+    qInput.value = `${lat},${lng}`;
+  }
+  await loadNearby();
+});
+
+const loadBoundsDebounced = debounce(async ()=>{
+  if(autoBounds.checked){
+    await loadInBounds();
+  }
+}, 450);
+map.on("moveend", loadBoundsDebounced);
+
+// ======================
+// Favorites & History
+// ======================
+function loadFavs(){
+  try{ return JSON.parse(localStorage.getItem(LS_FAV) || "[]"); }catch{ return []; }
+}
+function saveFavs(arr){
+  localStorage.setItem(LS_FAV, JSON.stringify(arr));
+}
+window.toggleFav = function(id){
+  const favs = loadFavs();
+  const exists = favs.includes(id);
+  const next = exists ? favs.filter(x=>x!==id) : [...favs, id];
+  saveFavs(next);
+  setStatus(exists ? "Đã bỏ yêu thích." : "Đã thêm yêu thích ⭐", true);
+};
+
+function addHistory(item){
+  try{
+    const arr = JSON.parse(localStorage.getItem(LS_HIS) || "[]");
+    const next = [item, ...arr.filter(x=>x && x.text !== item.text)].slice(0, 20);
+    localStorage.setItem(LS_HIS, JSON.stringify(next));
+  }catch{}
+}
+
+// ======================
+// Render List
+// ======================
+function renderList(arr){
+  storeListEl.innerHTML = "";
+  if(!arr.length){
+    storeListEl.innerHTML = `<div style="color:#64748b;font-weight:900">Chưa có dữ liệu. Click map hoặc bấm Vị trí tôi để bắt đầu.</div>`;
+    return;
+  }
+
+  const favs = loadFavs();
+  const slice = arr.slice(0, LIST_LIMIT);
+
+  slice.forEach(s=>{
+    const div = document.createElement("div");
+    div.className = "item";
+
+    const d = currentCenter ? haversineKm(currentCenter.lat, currentCenter.lng, s.lat, s.lng) : (s.distance_km ?? null);
+    const distTxt = (d!=null) ? `${Number(d).toFixed(2)} km` : "";
+    const isFav = favs.includes(s.id);
+
+    div.innerHTML = `
+      <b>${esc(s.name || "Store")} ${isFav ? "⭐" : ""}</b>
+      <small>${esc(s.address_db || "")}</small>
+      <small>Quận: <b>${esc(s.district || "")}</b> • ${distTxt ? `Khoảng cách: <b>${esc(distTxt)}</b>` : ""}</small>
+      <div class="actions">
+        <button class="btn btnWhite mini" data-act="fly">📌 Xem</button>
+        <button class="btn btnWhite mini" data-act="route">🧭 Chỉ đường</button>
+        <button class="btn btnWhite mini" data-act="fav">⭐ Yêu thích</button>
+      </div>
+    `;
+
+    div.querySelector('[data-act="fly"]').onclick = (ev)=>{
+      ev.stopPropagation();
+      map.setView([s.lat, s.lng], 18);
+      openStorePopup(s);
+    };
+    div.querySelector('[data-act="route"]').onclick = (ev)=>{
+      ev.stopPropagation();
+      map.setView([s.lat, s.lng], 18);
+      window.routeToStore(s.lat, s.lng, (s.name||"Store"));
+    };
+    div.querySelector('[data-act="fav"]').onclick = (ev)=>{
+      ev.stopPropagation();
+      window.toggleFav(s.id);
+      renderList(STORES_VIEW);
+    };
+
+    div.onclick = ()=>{
+      map.setView([s.lat, s.lng], 18);
+      openStorePopup(s);
+    };
+
+    storeListEl.appendChild(div);
+  });
+
+  if(arr.length > LIST_LIMIT){
+    const more = document.createElement("div");
+    more.className = "item";
+    more.style.textAlign = "center";
+    more.style.fontWeight = "1000";
+    more.style.color = "#2563eb";
+    more.innerHTML = `Xem thêm (${arr.length - LIST_LIMIT})`;
+    more.onclick = ()=>{
+      LIST_LIMIT += 60;
+      renderList(STORES_VIEW);
+    };
+    storeListEl.appendChild(more);
+  }
+}
+
+function applyFilter(){
+  LIST_LIMIT = 60;
+  const t = (filterText.value||"").trim().toLowerCase();
+  const d = getDistrict().toLowerCase();
+
+  STORES_VIEW = STORES.filter(s=>{
+    const hay = ((s.name||"")+" "+(s.address_db||"")).toLowerCase();
+    const okText = !t || hay.includes(t);
+    const okDist = !d || ((s.district||"").toLowerCase() === d);
+    return okText && okDist;
+  });
+
+  renderList(STORES_VIEW);
+  renderMarkers(STORES_VIEW);
+}
+
+function sortByNearest(){
+  if(!currentCenter){
+    setStatus("Chưa có vị trí để sắp xếp.", false);
+    return;
+  }
+  STORES_VIEW = [...STORES_VIEW].sort((a,b)=>{
+    const da = haversineKm(currentCenter.lat, currentCenter.lng, a.lat, a.lng);
+    const db = haversineKm(currentCenter.lat, currentCenter.lng, b.lat, b.lng);
+    return da - db;
+  });
+  renderList(STORES_VIEW);
+  setStatus("Đã sắp xếp gần nhất ✅", true);
+}
+
+// ======================
+// API Calls
+// ======================
+async function refreshDistricts(){
+  const {res, data} = await fetchJSON(`/tools/districts/?brand=${encodeURIComponent(ACTIVE_BRAND)}`);
+  if(!res || !res.ok || !data.ok) return;
+  const items = data.districts || [];
+  districtSel.innerHTML = `<option value="">Tất cả</option>` + items.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");
+}
+
+async function loadNearby(){
+  if(!currentCenter){
+    setStatus("Chưa có vị trí. Click map hoặc bấm Vị trí tôi.", false);
+    return;
+  }
+  const radius = getRadiusKm();
+  const district = getDistrict();
+  const url = `/tools/stores-in-radius/?lat=${currentCenter.lat}&lon=${currentCenter.lng}&radius_km=${radius}&brand=${encodeURIComponent(ACTIVE_BRAND)}&district=${encodeURIComponent(district)}`;
+  const {res, data} = await fetchJSON(url);
+  if(!res || !res.ok || !data.ok) return;
+
+  STORES = (data.stores || []).map(x=>({
+    id:x.id, name:x.name, brand:x.brand,
+    address_db:x.address_db||"",
+    district:x.district||"",
+    lat:Number(x.lat),
+    lng:Number(x.lon),
+    distance_km:x.distance_km
+  }));
+  lastNearbyItems = STORES;
+
+  drawRadiusCircle();
+  applyFilter();
+  sortByNearest();
+  setStatus(`Tìm thấy ${STORES.length} cửa hàng quanh bạn `, true);
+}
+
+async function loadInBounds(){
+  const district = getDistrict();
+  const b = map.getBounds();
+  const url = `/tools/stores-in-bounds/?brand=${encodeURIComponent(ACTIVE_BRAND)}&district=${encodeURIComponent(district)}&south=${b.getSouth()}&west=${b.getWest()}&north=${b.getNorth()}&east=${b.getEast()}`;
+  const {res, data} = await fetchJSON(url);
+  if(!res || !res.ok || !data.ok) return;
+
+  STORES = (data.stores || []).map(x=>({
+    id:x.id, name:x.name, brand:x.brand,
+    address_db:x.address_db||"",
+    district:x.district||"",
+    lat:Number(x.lat),
+    lng:Number(x.lon),
+  }));
+  lastNearbyItems = [];
+  applyFilter();
+  setStatus(`Đã tải ${STORES.length} cửa hàng trong khung bản đồ ✅`, true);
+}
+
+async function searchStoreDBFirst(){
+  const q = (qInput.value || "").trim();
+  if(q.length < 2) return false;
+
+  const district = getDistrict();
+  setStatus("Đang tìm trong DB...");
+  const {res, data} = await fetchJSON(`/tools/search-stores/?brand=${encodeURIComponent(ACTIVE_BRAND)}&q=${encodeURIComponent(q)}&district=${encodeURIComponent(district)}&limit=200`);
+  if(!res || !res.ok || !data.ok) return false;
+
+  const items = (data.stores || []).map(x=>({
+    id:x.id, name:x.name, brand:x.brand,
+    address_db:x.address_db||"",
+    district:x.district||"",
+    lat:Number(x.lat),
+    lng:Number(x.lon),
+  }));
+
+  if(!items.length) return false;
+
+  STORES = items;
+  applyFilter();
+
+  const bounds = L.latLngBounds(items.map(s=>[s.lat, s.lng]));
+  map.fitBounds(bounds.pad(0.25));
+
+  setStatus(`Tìm DB: ${items.length} kết quả ✅`, true);
+  return true;
+}
+
+async function smartSearch(){
+  const q = (qInput.value||"").trim();
+  if(!q){
+    setStatus("Nhập địa chỉ hoặc tên cửa hàng.", false);
+    return;
+  }
+  addHistory({type:"search", text:q, ts:Date.now()});
+
+  const ll = parseLatLng(q);
+
+  const body = {
+    ten: ACTIVE_BRAND,
+    dia_chi: q,
+    lat: ll ? ll.lat : null,
+    lng: ll ? ll.lng : null,
+    max_km: getRadiusKm()
+  };
+
+  setStatus("Đang tìm địa chỉ (Nominatim)...");
+  const {res, data} = await postJSON("/tools/smart-search/", body);
+  if(!res || !res.ok || !data.location) return;
+
+  setUser(Number(data.location.lat), Number(data.location.lon), data.location.display_address || q);
+  await loadNearby();
+}
+
+// ======================
+// Autocomplete
+// ======================
+function hideAC(){ acList.style.display="none"; acList.innerHTML=""; }
+function showAC(items){
+  if(!items || !items.length){ hideAC(); return; }
+  acList.innerHTML = items.map((it, idx)=>`
+    <div class="acItem" data-idx="${idx}">
+      ${esc(it.display || "")}
+    </div>
+  `).join("");
+  acList.style.display="block";
+
+  acList.querySelectorAll(".acItem").forEach(el=>{
+    el.onclick = ()=>{
+      const i = Number(el.dataset.idx);
+      const it = items[i];
+      if(!it) return;
+      hideAC();
+      const lat = Number(it.lat);
+      const lon = Number(it.lon);
+      qInput.value = it.display || "";
+      setUser(lat, lon, it.display || "");
+      addHistory({type:"suggest", text: it.display || "", ts: Date.now()});
+      loadNearby();
+    };
+  });
+}
+
+const suggestDebounced = debounce(async ()=>{
+  const q = (qInput.value||"").trim();
+  if(q.length < 3){ hideAC(); return; }
+
+  const {res, data} = await fetchJSON(`/tools/suggest/?q=${encodeURIComponent(q)}`);
+  if(!res || !res.ok || !data.ok){ hideAC(); return; }
+  showAC(data.items || []);
+}, 280);
+
+qInput.addEventListener("input", suggestDebounced);
+document.addEventListener("click", (e)=>{
+  if(!acList.contains(e.target) && e.target !== qInput) hideAC();
+});
+
+qInput.addEventListener("keydown", (e)=>{
+  if(e.key === "Enter"){
+    e.preventDefault();
+    document.getElementById("btnSearch").click();
+    hideAC();
+  }
+});
+
+// ======================
+// Button Handlers
+// ======================
+document.getElementById("btnSearch").onclick = async ()=>{
+  const okDB = await searchStoreDBFirst();
+  if(okDB) return;
+  await smartSearch();
+};
+
+document.getElementById("btnMyLoc").onclick = ()=>{
+  if(!navigator.geolocation){
+    setStatus("Trình duyệt không hỗ trợ Geolocation ❌", false);
+    return;
+  }
+  setStatus("Đang truy cập vị trí...");
+  navigator.geolocation.getCurrentPosition(
+    async (pos)=>{
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      setUser(lat, lng, "Vị trí hiện tại");
+
+      const {res, data} = await fetchJSON(`/tools/reverse-geo/?lat=${lat}&lon=${lng}`);
+      if(res && res.ok && data.ok && data.display_address){
+        setUser(lat, lng, data.display_address);
+        qInput.value = data.display_address;
+      }else{
+        qInput.value = `${lat},${lng}`;
+      }
+
+      addHistory({type:"gps", text:"My location", ts:Date.now()});
+      await loadNearby();
+    },
+    (err)=>{
+      let msg = "Không lấy được vị trí.";
+      if(err.code === 1) msg = "Bạn đã từ chối quyền vị trí.";
+      else if(err.code === 2) msg = "Không xác định được vị trí.";
+      else if(err.code === 3) msg = "Lấy vị trí bị timeout.";
+      setStatus("❌ " + msg + " (Bạn có thể click bản đồ để chọn vị trí)", false);
+    },
+    {enableHighAccuracy:true, timeout:10000, maximumAge:0}
+  );
+};
+
+document.getElementById("btnNearby").onclick = loadNearby;
+document.getElementById("btnLoadBounds").onclick = loadInBounds;
+
+document.getElementById("btnToggleMarkers").onclick = ()=>{
+  markersVisible = !markersVisible;
+  document.getElementById("btnToggleMarkers").textContent = markersVisible ? "Ẩn marker" : "Hiện marker";
+  renderMarkers(STORES_VIEW);
+};
+
+document.getElementById("btnClearRoute").onclick = ()=>{
+  clearRoute();
+  setStatus("Đã xóa đường.", true);
+};
+
+document.getElementById("btnReset").onclick = ()=>{
+  currentCenter = null;
+  clearRoute();
+  if(userMarker){ userMarker.remove(); userMarker=null; }
+  if(radiusCircle){ radiusCircle.remove(); radiusCircle=null; }
+  cluster.clearLayers();
+  STORES = []; STORES_VIEW = []; lastNearbyItems = [];
+  renderList([]);
+  map.setView([10.7769, 106.7009], 12);
+  setStatus("Đã reset. Click map hoặc bấm Vị trí tôi để bắt đầu.", true);
+};
+
+document.getElementById("btnSortNear").onclick = sortByNearest;
+
+document.getElementById("btnExport").onclick = ()=>{
+  const items = (lastNearbyItems && lastNearbyItems.length) ? lastNearbyItems : STORES_VIEW;
+  if(!items.length){ setStatus("Không có dữ liệu để export.", false); return; }
+
+  const header = ["id","brand","name","district","address","lat","lng","distance_km"];
+  const lines = [header.join(",")];
+  for(const s of items){
+    const row = [
+      s.id ?? "",
+      s.brand ?? "",
+      s.name ?? "",
+      s.district ?? "",
+      s.address_db ?? "",
+      s.lat ?? "",
+      s.lng ?? "",
+      s.distance_km ?? ""
+    ].map(v => `"${String(v).replaceAll('"','""')}"`);
+    lines.push(row.join(","));
+  }
+  const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `export_${ACTIVE_BRAND.toLowerCase()}_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setStatus("Đã export CSV ✅", true);
+};
+
+document.getElementById("btnFav").onclick = ()=>{
+  const favs = loadFavs();
+  if(!favs.length){
+    setStatus("Chưa có cửa hàng yêu thích.", false);
+    return;
+  }
+  const favList = STORES.filter(s=>favs.includes(s.id));
+  if(!favList.length){
+    setStatus("Favorites chưa nằm trong list hiện tại. Hãy tìm quanh vị trí trước.", false);
+    return;
+  }
+  STORES_VIEW = favList;
+  renderList(STORES_VIEW);
+  renderMarkers(STORES_VIEW);
+  setStatus(`Đang xem Favorites (${STORES_VIEW.length}) ⭐`, true);
+};
+
+document.getElementById("btnHistory").onclick = ()=>{
+  try{
+    const arr = JSON.parse(localStorage.getItem(LS_HIS) || "[]");
+    if(!arr.length){ setStatus("Chưa có lịch sử.", false); return; }
+    showJSON({history: arr});
+    setStatus("Đã mở lịch sử (xem ở Debug JSON).", true);
+  }catch{
+    setStatus("Không đọc được lịch sử.", false);
+  }
+};
+
+filterText.addEventListener("input", debounce(applyFilter, 200));
+
+districtSel.addEventListener("change", ()=>{
+  applyFilter();
+  if(currentCenter) loadNearby();
+});
+
+radiusSel.addEventListener("change", ()=>{
+  drawRadiusCircle();
+  if(currentCenter) loadNearby();
+});
+
+// ======================
+// Brand Tabs
+// ======================
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick = ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    ACTIVE_BRAND = t.dataset.brand;
+    setStatus(`Đã chọn ${ACTIVE_BRAND}.`, true);
+    refreshDistricts();
+    if(currentCenter) loadNearby();
+  };
+});
+
+// ======================
+// Initialization
+// ======================
+renderList([]);
+showJSON({result:"JSON ở đây"});
+refreshDistricts();
+setStatus("Sẵn sàng. Click map để chọn vị trí.", true);
+</script>
+</body>
+</html>

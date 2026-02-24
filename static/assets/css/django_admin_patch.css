@@ -1,0 +1,232 @@
+/* ========== FORCE DARK BACKGROUND ========== */
+
+
+html, body {
+  background: #0b0f19 !important;
+}
+
+/* Wrapper chính */
+.content-wrapper,
+.main-panel,
+.container-scroller,
+.page-body-wrapper {
+  background: #0b0f19 !important;
+}
+
+/* Card thay thế module trắng */
+.card {
+  background: #191c24 !important;
+  border-radius: 12px;
+}
+
+/* ===== Django admin legacy blocks ===== */
+.module,
+#content-main,
+#content,
+#changelist,
+#changelist-form,
+#toolbar,
+.object-tools,
+.results,
+#result_list {
+  background: transparent !important;
+  color: #e5e7eb;
+  border: none !important;
+}
+
+/* Table */
+#result_list {
+  border-collapse: separate;
+  border-spacing: 0 10px;
+}
+
+#result_list th {
+  background: #111827;
+  color: #9ca3af;
+  border: none;
+}
+
+#result_list td {
+  background: #191c24;
+  border: none;
+  color: #e5e7eb;
+}
+
+/* Links */
+a {
+  color: #38bdf8;
+}
+a:hover {
+  color: #60a5fa;
+}
+
+/* Buttons */
+.button,
+input[type=submit],
+.object-tools a {
+  background: #2563eb !important;
+  border-radius: 6px;
+  border: none;
+  color: #fff !important;
+}
+
+/* Search box */
+#searchbar input {
+  background: #0f172a;
+  color: #fff;
+  border: 1px solid #334155;
+}
+/* ===============================
+   FIX BOOTSTRAP LIST-GROUP (WHITE)
+   =============================== */
+
+.list-group-item {
+  background-color: #191c24 !important;
+  color: #e5e7eb !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+/* hover cho đẹp */
+.list-group-item:hover {
+  background-color: #1f2937 !important;
+}
+
+/* nút Open bên trong */
+.list-group-item .btn {
+  background-color: #2563eb !important;
+  border: none !important;
+  color: #fff !important;
+}
+
+/* bỏ border trắng giữa các item */
+.list-group-item + .list-group-item {
+  border-top: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+/* ======= CHANGE LIST TABLE STYLE ======= */
+#result_list { width: 100%; border-collapse: collapse !important; }
+
+#result_list thead th {
+  background: #0b1220 !important;
+  color: #cbd5e1 !important;
+  border: none !important;
+  padding: 12px 14px !important;
+  font-weight: 700;
+}
+
+#result_list tbody tr {
+  background: #191c24 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+#result_list tbody td {
+  padding: 12px 14px !important;
+  color: #e5e7eb !important;
+  background: #191c24 !important;
+}
+
+#result_list a { color: #38bdf8 !important; }
+#result_list a:hover { color: #60a5fa !important; }
+
+.actions { display:flex; gap:10px; align-items:center; padding:10px 0; }
+
+/* Filters */
+#changelist-filter { background: #191c24 !important; border-radius: 10px !important; }
+#changelist-filter a { color: #e5e7eb !important; }
+
+/* Pagination */
+.paginator, .paginator * { color: #e5e7eb !important; }
+
+/* ======= FORM INPUT STYLE ======= */
+label { color: #cbd5e1 !important; font-weight: 600; }
+
+input[type="text"], input[type="number"], input[type="email"], input[type="url"],
+input[type="password"], input[type="date"], input[type="datetime-local"], input[type="time"],
+select, textarea {
+  background: #0f172a !important;
+  color: #e5e7eb !important;
+  border: 1px solid rgba(255,255,255,0.15) !important;
+  border-radius: 10px !important;
+}
+
+.help, .helptext, .form-text { color: #94a3b8 !important; }
+#result_list thead th{background:#0b1220!important;color:#cbd5e1!important;}
+#result_list tbody td{background:#191c24!important;color:#e5e7eb!important;}
+#result_list tbody tr{border-bottom:1px solid rgba(255,255,255,.06)!important;}
+
+/* ===== GLOBAL FONT (TEXT ONLY) ===== */
+body,
+.content-wrapper,
+.main-panel,
+.card,
+.table,
+label,
+input,
+select,
+textarea,
+.nav-link span,
+.menu-title {
+  font-family: "Arial", Times, serif !important;
+}
+
+/* ===== GIỮ NGUYÊN ICON FONT ===== */
+.mdi,
+.mdi:before,
+.menu-icon i,
+.menu-arrow:before {
+  font-family: "Material Design Icons" !important;
+}
+
+#pagination.visually-hidden {
+  font-size: 0 !important;   /* Ẩn text gốc */
+}
+
+#pagination.visually-hidden::after {
+  content: "Phân trang Chuỗi cửa hàng";
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+/* ===============================
+   FIX DJANGO ADMIN PAGINATION
+   =============================== */
+
+.paginator ul {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 !important;
+  margin: 0 !important;
+  list-style: none !important;
+}
+
+.paginator li {
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.paginator a,
+.paginator span {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e5e7eb !important;
+  border: 1px solid rgba(255,255,255,0.15);
+  text-decoration: none !important;
+  font-weight: 600;
+}
+
+/* Trang hiện tại */
+.paginator .this-page {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #fff !important;
+}

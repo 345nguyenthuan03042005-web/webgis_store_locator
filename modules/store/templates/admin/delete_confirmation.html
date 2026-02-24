@@ -1,0 +1,24 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <h4 class="card-title text-danger">Xác nhận xoá</h4>
+    <p>Bạn chắc chắn muốn xoá:</p>
+
+    <div class="alert alert-warning">
+      <strong>{{ object }}</strong>
+    </div>
+
+    <form method="post">{% csrf_token %}
+      <div class="d-flex" style="gap:10px;">
+        <input type="submit" class="btn btn-danger" value="Xoá">
+        <a class="btn btn-outline-secondary" href="{% url opts|admin_urlname:'change' object.pk|admin_urlquote %}">
+          Huỷ
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

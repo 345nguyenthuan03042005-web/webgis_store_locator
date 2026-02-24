@@ -1,0 +1,73 @@
+{% load i18n admin_modify %}
+
+{# Django sẽ truyền vào biến "fieldset" #}
+<fieldset class="mb-4">
+    {% if fieldset.name %}
+    <legend class="mb-3" style="font-weight:600;">{{ fieldset.name }}</legend>
+    {% endif %}
+
+    {% if fieldset.description %}
+    <p class="text-muted">{{ fieldset.description|safe }}</p>
+    {% endif %}
+
+    {% for line in fieldset %}
+    <div class="form-group">
+        {% for field in line %}
+        <div class="{% if line.fields|length > 1 %}mb-3{% endif %}">
+            {% if field.is_checkbox %}
+            <div class="form-check">
+                {{ field.field }}
+                <label class="form-check-label" for="{{ field.field.id_for_label }}">
+                    {{ field.field.label }}
+                </label>
+            </div>
+            {% else %}
+            {% if field.field.label %}
+            <label for="{{ field.field.id_for_label }}">
+                {{ field.field.label }}{% if field.field.field.required %}<span class="text-danger"> *</span>{% endif %}
+            </label>
+            {% endif %}
+
+            {# input/widget #}
+            {{ field.field }}
+
+            {% if field.field.help_text %}
+            <small class="form-text text-muted">{{ field.field.help_text|safe }}</small>
+            {% endif %}
+
+            {% if field.field.errors %}
+            <div class="text-danger mt-1">
+                {{ field.field.errors }}
+            </div>
+            {% endif %}
+            {% endif %}
+
+            {% if field.field.is_hidden %}
+            {{ field.field }}
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</fieldset>
+
+{# Auto add Bootstrap-like classes to inputs (không phá widget) #}
+<script>
+    (function () {
+        const root = document.currentScript?.parentElement || document;
+        const inputs = root.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input[type="url"], input[type="password"], input[type="date"], input[type="datetime-local"], input[type="time"], textarea, select');
+        inputs.forEach(el => {
+            // Tránh đụng checkbox/radio
+            if (el.type === 'checkbox' || el.type === 'radio') return;
+            el.classList.add('form-control');
+        });
+
+        // file input
+        const fileInputs = root.querySelectorAll('input[type="file"]');
+        fileInputs.forEach(el => el.classList.add('form-control'));
+
+        // checkbox
+        const checks = root.querySelectorAll('input[type="checkbox"]');
+        checks.forEach(el => el.classList.add('form-check-input'));
+    })();
+</script>
