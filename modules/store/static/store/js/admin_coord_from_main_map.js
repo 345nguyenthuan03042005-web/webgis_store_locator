@@ -35,6 +35,39 @@
     }
   }
 
+  function setAddressPending(lat, lon) {
+    setSource("address_pending");
+    const status = byId("coord-source-status");
+    if (status && Number.isFinite(lat) && Number.isFinite(lon)) {
+      status.textContent =
+        "Da tim duoc vi tri gan dung: " +
+        Number(lat).toFixed(6) +
+        ", " +
+        Number(lon).toFixed(6) +
+        ". Toa do hien tai chua doi; ban phai click tren ban do de chot.";
+    }
+  }
+
+  function openPickMap(centerLat, centerLon) {
+    const url = new URL("/", window.location.origin);
+    url.searchParams.set("pick_for", "admin_cuahang");
+    if (Number.isFinite(centerLat) && Number.isFinite(centerLon)) {
+      url.searchParams.set("center_lat", String(centerLat));
+      url.searchParams.set("center_lon", String(centerLon));
+    }
+
+    const popup = window.open(url.toString(), "pickCoord", "width=1280,height=860");
+    if (!popup) {
+      if (
+        window.confirm(
+          "Trinh duyet dang chan popup map. Bam OK de mo map trong cung tab."
+        )
+      ) {
+        window.location.href = url.toString();
+      }
+    }
+  }
+
   function setCoords(lat, lon, source) {
     const latInput = byId("id_vi_do");
     const lonInput = byId("id_kinh_do");
@@ -72,15 +105,9 @@
     const mapBtn = byId("btn-pick-coord-main-map");
     if (mapBtn) {
       mapBtn.addEventListener("click", function () {
-        const url = new URL("/", window.location.origin);
-        url.searchParams.set("pick_for", "admin_cuahang");
         const lat = Number.parseFloat(latInput.value);
         const lon = Number.parseFloat(lonInput.value);
-        if (Number.isFinite(lat) && Number.isFinite(lon)) {
-          url.searchParams.set("center_lat", String(lat));
-          url.searchParams.set("center_lon", String(lon));
-        }
-        window.open(url.toString(), "pickCoord", "width=1280,height=860");
+        openPickMap(lat, lon);
       });
     }
 
@@ -102,12 +129,8 @@
           }
           // Do not overwrite saved coordinates with approximate geocode.
           // Geocode is only used to center the map for manual confirmation.
-          setSource("address_pending");
-          const url = new URL("/", window.location.origin);
-          url.searchParams.set("pick_for", "admin_cuahang");
-          url.searchParams.set("center_lat", String(found.lat));
-          url.searchParams.set("center_lon", String(found.lon));
-          window.open(url.toString(), "pickCoord", "width=1280,height=860");
+          setAddressPending(found.lat, found.lon);
+          openPickMap(found.lat, found.lon);
         } catch (_e) {
           window.alert("Khong the lay toa do tu dia chi luc nay.");
         } finally {
