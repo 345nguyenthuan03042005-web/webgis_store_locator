@@ -159,7 +159,7 @@ class NhanVien(models.Model):
         upload_to="avatar/",
         blank=True,
         null=True,
-        default="avatar/default.png",
+        default="avatar/default.jpg",
     )
 
     class Meta:

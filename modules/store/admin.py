@@ -199,7 +199,7 @@ class NhanVienAdmin(admin.ModelAdmin):
 
     @admin.display(description="Avatar")
     def avatar_thumb(self, obj):
-        return _img(obj.avatar, size=40, media_fallback="avatar/default.png")
+        return _img(obj.avatar, size=40, media_fallback="avatar/default.jpg")
 
     class Media:
         js = ("assets/js/image_preview.js",)
