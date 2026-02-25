@@ -17,7 +17,7 @@ function Invoke-Step {
     )
     Write-Host "==> $Name" -ForegroundColor Cyan
     & $Action
-    if ($LASTEXITCODE -ne 0) {
+    if ((Test-Path Variable:LASTEXITCODE) -and $LASTEXITCODE -ne 0) {
         throw "Step failed: $Name"
     }
 }
@@ -48,7 +48,7 @@ if (-not $NoVenv) {
     }
 
     . $venvActivate
-    if ($LASTEXITCODE -ne 0) {
+    if (-not $env:VIRTUAL_ENV) {
         throw "Cannot activate virtual environment."
     }
 }
