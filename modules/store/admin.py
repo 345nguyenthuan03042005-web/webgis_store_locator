@@ -1,6 +1,7 @@
 ﻿from django.conf import settings
 from django.contrib import admin
 from django.utils.html import format_html
+from django import forms
 
 from .models import (
     ThuongHieu,
@@ -37,6 +38,40 @@ def _img(field_file, size: int = 42, media_fallback: str | None = None):
         size,
         size,
     )
+
+
+class CuaHangAdminForm(forms.ModelForm):
+    class Meta:
+        model = CuaHang
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in ("vi_do", "kinh_do"):
+            field = self.fields.get(field_name)
+            if field is not None:
+                field.widget.attrs["readonly"] = "readonly"
+                field.widget.attrs["title"] = "Toa do chi duoc lay tu ban do."
+
+    def clean(self):
+        cleaned = super().clean()
+        lat = cleaned.get("vi_do")
+        lon = cleaned.get("kinh_do")
+        source = (self.data.get("_coord_from_map") or "").strip()
+
+        changed = not bool(self.instance and self.instance.pk)
+
+        if self.instance and self.instance.pk and lat is not None and lon is not None:
+            old_lat = float(self.instance.vi_do)
+            old_lon = float(self.instance.kinh_do)
+            changed = abs(float(lat) - old_lat) > 1e-12 or abs(float(lon) - old_lon) > 1e-12
+
+        if changed and source != "map":
+            message = "Can chot toa do bang click tren ban do truoc khi luu."
+            self.add_error("vi_do", message)
+            self.add_error("kinh_do", message)
+
+        return cleaned
 
 
 @admin.register(ThuongHieu)
@@ -111,6 +146,7 @@ class ChuoiCuaHangAdmin(admin.ModelAdmin):
 
 @admin.register(CuaHang)
 class CuaHangAdmin(admin.ModelAdmin):
+    form = CuaHangAdminForm
     list_display = ("id", "ten", "chuoi", "quan_huyen", "dia_chi_short", "vi_do", "kinh_do")
     list_display_links = ("id", "ten")
     list_filter = ("chuoi", "quan_huyen")
@@ -123,6 +159,9 @@ class CuaHangAdmin(admin.ModelAdmin):
     @admin.display(description="Địa chỉ")
     def dia_chi_short(self, obj):
         return (obj.dia_chi[:60] + "...") if obj.dia_chi and len(obj.dia_chi) > 60 else (obj.dia_chi or "-")
+
+    class Media:
+        js = ("store/js/admin_coord_from_main_map.js",)
 
 
 @admin.register(NhanVien)

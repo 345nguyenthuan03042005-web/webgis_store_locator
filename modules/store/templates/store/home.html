@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="vi">
 <head>
   <meta charset="utf-8"/>
@@ -836,6 +836,13 @@ function hideDirections(){
 // Map Initialization
 // ======================
 const map = L.map("map").setView([10.7769, 106.7009], 12);
+const PICK_MODE = new URLSearchParams(window.location.search).get("pick_for") === "admin_cuahang";
+const params = new URLSearchParams(window.location.search);
+const centerLat = Number.parseFloat(params.get("center_lat"));
+const centerLon = Number.parseFloat(params.get("center_lon"));
+if (Number.isFinite(centerLat) && Number.isFinite(centerLon)) {
+  map.setView([centerLat, centerLon], 18);
+}
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap contributors | WebGIS Project – Thuan"
 }).addTo(map);
@@ -968,6 +975,27 @@ map.on("click", async (e)=>{
   }else{
     setUser(lat, lng, "Không lấy được địa chỉ — dùng tọa độ");
     qInput.value = `${lat},${lng}`;
+  }
+  if (PICK_MODE) {
+    const payload = {
+      type: "admin_coord_pick",
+      lat: lat,
+      lon: lng,
+      address: (data && data.display_address) ? data.display_address : "",
+      ts: Date.now(),
+    };
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage(payload, window.location.origin);
+      }
+      localStorage.setItem("admin_coord_pick", JSON.stringify(payload));
+      setStatus("Đã gửi tọa độ về form admin.", true);
+      try { window.close(); } catch (_e) {}
+      return;
+    } catch (_e) {
+      setStatus("Không gửi được tọa độ về admin.", false);
+      return;
+    }
   }
   await loadNearby();
 });
@@ -1427,6 +1455,9 @@ renderList([]);
 showJSON({result:"JSON ở đây"});
 refreshDistricts();
 setStatus("Sẵn sàng. Click map để chọn vị trí.", true);
+if (PICK_MODE) {
+  setStatus("Chế độ chọn tọa độ cho admin: click 1 điểm trên bản đồ.", true);
+}
 </script>
 </body>
 </html>

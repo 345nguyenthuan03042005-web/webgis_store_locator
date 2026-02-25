@@ -1,15 +1,20 @@
-{% extends "admin/base_site.html" %}
-{% load i18n admin_urls admin_modify %}
+﻿{% extends "admin/base_site.html" %}
+{% load static i18n admin_urls admin_modify %}
+
+{% block extrahead %}
+  {{ block.super }}
+  {{ media }}
+{% endblock %}
 
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap:10px;">
   <div>
-    <h4 class="mb-0">{% if add %}Thêm{% else %}Sửa{% endif %} {{ opts.verbose_name }}</h4>
-    <small class="text-muted">{% if add %}Tạo mới{% else %}Cập nhật{% endif %}</small>
+    <h4 class="mb-0">{% if add %}Them{% else %}Sua{% endif %} {{ opts.verbose_name }}</h4>
+    <small class="text-muted">{% if add %}Tao moi{% else %}Cap nhat{% endif %}</small>
   </div>
 
   <a class="btn btn-outline-secondary btn-sm" href="{% url opts|admin_urlname:'changelist' %}">
-    <i class="mdi mdi-arrow-left"></i> Quay lại
+    <i class="mdi mdi-arrow-left"></i> Quay lai
   </a>
 </div>
 
@@ -17,7 +22,7 @@
   {% csrf_token %}
 
   {% if errors %}
-    <div class="alert alert-danger">Vui lòng kiểm tra lại dữ liệu.</div>
+    <div class="alert alert-danger">Vui long kiem tra lai du lieu.</div>
   {% endif %}
 
   {% for fieldset in adminform %}
@@ -35,8 +40,25 @@
     {% include inline_admin_formset.opts.template %}
   {% endfor %}
 
+  {% if opts.model_name == "cuahang" %}
+    <input type="hidden" name="_coord_from_map" id="id_coord_from_map" value="">
+    <div class="mt-2 mb-3">
+      <button type="button" id="btn-pick-coord-main-map" class="btn btn-outline-primary btn-sm">
+        Chon toa do tu ban do tra cuu
+      </button>
+      <button type="button" id="btn-geocode-address-admin" class="btn btn-outline-secondary btn-sm">
+        Lay toa do tu dia chi
+      </button>
+      <small class="text-muted d-block mt-1">
+        Quy trinh toi uu: 1) Lay toa do tu dia chi de dinh vi 2) Click tren ban do de chot (bat buoc truoc khi luu).
+      </small>
+      <small id="coord-source-status" class="text-muted d-block mt-1"></small>
+    </div>
+  {% endif %}
+
   <div class="mt-3">
     {% submit_row %}
   </div>
 </form>
 {% endblock %}
+

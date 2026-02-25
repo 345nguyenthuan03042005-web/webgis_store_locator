@@ -253,6 +253,75 @@ def _make_geocode_variants(raw_q: str):
     return out
 
 
+def _make_geocode_fallback_queries(raw_q: str):
+    variants = _make_geocode_variants(raw_q)
+    out, seen = [], set()
+
+    def _add(v: str):
+        vv = re.sub(r"\s+", " ", (v or "")).strip(" ,")
+        if vv and vv not in seen:
+            seen.add(vv)
+            out.append(vv)
+
+    for v in variants:
+        _add(v)
+        parts = [p.strip() for p in v.split(",") if p.strip()]
+        if len(parts) >= 2:
+            # Drop business/building prefix, keep street+district+city.
+            _add(", ".join(parts[1:]))
+        if len(parts) >= 3:
+            # Keep only street/district/city/country tail.
+            _add(", ".join(parts[-4:]))
+            _add(", ".join(parts[-3:]))
+
+        # Remove common building prefixes.
+        _add(re.sub(
+            r"(?i)\b(cao oc|cao ốc|toa nha|tòa nhà|building|chung cu|chung cư|apartment|can ho|căn hộ)\b",
+            " ",
+            v,
+        ))
+
+    return out
+
+
+def _norm_text(s: str) -> str:
+    s = _strip_accents((s or "").lower())
+    s = re.sub(r"[^a-z0-9\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _tokens(s: str):
+    stop = {
+        "viet", "nam", "vietnam", "thanh", "pho", "tp", "ho", "chi", "minh",
+        "duong", "street", "road", "hem", "ngo", "so", "ap", "xa", "phuong",
+        "quan", "huyen", "city", "ward", "district",
+    }
+    t = []
+    for w in _norm_text(s).split():
+        if len(w) <= 1:
+            continue
+        if w in stop:
+            continue
+        t.append(w)
+    return t
+
+
+def _score_geocode_candidate(query: str, display: str):
+    q_tokens = set(_tokens(query))
+    d_tokens = set(_tokens(display))
+    if not q_tokens or not d_tokens:
+        return 0.0
+    inter = len(q_tokens & d_tokens)
+    score = inter / max(len(q_tokens), 1)
+
+    q_nums = set(re.findall(r"\d+", query or ""))
+    d_nums = set(re.findall(r"\d+", display or ""))
+    if q_nums and d_nums:
+        score += 0.15 * (len(q_nums & d_nums) / len(q_nums))
+    return score
+
+
 def _cache_get(key):
     return cache.get(key)
 
@@ -287,6 +356,45 @@ def _call_nominatim_search_safe(query: str, use_countrycodes=True):
         return (r.json() or []), None
     except Exception as e:
         return None, {"exception": str(e), "query": query}
+
+
+def _call_photon_search_safe(query: str):
+    _nominatim_throttle()
+    url = "https://photon.komoot.io/api/"
+    params = {"q": query, "limit": 8, "lang": "en"}
+    try:
+        r = requests.get(url, params=params, headers=_headers(), timeout=NOMINATIM_TIMEOUT)
+        if r.status_code != 200:
+            return None, {"status": r.status_code, "body": r.text[:200], "query": query, "provider": "photon"}
+
+        data = r.json() or {}
+        feats = data.get("features") or []
+        items = []
+        for f in feats:
+            geom = f.get("geometry") or {}
+            coords = geom.get("coordinates") or []
+            if len(coords) >= 2:
+                lon = coords[0]
+                lat = coords[1]
+                props = f.get("properties") or {}
+                parts = [
+                    props.get("name"),
+                    props.get("street"),
+                    props.get("city"),
+                    props.get("district"),
+                    props.get("state"),
+                    props.get("country"),
+                ]
+                display = ", ".join([p for p in parts if p])
+                items.append({
+                    "display_name": display,
+                    "lat": str(lat),
+                    "lon": str(lon),
+                    "place_id": props.get("osm_id"),
+                })
+        return items, None
+    except Exception as e:
+        return None, {"exception": str(e), "query": query, "provider": "photon"}
 
 
 def _call_nominatim_reverse_safe(lat: float, lon: float):
@@ -389,6 +497,97 @@ def reverse(request):
             message="OK",
         )
     return ok({"lat": lat, "lon": lon, "display": "", "display_address": "", "error": err}, message="NO_RESULT")
+
+
+@cors_view
+def geocode(request):
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 3:
+        return bad("Required: q (at least 3 chars)", status=400)
+
+    key = _cache_key("geocode", {"q": q.lower()})
+    cached = _cache_get(key)
+    if isinstance(cached, dict):
+        return ok(cached, message="OK (cache)")
+
+    variants = _make_geocode_fallback_queries(q)
+    if not variants:
+        return ok({"q": q, "location": None, "provider": None, "error": "NO_VARIANTS"}, message="NO_RESULT")
+
+    last_err = None
+    candidates = []
+
+    for v in variants[:5]:
+        arr, err = _call_nominatim_search_safe(v, use_countrycodes=True)
+        if arr:
+            for it in arr[:8]:
+                candidates.append({
+                    "provider": "nominatim",
+                    "lat": _safe_float(it.get("lat")),
+                    "lon": _safe_float(it.get("lon")),
+                    "display": it.get("display_name", ""),
+                })
+        else:
+            last_err = err
+
+    for v in variants[:5]:
+        arr, err = _call_photon_search_safe(v)
+        if arr:
+            for it in arr[:8]:
+                candidates.append({
+                    "provider": "photon",
+                    "lat": _safe_float(it.get("lat")),
+                    "lon": _safe_float(it.get("lon")),
+                    "display": it.get("display_name", ""),
+                })
+        else:
+            last_err = err
+
+    # Deduplicate and rank by text similarity against original query.
+    uniq = []
+    seen = set()
+    for c in candidates:
+        if c["lat"] is None or c["lon"] is None:
+            continue
+        k = (round(float(c["lat"]), 6), round(float(c["lon"]), 6), (c["display"] or "").strip().lower())
+        if k in seen:
+            continue
+        seen.add(k)
+        c["score"] = _score_geocode_candidate(q, c.get("display", ""))
+        uniq.append(c)
+
+    uniq.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+    best = uniq[0] if uniq else None
+
+    # Guardrail: if similarity too low, return NO_RESULT instead of wrong coordinate.
+    if best and best.get("score", 0.0) >= 0.18:
+        payload = {
+            "q": q,
+            "provider": best.get("provider"),
+            "location": {
+                "lat": best.get("lat"),
+                "lon": best.get("lon"),
+                "display": best.get("display", ""),
+            },
+            "score": round(best.get("score", 0.0), 4),
+            "variants": variants[:6],
+            "candidates_count": len(uniq),
+        }
+        _cache_set(key, payload, seconds=60 * 30)
+        return ok(payload, message="OK")
+
+    return ok(
+        {
+            "q": q,
+            "provider": None,
+            "location": None,
+            "score": round(best.get("score", 0.0), 4) if best else 0.0,
+            "variants": variants[:6],
+            "candidates_count": len(uniq),
+            "error": last_err,
+        },
+        message="NO_RESULT",
+    )
 
 
 @cors_view
