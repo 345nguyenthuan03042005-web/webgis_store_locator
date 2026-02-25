@@ -147,9 +147,19 @@ class ChuoiCuaHangAdmin(admin.ModelAdmin):
 @admin.register(CuaHang)
 class CuaHangAdmin(admin.ModelAdmin):
     form = CuaHangAdminForm
-    list_display = ("id", "ten", "chuoi", "quan_huyen", "dia_chi_short", "vi_do", "kinh_do")
+    list_display = (
+        "id",
+        "ten",
+        "chuoi",
+        "quan_huyen",
+        "gio_hoat_dong",
+        "hoat_dong_24h",
+        "dia_chi_short",
+        "vi_do",
+        "kinh_do",
+    )
     list_display_links = ("id", "ten")
-    list_filter = ("chuoi", "quan_huyen")
+    list_filter = ("chuoi", "quan_huyen", "hoat_dong_24h")
     search_fields = ("ten", "dia_chi", "quan_huyen", "chuoi__ten")
     list_select_related = ("chuoi",)
     ordering = ("chuoi__ten", "quan_huyen", "ten")
@@ -159,6 +169,18 @@ class CuaHangAdmin(admin.ModelAdmin):
     @admin.display(description="Địa chỉ")
     def dia_chi_short(self, obj):
         return (obj.dia_chi[:60] + "...") if obj.dia_chi and len(obj.dia_chi) > 60 else (obj.dia_chi or "-")
+
+    @admin.display(description="Giờ hoạt động")
+    def gio_hoat_dong(self, obj):
+        if obj.hoat_dong_24h:
+            return "24/7"
+        if obj.mo_cua and obj.dong_cua:
+            return f"{obj.mo_cua.strftime('%H:%M')} - {obj.dong_cua.strftime('%H:%M')}"
+        if obj.mo_cua:
+            return f"Mở: {obj.mo_cua.strftime('%H:%M')}"
+        if obj.dong_cua:
+            return f"Đóng: {obj.dong_cua.strftime('%H:%M')}"
+        return "-"
 
     class Media:
         js = ("store/js/admin_coord_from_main_map.js",)

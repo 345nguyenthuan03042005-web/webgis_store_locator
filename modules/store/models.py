@@ -109,6 +109,9 @@ class CuaHang(models.Model):
 
     vi_do = models.FloatField("Vĩ độ (lat)")
     kinh_do = models.FloatField("Kinh độ (lng)")
+    mo_cua = models.TimeField("Giờ mở cửa", null=True, blank=True)
+    dong_cua = models.TimeField("Giờ đóng cửa", null=True, blank=True)
+    hoat_dong_24h = models.BooleanField("Hoạt động 24h", default=False)
 
     san_pham = models.ManyToManyField(
         "SanPham",

@@ -11,6 +11,7 @@ from django.http import JsonResponse
 from django.db.models import Q
 from django.core.cache import cache
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
 
 from modules.store.models import CuaHang
 
@@ -187,6 +188,32 @@ def _bbox_filter(qs, lat, lon, radius_km):
 
 
 def _store_dict(s: CuaHang, extra=None):
+    def _is_open_now(store: CuaHang, now_t=None):
+        if getattr(store, "hoat_dong_24h", False):
+            return True
+        open_t = getattr(store, "mo_cua", None)
+        close_t = getattr(store, "dong_cua", None)
+        if not open_t or not close_t:
+            return None
+        now_t = now_t or timezone.localtime().time()
+        if open_t <= close_t:
+            return open_t <= now_t <= close_t
+        # Overnight shift, e.g. 22:00 -> 06:00.
+        return now_t >= open_t or now_t <= close_t
+
+    def _business_hours(store: CuaHang):
+        if getattr(store, "hoat_dong_24h", False):
+            return "24/7"
+        open_t = getattr(store, "mo_cua", None)
+        close_t = getattr(store, "dong_cua", None)
+        if open_t and close_t:
+            return f"{open_t.strftime('%H:%M')}-{close_t.strftime('%H:%M')}"
+        if open_t:
+            return f"Mo {open_t.strftime('%H:%M')}"
+        if close_t:
+            return f"Dong {close_t.strftime('%H:%M')}"
+        return ""
+
     d = {
         "id": s.id,
         "name": s.ten,
@@ -195,6 +222,12 @@ def _store_dict(s: CuaHang, extra=None):
         "district": getattr(s, "quan_huyen", "") or "",
         "lat": float(s.vi_do),
         "lon": float(s.kinh_do),
+        "open_time": s.mo_cua.strftime("%H:%M") if getattr(s, "mo_cua", None) else None,
+        "close_time": s.dong_cua.strftime("%H:%M") if getattr(s, "dong_cua", None) else None,
+        "is_24h": bool(getattr(s, "hoat_dong_24h", False)),
+        "is_open_now": _is_open_now(s),
+        "business_hours": _business_hours(s),
+        "coord_source": "db",
     }
     if extra:
         d.update(extra)
@@ -422,6 +455,80 @@ def _reverse_geocode(lat: float, lon: float):
     return None, err
 
 
+def _resolve_geocode_payload(q: str):
+    variants = _make_geocode_fallback_queries(q)
+    if not variants:
+        return {"q": q, "location": None, "provider": None, "error": "NO_VARIANTS"}
+
+    last_err = None
+    candidates = []
+
+    for v in variants[:5]:
+        arr, err = _call_nominatim_search_safe(v, use_countrycodes=True)
+        if arr:
+            for it in arr[:8]:
+                candidates.append({
+                    "provider": "nominatim",
+                    "lat": _safe_float(it.get("lat")),
+                    "lon": _safe_float(it.get("lon")),
+                    "display": it.get("display_name", ""),
+                })
+        else:
+            last_err = err
+
+    for v in variants[:5]:
+        arr, err = _call_photon_search_safe(v)
+        if arr:
+            for it in arr[:8]:
+                candidates.append({
+                    "provider": "photon",
+                    "lat": _safe_float(it.get("lat")),
+                    "lon": _safe_float(it.get("lon")),
+                    "display": it.get("display_name", ""),
+                })
+        else:
+            last_err = err
+
+    uniq = []
+    seen = set()
+    for c in candidates:
+        if c["lat"] is None or c["lon"] is None:
+            continue
+        k = (round(float(c["lat"]), 6), round(float(c["lon"]), 6), (c["display"] or "").strip().lower())
+        if k in seen:
+            continue
+        seen.add(k)
+        c["score"] = _score_geocode_candidate(q, c.get("display", ""))
+        uniq.append(c)
+
+    uniq.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+    best = uniq[0] if uniq else None
+
+    if best and best.get("score", 0.0) >= 0.18:
+        return {
+            "q": q,
+            "provider": best.get("provider"),
+            "location": {
+                "lat": best.get("lat"),
+                "lon": best.get("lon"),
+                "display": best.get("display", ""),
+            },
+            "score": round(best.get("score", 0.0), 4),
+            "variants": variants[:6],
+            "candidates_count": len(uniq),
+        }
+
+    return {
+        "q": q,
+        "provider": None,
+        "location": None,
+        "score": round(best.get("score", 0.0), 4) if best else 0.0,
+        "variants": variants[:6],
+        "candidates_count": len(uniq),
+        "error": last_err,
+    }
+
+
 # =========================
 # ENDPOINTS
 # =========================
@@ -510,84 +617,9 @@ def geocode(request):
     if isinstance(cached, dict):
         return ok(cached, message="OK (cache)")
 
-    variants = _make_geocode_fallback_queries(q)
-    if not variants:
-        return ok({"q": q, "location": None, "provider": None, "error": "NO_VARIANTS"}, message="NO_RESULT")
-
-    last_err = None
-    candidates = []
-
-    for v in variants[:5]:
-        arr, err = _call_nominatim_search_safe(v, use_countrycodes=True)
-        if arr:
-            for it in arr[:8]:
-                candidates.append({
-                    "provider": "nominatim",
-                    "lat": _safe_float(it.get("lat")),
-                    "lon": _safe_float(it.get("lon")),
-                    "display": it.get("display_name", ""),
-                })
-        else:
-            last_err = err
-
-    for v in variants[:5]:
-        arr, err = _call_photon_search_safe(v)
-        if arr:
-            for it in arr[:8]:
-                candidates.append({
-                    "provider": "photon",
-                    "lat": _safe_float(it.get("lat")),
-                    "lon": _safe_float(it.get("lon")),
-                    "display": it.get("display_name", ""),
-                })
-        else:
-            last_err = err
-
-    # Deduplicate and rank by text similarity against original query.
-    uniq = []
-    seen = set()
-    for c in candidates:
-        if c["lat"] is None or c["lon"] is None:
-            continue
-        k = (round(float(c["lat"]), 6), round(float(c["lon"]), 6), (c["display"] or "").strip().lower())
-        if k in seen:
-            continue
-        seen.add(k)
-        c["score"] = _score_geocode_candidate(q, c.get("display", ""))
-        uniq.append(c)
-
-    uniq.sort(key=lambda x: x.get("score", 0.0), reverse=True)
-    best = uniq[0] if uniq else None
-
-    # Guardrail: if similarity too low, return NO_RESULT instead of wrong coordinate.
-    if best and best.get("score", 0.0) >= 0.18:
-        payload = {
-            "q": q,
-            "provider": best.get("provider"),
-            "location": {
-                "lat": best.get("lat"),
-                "lon": best.get("lon"),
-                "display": best.get("display", ""),
-            },
-            "score": round(best.get("score", 0.0), 4),
-            "variants": variants[:6],
-            "candidates_count": len(uniq),
-        }
-        _cache_set(key, payload, seconds=60 * 30)
-        return ok(payload, message="OK")
-
-    return ok(
-        {
-            "q": q,
-            "provider": None,
-            "location": None,
-            "score": round(best.get("score", 0.0), 4) if best else 0.0,
-            "variants": variants[:6],
-            "candidates_count": len(uniq),
-            "error": last_err,
-        },
-        message="NO_RESULT",
-    )
+    payload = _resolve_geocode_payload(q)
+    _cache_set(key, payload, seconds=60 * 30)
+    return ok(payload, message="OK" if payload.get("location") else "NO_RESULT")
 
 
 @cors_view
@@ -826,6 +858,8 @@ def smart_search(request):
         except Exception:
             client_latlng = None
 
+    geocode_info = None
+
     # pick center
     if dia_chi:
         latlon = _parse_latlon(dia_chi)
@@ -833,8 +867,23 @@ def smart_search(request):
             lat, lng = latlon
             mode = "latlon_from_text"
         else:
-            lat, lng = DEFAULT_CENTER
-            mode = "fallback_default"
+            geo = _resolve_geocode_payload(dia_chi)
+            geocode_info = {
+                "provider": geo.get("provider"),
+                "score": geo.get("score"),
+                "candidates_count": geo.get("candidates_count"),
+            }
+            loc = geo.get("location")
+            if loc and loc.get("lat") is not None and loc.get("lon") is not None:
+                lat = float(loc["lat"])
+                lng = float(loc["lon"])
+                mode = "geocode_address"
+            elif client_latlng:
+                lat, lng = client_latlng
+                mode = "client_latlon_after_geocode_fail"
+            else:
+                lat, lng = DEFAULT_CENTER
+                mode = "fallback_default_no_geocode"
     else:
         if client_latlng:
             lat, lng = client_latlng
@@ -861,6 +910,7 @@ def smart_search(request):
         "ok": bool(stores_list),
         "tool": "smart_search",
         "mode": mode,
+        "geocode": geocode_info,
         "input": {"ten": ten, "dia_chi": dia_chi, "lat": lat, "lng": lng, "brand": brand, "max_km": max_km},
         "location": {"lat": lat, "lon": lng, "display_address": dia_chi or "TP.HCM"},
         "store": store_data,

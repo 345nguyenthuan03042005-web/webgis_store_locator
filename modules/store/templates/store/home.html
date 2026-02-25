@@ -644,11 +644,15 @@
               <label>Lọc trong danh sách</label>
               <input id="filterText" placeholder="Gõ tên / địa chỉ..." />
             </div>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:800;white-space:nowrap">
+              <input type="checkbox" id="filterOpenNow" />
+              Chỉ đang mở
+            </label>
             <button class="btn btnWhite" id="btnSortNear">Gần nhất</button>
           </div>
 
           <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn btnWhite mini" id="btnExport">Export CSV</button>
+            <button class="btn btnWhite mini" id="btnExport">Xuất CSV</button>
             <button class="btn btnWhite mini" id="btnFav">⭐ Favorites</button>
             <button class="btn btnWhite mini" id="btnHistory">🕘 History</button>
           </div>
@@ -702,6 +706,7 @@ const acList = document.getElementById('acList');
 const radiusSel = document.getElementById('radiusKm');
 const districtSel = document.getElementById('districtSel');
 const filterText = document.getElementById('filterText');
+const filterOpenNow = document.getElementById('filterOpenNow');
 const autoBounds = document.getElementById('autoBounds');
 
 const storeListEl = document.getElementById('storeList');
@@ -725,6 +730,8 @@ let LIST_LIMIT = 60;
 
 let routingControl = null;
 let radiusCircle = null;
+const ROAD_PROFILE = "driving";
+const ROAD_TOP_N = 8;
 
 const LS_FAV = "webgis:favs:v1";
 const LS_HIS = "webgis:history:v1";
@@ -773,6 +780,23 @@ function parseLatLng(text){
     return {lat, lng};
   }
   return null;
+}
+
+function openStatusText(s){
+  if(s?.is_24h) return "Mở 24/7";
+  if(s?.is_open_now === true) return "Đang mở";
+  if(s?.is_open_now === false) return "Đã đóng";
+  if(s?.business_hours) return `Giờ: ${s.business_hours}`;
+  return "Chưa có giờ hoạt động";
+}
+
+function distanceText(s){
+  if(Number.isFinite(s?.road_distance_km)){
+    const mins = Number.isFinite(s?.road_duration_min) ? ` ~ ${Number(s.road_duration_min).toFixed(0)} phút` : "";
+    return `Theo đường: ${Number(s.road_distance_km).toFixed(2)} km${mins}`;
+  }
+  const d = currentCenter ? haversineKm(currentCenter.lat, currentCenter.lng, s.lat, s.lng) : (s?.distance_km ?? null);
+  return d != null ? `Ước lượng: ${Number(d).toFixed(2)} km` : "";
 }
 
 async function fetchJSON(url){
@@ -908,6 +932,8 @@ function openStorePopup(s){
     <b>${esc(s.name || "Cửa hàng")}</b><br/>
     ${esc(s.address_db || "")}<br/>
     <small style="color:#64748b">Quận: ${esc(s.district || "")}</small><br/>
+    <small style="color:#2563eb">${esc(openStatusText(s))}</small><br/>
+    <small style="color:#64748b">${esc(distanceText(s))}</small><br/>
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btnWhite mini" onclick="routeToStore(${s.lat},${s.lng},'${esc(s.name||"Store")}')">🧭 Chỉ đường</button>
       <button class="btn btnWhite mini" onclick="toggleFav(${s.id})">⭐ Yêu thích</button>
@@ -1049,14 +1075,14 @@ function renderList(arr){
     const div = document.createElement("div");
     div.className = "item";
 
-    const d = currentCenter ? haversineKm(currentCenter.lat, currentCenter.lng, s.lat, s.lng) : (s.distance_km ?? null);
-    const distTxt = (d!=null) ? `${Number(d).toFixed(2)} km` : "";
+    const distTxt = distanceText(s);
     const isFav = favs.includes(s.id);
 
     div.innerHTML = `
       <b>${esc(s.name || "Store")} ${isFav ? "⭐" : ""}</b>
       <small>${esc(s.address_db || "")}</small>
-      <small>Quận: <b>${esc(s.district || "")}</b> • ${distTxt ? `Khoảng cách: <b>${esc(distTxt)}</b>` : ""}</small>
+      <small>Quận: <b>${esc(s.district || "")}</b> • ${distTxt ? `<b>${esc(distTxt)}</b>` : ""}</small>
+      <small><b>${esc(openStatusText(s))}</b></small>
       <div class="actions">
         <button class="btn btnWhite mini" data-act="fly">📌 Xem</button>
         <button class="btn btnWhite mini" data-act="route">🧭 Chỉ đường</button>
@@ -1107,12 +1133,14 @@ function applyFilter(){
   LIST_LIMIT = 60;
   const t = (filterText.value||"").trim().toLowerCase();
   const d = getDistrict().toLowerCase();
+  const openOnly = !!(filterOpenNow && filterOpenNow.checked);
 
   STORES_VIEW = STORES.filter(s=>{
     const hay = ((s.name||"")+" "+(s.address_db||"")).toLowerCase();
     const okText = !t || hay.includes(t);
     const okDist = !d || ((s.district||"").toLowerCase() === d);
-    return okText && okDist;
+    const okOpen = !openOnly || s.is_24h || s.is_open_now === true;
+    return okText && okDist && okOpen;
   });
 
   renderList(STORES_VIEW);
@@ -1125,12 +1153,36 @@ function sortByNearest(){
     return;
   }
   STORES_VIEW = [...STORES_VIEW].sort((a,b)=>{
-    const da = haversineKm(currentCenter.lat, currentCenter.lng, a.lat, a.lng);
-    const db = haversineKm(currentCenter.lat, currentCenter.lng, b.lat, b.lng);
+    const da = Number.isFinite(a.road_duration_min) ? a.road_duration_min : haversineKm(currentCenter.lat, currentCenter.lng, a.lat, a.lng);
+    const db = Number.isFinite(b.road_duration_min) ? b.road_duration_min : haversineKm(currentCenter.lat, currentCenter.lng, b.lat, b.lng);
     return da - db;
   });
   renderList(STORES_VIEW);
   setStatus("Đã sắp xếp gần nhất ✅", true);
+}
+
+async function enrichWithRoadMetrics(items){
+  if(!currentCenter || !Array.isArray(items) || !items.length) return;
+  const ranked = [...items].sort((a,b)=>{
+    const da = haversineKm(currentCenter.lat, currentCenter.lng, a.lat, a.lng);
+    const db = haversineKm(currentCenter.lat, currentCenter.lng, b.lat, b.lng);
+    return da - db;
+  });
+  const targets = ranked.slice(0, ROAD_TOP_N);
+  await Promise.all(targets.map(async (s)=>{
+    try{
+      const from = `${currentCenter.lat},${currentCenter.lng}`;
+      const to = `${s.lat},${s.lng}`;
+      const url = `/tools/route-osrm/?profile=${ROAD_PROFILE}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&alternatives=0`;
+      const res = await fetch(url);
+      if(!res.ok) return;
+      const data = await res.json();
+      if(!data?.ok || !Array.isArray(data.routes) || !data.routes.length) return;
+      const r = data.routes[0];
+      s.road_distance_km = Number((r.summary.totalDistance/1000).toFixed(3));
+      s.road_duration_min = Number((r.summary.totalTime/60).toFixed(1));
+    }catch(_e){}
+  }));
 }
 
 // ======================
@@ -1160,8 +1212,15 @@ async function loadNearby(){
     district:x.district||"",
     lat:Number(x.lat),
     lng:Number(x.lon),
-    distance_km:x.distance_km
+    distance_km:x.distance_km,
+    open_time:x.open_time || null,
+    close_time:x.close_time || null,
+    is_24h:!!x.is_24h,
+    is_open_now:(x.is_open_now === true ? true : (x.is_open_now === false ? false : null)),
+    business_hours:x.business_hours || "",
+    coord_source:x.coord_source || "db",
   }));
+  await enrichWithRoadMetrics(STORES);
   lastNearbyItems = STORES;
 
   drawRadiusCircle();
@@ -1183,7 +1242,14 @@ async function loadInBounds(){
     district:x.district||"",
     lat:Number(x.lat),
     lng:Number(x.lon),
+    open_time:x.open_time || null,
+    close_time:x.close_time || null,
+    is_24h:!!x.is_24h,
+    is_open_now:(x.is_open_now === true ? true : (x.is_open_now === false ? false : null)),
+    business_hours:x.business_hours || "",
+    coord_source:x.coord_source || "db",
   }));
+  await enrichWithRoadMetrics(STORES);
   lastNearbyItems = [];
   applyFilter();
   setStatus(`Đã tải ${STORES.length} cửa hàng trong khung bản đồ ✅`, true);
@@ -1204,11 +1270,18 @@ async function searchStoreDBFirst(){
     district:x.district||"",
     lat:Number(x.lat),
     lng:Number(x.lon),
+    open_time:x.open_time || null,
+    close_time:x.close_time || null,
+    is_24h:!!x.is_24h,
+    is_open_now:(x.is_open_now === true ? true : (x.is_open_now === false ? false : null)),
+    business_hours:x.business_hours || "",
+    coord_source:x.coord_source || "db",
   }));
 
   if(!items.length) return false;
 
   STORES = items;
+  await enrichWithRoadMetrics(STORES);
   applyFilter();
 
   const bounds = L.latLngBounds(items.map(s=>[s.lat, s.lng]));
@@ -1367,10 +1440,14 @@ document.getElementById("btnReset").onclick = ()=>{
 document.getElementById("btnSortNear").onclick = sortByNearest;
 
 document.getElementById("btnExport").onclick = ()=>{
-  const items = (lastNearbyItems && lastNearbyItems.length) ? lastNearbyItems : STORES_VIEW;
+  const items = (STORES_VIEW && STORES_VIEW.length) ? STORES_VIEW : STORES;
   if(!items.length){ setStatus("Không có dữ liệu để export.", false); return; }
 
-  const header = ["id","brand","name","district","address","lat","lng","distance_km"];
+  const header = [
+    "id","brand","name","district","address","lat","lng",
+    "distance_km_estimate","distance_road_km","duration_min",
+    "open_time","close_time","is_24h","is_open_now","business_hours","coord_source"
+  ];
   const lines = [header.join(",")];
   for(const s of items){
     const row = [
@@ -1381,11 +1458,20 @@ document.getElementById("btnExport").onclick = ()=>{
       s.address_db ?? "",
       s.lat ?? "",
       s.lng ?? "",
-      s.distance_km ?? ""
+      s.distance_km ?? "",
+      s.road_distance_km ?? "",
+      s.road_duration_min ?? "",
+      s.open_time ?? "",
+      s.close_time ?? "",
+      s.is_24h ?? "",
+      s.is_open_now ?? "",
+      s.business_hours ?? "",
+      s.coord_source ?? "db",
     ].map(v => `"${String(v).replaceAll('"','""')}"`);
     lines.push(row.join(","));
   }
-  const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8"});
+  const csv = "\ufeff" + lines.join("\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `export_${ACTIVE_BRAND.toLowerCase()}_${Date.now()}.csv`;
@@ -1423,6 +1509,9 @@ document.getElementById("btnHistory").onclick = ()=>{
 };
 
 filterText.addEventListener("input", debounce(applyFilter, 200));
+if(filterOpenNow){
+  filterOpenNow.addEventListener("change", applyFilter);
+}
 
 districtSel.addEventListener("change", ()=>{
   applyFilter();
