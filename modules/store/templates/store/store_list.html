@@ -2,10 +2,130 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
-  <title>Stores</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Danh sách cửa hàng | Circle K & GS25</title>
+  <style>
+    :root {
+      --red: #e31c23;
+      --red2: #c3141a;
+      --yellow: #ffd100;
+      --bg: #f5f7fb;
+      --text: #0f172a;
+      --container: 1320px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .top-header {
+      background: linear-gradient(135deg, var(--red) 0%, var(--red2) 100%);
+      position: sticky;
+      top: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      z-index: 5000;
+      box-shadow: 0 6px 20px rgba(227, 28, 35, .25);
+    }
+    .top-wrap {
+      width: 100%;
+      max-width: var(--container);
+      margin: auto;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .top-logo {
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: #fff;
+      line-height: 1;
+    }
+    .top-logo span { color: var(--yellow); }
+    .top-nav { display: flex; gap: 32px; }
+    .top-nav a {
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      text-decoration: none;
+      transition: all .2s;
+    }
+    .top-nav a:hover { color: var(--yellow); transform: translateY(-1px); }
+    .top-actions { display: flex; gap: 10px; align-items: center; }
+    .top-btn-find,
+    .top-btn-admin {
+      height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      border-radius: 999px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1;
+      text-decoration: none;
+    }
+    .top-btn-find {
+      width: 140px;
+      background: var(--yellow);
+      color: #111;
+      border: 1px solid transparent;
+      box-shadow: 0 4px 16px rgba(255, 209, 0, .4);
+    }
+    .top-btn-find:hover { box-shadow: 0 8px 24px rgba(255, 209, 0, .5); }
+    .top-btn-admin {
+      width: 112px;
+      background: #fff;
+      color: #111827;
+      border: 1px solid #e0e7ff;
+    }
+
+    .content {
+      max-width: 1000px;
+      margin: 32px auto;
+      padding: 0 20px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 25px rgba(2, 6, 23, .08);
+    }
+    h1 { margin: 0 0 10px; font-size: 28px; }
+    p { margin: 0; color: #475569; }
+  </style>
 </head>
 <body>
-  <h1>Danh sách cửa hàng</h1>
-  <p>Trang tĩnh (bước sau lấy từ ORM).</p>
+  <header class="top-header">
+    <div class="top-wrap">
+      <div class="top-logo">CIRCLE <span>K & GS25</span></div>
+      <nav class="top-nav">
+        <a href="{% url 'store:home' %}#about">Giới thiệu</a>
+        <a href="{% url 'store:home' %}#products">Sản phẩm</a>
+        <a href="{% url 'store:home' %}#stores">Cửa hàng</a>
+      </nav>
+      <div class="top-actions">
+        <a href="{% url 'store:home' %}#stores" class="top-btn-find">Tìm cửa hàng</a>
+        <a href="/admin/" class="top-btn-admin">Admin</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+    <section class="card">
+      <h1>Danh sách cửa hàng</h1>
+      <p>Trang này đang ở bản đơn giản và sẽ tiếp tục được mở rộng theo dữ liệu ORM.</p>
+    </section>
+  </main>
 </body>
 </html>

@@ -1,0 +1,89 @@
+.smart-multi {
+  width: 100%;
+}
+
+.smart-multi-search-wrap {
+  align-items: center;
+  border: 1px solid #8ab5d6;
+  border-radius: 12px;
+  display: flex;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+}
+
+.smart-multi-search-icon {
+  margin-right: 8px;
+  opacity: 0.75;
+}
+
+.smart-multi-search {
+  border: 0;
+  flex: 1;
+  font-size: 14px;
+  outline: 0;
+}
+
+select.smart-multi-select {
+  display: none !important;
+}
+
+.smart-multi-list {
+  border: 1px solid #d3dde8;
+  border-radius: 10px;
+  height: 300px;
+  overflow: auto;
+  user-select: none;
+}
+
+.smart-multi-row {
+  cursor: default;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 3px 8px;
+}
+
+.smart-multi-row.is-selected {
+  background: #2a69c7;
+  color: #fff;
+}
+
+.smart-multi-row.is-hidden {
+  display: none;
+}
+
+.smart-multi-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.smart-multi-btn {
+  background: #f5f8fb;
+  border: 1px solid #cfd9e5;
+  border-radius: 999px;
+  color: #1f2d3d;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 7px 12px;
+}
+
+.smart-multi-btn.is-active {
+  background: #1f78d1;
+  border-color: #1f78d1;
+  color: #fff;
+}
+
+.smart-multi-summary {
+  color: #586679;
+  font-size: 13px;
+}
+
+.smart-multi-hint {
+  color: #6b7481;
+  font-size: 12px;
+  margin-top: 8px;
+}

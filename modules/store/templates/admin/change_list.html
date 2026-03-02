@@ -17,8 +17,11 @@
   </div>
 
   <div class="d-flex align-items-center" style="gap:10px;">
+    <button type="button" id="btn-bulk-delete" class="btn btn-danger btn-sm text-white">
+      <i class="mdi mdi-delete"></i> Xóa đã chọn
+    </button>
     {% if has_add_permission %}
-      <a class="btn btn-primary btn-sm" href="{% url cl.opts|admin_urlname:'add' %}">
+      <a class="btn btn-primary btn-sm text-white btn-add-new" href="{% url cl.opts|admin_urlname:'add' %}">
         <i class="mdi mdi-plus"></i> Thêm mới
       </a>
     {% endif %}
@@ -78,4 +81,78 @@
 
   </div>
 </div>
+
+<script>
+  (function () {
+    var deleteBtn = document.getElementById("btn-bulk-delete");
+    var form = document.getElementById("changelist-form");
+    if (!deleteBtn || !form) return;
+
+    var headerToggle =
+      form.querySelector('input#action-toggle') ||
+      form.querySelector('thead input[type="checkbox"]');
+
+    function rowCheckboxes() {
+      return form.querySelectorAll('input.action-select, input[name="_selected_action"]');
+    }
+
+    function syncHeaderState() {
+      if (!headerToggle) return;
+      var boxes = rowCheckboxes();
+      if (!boxes.length) {
+        headerToggle.checked = false;
+        headerToggle.indeterminate = false;
+        return;
+      }
+      var checked = 0;
+      boxes.forEach(function (cb) {
+        if (cb.checked) checked += 1;
+      });
+      headerToggle.checked = checked === boxes.length;
+      headerToggle.indeterminate = checked > 0 && checked < boxes.length;
+    }
+
+    if (headerToggle) {
+      headerToggle.addEventListener("change", function () {
+        var checked = !!headerToggle.checked;
+        rowCheckboxes().forEach(function (cb) {
+          cb.checked = checked;
+        });
+        syncHeaderState();
+      });
+    }
+
+    rowCheckboxes().forEach(function (cb) {
+      cb.addEventListener("change", syncHeaderState);
+    });
+    syncHeaderState();
+
+    function setHidden(name, value) {
+      var input = form.querySelector('input[name="' + name + '"]');
+      if (!input) {
+        input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        form.appendChild(input);
+      }
+      input.value = value;
+    }
+
+    deleteBtn.addEventListener("click", function () {
+      var checked = form.querySelectorAll('input.action-select:checked, input[name="_selected_action"]:checked');
+      if (!checked.length) {
+        alert("Vui lòng chọn ít nhất 1 dòng để xóa.");
+        return;
+      }
+
+      if (!confirm("Bạn có chắc muốn xóa các dòng đã chọn?")) {
+        return;
+      }
+
+      setHidden("action", "delete_selected");
+      setHidden("select_across", "0");
+      form.submit();
+    });
+  })();
+</script>
 {% endblock %}

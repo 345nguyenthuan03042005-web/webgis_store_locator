@@ -32,7 +32,7 @@
       --blue: #2563eb;
       --green: #16a34a;
 
-      --container: 1280px;
+      --container: 1320px;
     }
 
     * { box-sizing: border-box; }
@@ -50,7 +50,7 @@
       background: linear-gradient(135deg, var(--red) 0%, var(--red2) 100%);
       position: sticky;
       top: 0;
-      z-index: 100;
+      z-index: 5000;
       box-shadow: 0 6px 20px rgba(227,28,35,.25);
     }
     header .wrap {
@@ -87,7 +87,7 @@
     .btnFind {
       background: var(--yellow);
       color: #111;
-      padding: 12px 28px;
+      padding: 0;
       border-radius: 999px;
       font-weight: 800;
       box-shadow: 0 4px 16px rgba(255,209,0,.4);
@@ -97,6 +97,46 @@
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(255,209,0,.5);
     }
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .header-actions .btnFind,
+    .header-actions .btnWhite {
+      width: 140px;
+      height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+    .header-actions .btnFind {
+      background: #ffd100;
+      color: #111;
+      border: 1px solid transparent;
+      box-shadow: 0 4px 16px rgba(255, 209, 0, .4);
+    }
+    .header-actions .btnWhite {
+      width: 112px;
+      background: #fff;
+      color: #111827;
+      border: 1px solid #e0e7ff;
+      box-shadow: none;
+    }
+    .header-actions .btnFind:hover,
+    .header-actions .btnWhite:hover,
+    .header-actions .btnFind:focus-visible,
+    .header-actions .btnWhite:focus-visible {
+      transform: none;
+    }
+    .header-actions .btnFind:hover { box-shadow: 0 8px 24px rgba(255, 209, 0, .5); }
 
     /* ================= HERO ================= */
 .hero {
@@ -227,6 +267,12 @@
     .store-locator {
       background: linear-gradient(180deg, #f8f9ff, #ffffff);
       padding: 100px 0;
+    }
+
+    /* Match typography style used in footer area */
+    .store-locator .panel,
+    .store-locator .panel * {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif !important;
     }
 
     .wrapMain {
@@ -387,6 +433,27 @@
     }
     label { display: block; font-size: 12px; color: var(--muted); font-weight: 900; margin-bottom: 6px; }
     select, input { width: 100%; border: none; outline: none; background: transparent; font-size: 13px; font-weight: 800; }
+    .toggleRow {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .toggleRow label {
+      display: inline-flex !important;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      white-space: nowrap;
+    }
+    .toggleRow input[type="checkbox"] {
+      width: auto !important;
+      min-width: 16px;
+      height: 16px;
+      margin: 0;
+    }
 
     .list {
       display: flex;
@@ -443,12 +510,125 @@
     .acItem:hover { background: #f8fafc; }
 
     /* ================= FOOTER ================= */
-    footer {
+    .site-footer {
+      margin-top: 20px;
       background: #0f172a;
       color: #cbd5f5;
-      text-align: center;
-      padding: 40px 20px;
+    }
+
+    .site-footer .container {
+      width: min(100%, var(--container));
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .newsletter-section {
+      background: linear-gradient(135deg, var(--red) 0%, var(--red2) 100%);
+      padding: 24px 0;
+    }
+
+    .newsletter-content {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .newsletter-content h3 {
+      margin: 0;
+      color: #fff;
+      font-size: 20px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
+    .newsletter-form {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .newsletter-form input {
+      min-width: 280px;
+      border: none;
+      border-radius: 999px;
+      padding: 12px 16px;
+      background: #fff;
+      color: #0f172a;
+      font-weight: 700;
+    }
+
+    .newsletter-form button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 18px;
+      background: var(--yellow);
+      color: #111827;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .footer-info {
+      padding: 34px 0;
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr 1fr;
+      gap: 24px;
+    }
+
+    .footer-col h4 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      color: #fff;
+      font-weight: 900;
+    }
+
+    .footer-col p,
+    .footer-col li,
+    .footer-col a {
+      color: #cbd5f5;
       font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .footer-col ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .footer-col li + li {
+      margin-top: 8px;
+    }
+
+    .footer-col a:hover {
+      color: #fff;
+    }
+
+    .footer-bottom {
+      border-top: 1px solid rgba(203, 213, 245, 0.2);
+      padding: 14px 0;
+      text-align: center;
+    }
+
+    .footer-bottom p {
+      margin: 0;
+      color: #cbd5f5;
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .footer-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .newsletter-form input {
+        min-width: 220px;
+      }
     }
 
     /* Thu nhỏ attribution Leaflet */
@@ -473,7 +653,7 @@
       <a href="#stores">Cửa hàng</a>
     </nav>
 
-    <div style="display:flex;gap:10px;align-items:center">
+    <div class="header-actions">
       <a href="#stores" class="btnFind">Tìm cửa hàng</a>
       <a href="/admin/" class="btn btnWhite mini">Admin</a>
     </div>
@@ -602,8 +782,8 @@
             Tip: Không muốn bật GPS 👉 click trực tiếp lên bản đồ để chọn vị trí.
           </div>
 
-          <div class="toggleRow" style="margin-top:12px">
-            <label style="display:flex;gap:8px;align-items:center;margin:0">
+          <div class="toggleRow">
+            <label>
               <input type="checkbox" id="autoBounds"/>
               Auto tải theo khung bản đồ
             </label>
@@ -644,11 +824,15 @@
               <label>Lọc trong danh sách</label>
               <input id="filterText" placeholder="Gõ tên / địa chỉ..." />
             </div>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:800;white-space:nowrap">
+              <input type="checkbox" id="filterOpenNow" />
+              Chỉ đang mở
+            </label>
             <button class="btn btnWhite" id="btnSortNear">Gần nhất</button>
           </div>
 
           <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn btnWhite mini" id="btnExport">Export CSV</button>
+            <button class="btn btnWhite mini" id="btnExport">Xuất CSV</button>
             <button class="btn btnWhite mini" id="btnFav">⭐ Favorites</button>
             <button class="btn btnWhite mini" id="btnHistory">🕘 History</button>
           </div>
@@ -681,11 +865,7 @@
 </section>
 
 <!-- ================= FOOTER ================= -->
-<footer>
-  © 2026 Circle K & GS25 – WebGIS Store Locator  
-  <br>
-  Design & Development by <b>Thuan</b>
-</footer>
+{% include 'shared/footer.html' %}
 
 <!-- ================= JAVASCRIPT ================= -->
 <script>
@@ -702,6 +882,7 @@ const acList = document.getElementById('acList');
 const radiusSel = document.getElementById('radiusKm');
 const districtSel = document.getElementById('districtSel');
 const filterText = document.getElementById('filterText');
+const filterOpenNow = document.getElementById('filterOpenNow');
 const autoBounds = document.getElementById('autoBounds');
 
 const storeListEl = document.getElementById('storeList');
@@ -725,6 +906,8 @@ let LIST_LIMIT = 60;
 
 let routingControl = null;
 let radiusCircle = null;
+const ROAD_PROFILE = "driving";
+const ROAD_TOP_N = 8;
 
 const LS_FAV = "webgis:favs:v1";
 const LS_HIS = "webgis:history:v1";
@@ -773,6 +956,23 @@ function parseLatLng(text){
     return {lat, lng};
   }
   return null;
+}
+
+function openStatusText(s){
+  if(s?.is_24h) return "Mở 24/7";
+  if(s?.is_open_now === true) return "Đang mở";
+  if(s?.is_open_now === false) return "Đã đóng";
+  if(s?.business_hours) return `Giờ: ${s.business_hours}`;
+  return "Chưa có giờ hoạt động";
+}
+
+function distanceText(s){
+  if(Number.isFinite(s?.road_distance_km)){
+    const mins = Number.isFinite(s?.road_duration_min) ? ` ~ ${Number(s.road_duration_min).toFixed(0)} phút` : "";
+    return `Theo đường: ${Number(s.road_distance_km).toFixed(2)} km${mins}`;
+  }
+  const d = currentCenter ? haversineKm(currentCenter.lat, currentCenter.lng, s.lat, s.lng) : (s?.distance_km ?? null);
+  return d != null ? `Ước lượng: ${Number(d).toFixed(2)} km` : "";
 }
 
 async function fetchJSON(url){
@@ -908,6 +1108,8 @@ function openStorePopup(s){
     <b>${esc(s.name || "Cửa hàng")}</b><br/>
     ${esc(s.address_db || "")}<br/>
     <small style="color:#64748b">Quận: ${esc(s.district || "")}</small><br/>
+    <small style="color:#2563eb">${esc(openStatusText(s))}</small><br/>
+    <small style="color:#64748b">${esc(distanceText(s))}</small><br/>
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btnWhite mini" onclick="routeToStore(${s.lat},${s.lng},'${esc(s.name||"Store")}')">🧭 Chỉ đường</button>
       <button class="btn btnWhite mini" onclick="toggleFav(${s.id})">⭐ Yêu thích</button>
@@ -1049,14 +1251,14 @@ function renderList(arr){
     const div = document.createElement("div");
     div.className = "item";
 
-    const d = currentCenter ? haversineKm(currentCenter.lat, currentCenter.lng, s.lat, s.lng) : (s.distance_km ?? null);
-    const distTxt = (d!=null) ? `${Number(d).toFixed(2)} km` : "";
+    const distTxt = distanceText(s);
     const isFav = favs.includes(s.id);
 
     div.innerHTML = `
       <b>${esc(s.name || "Store")} ${isFav ? "⭐" : ""}</b>
       <small>${esc(s.address_db || "")}</small>
-      <small>Quận: <b>${esc(s.district || "")}</b> • ${distTxt ? `Khoảng cách: <b>${esc(distTxt)}</b>` : ""}</small>
+      <small>Quận: <b>${esc(s.district || "")}</b> • ${distTxt ? `<b>${esc(distTxt)}</b>` : ""}</small>
+      <small><b>${esc(openStatusText(s))}</b></small>
       <div class="actions">
         <button class="btn btnWhite mini" data-act="fly">📌 Xem</button>
         <button class="btn btnWhite mini" data-act="route">🧭 Chỉ đường</button>
@@ -1107,12 +1309,14 @@ function applyFilter(){
   LIST_LIMIT = 60;
   const t = (filterText.value||"").trim().toLowerCase();
   const d = getDistrict().toLowerCase();
+  const openOnly = !!(filterOpenNow && filterOpenNow.checked);
 
   STORES_VIEW = STORES.filter(s=>{
     const hay = ((s.name||"")+" "+(s.address_db||"")).toLowerCase();
     const okText = !t || hay.includes(t);
     const okDist = !d || ((s.district||"").toLowerCase() === d);
-    return okText && okDist;
+    const okOpen = !openOnly || s.is_24h || s.is_open_now === true;
+    return okText && okDist && okOpen;
   });
 
   renderList(STORES_VIEW);
@@ -1125,12 +1329,36 @@ function sortByNearest(){
     return;
   }
   STORES_VIEW = [...STORES_VIEW].sort((a,b)=>{
-    const da = haversineKm(currentCenter.lat, currentCenter.lng, a.lat, a.lng);
-    const db = haversineKm(currentCenter.lat, currentCenter.lng, b.lat, b.lng);
+    const da = Number.isFinite(a.road_duration_min) ? a.road_duration_min : haversineKm(currentCenter.lat, currentCenter.lng, a.lat, a.lng);
+    const db = Number.isFinite(b.road_duration_min) ? b.road_duration_min : haversineKm(currentCenter.lat, currentCenter.lng, b.lat, b.lng);
     return da - db;
   });
   renderList(STORES_VIEW);
   setStatus("Đã sắp xếp gần nhất ✅", true);
+}
+
+async function enrichWithRoadMetrics(items){
+  if(!currentCenter || !Array.isArray(items) || !items.length) return;
+  const ranked = [...items].sort((a,b)=>{
+    const da = haversineKm(currentCenter.lat, currentCenter.lng, a.lat, a.lng);
+    const db = haversineKm(currentCenter.lat, currentCenter.lng, b.lat, b.lng);
+    return da - db;
+  });
+  const targets = ranked.slice(0, ROAD_TOP_N);
+  await Promise.all(targets.map(async (s)=>{
+    try{
+      const from = `${currentCenter.lat},${currentCenter.lng}`;
+      const to = `${s.lat},${s.lng}`;
+      const url = `/tools/route-osrm/?profile=${ROAD_PROFILE}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&alternatives=0`;
+      const res = await fetch(url);
+      if(!res.ok) return;
+      const data = await res.json();
+      if(!data?.ok || !Array.isArray(data.routes) || !data.routes.length) return;
+      const r = data.routes[0];
+      s.road_distance_km = Number((r.summary.totalDistance/1000).toFixed(3));
+      s.road_duration_min = Number((r.summary.totalTime/60).toFixed(1));
+    }catch(_e){}
+  }));
 }
 
 // ======================
@@ -1160,8 +1388,15 @@ async function loadNearby(){
     district:x.district||"",
     lat:Number(x.lat),
     lng:Number(x.lon),
-    distance_km:x.distance_km
+    distance_km:x.distance_km,
+    open_time:x.open_time || null,
+    close_time:x.close_time || null,
+    is_24h:!!x.is_24h,
+    is_open_now:(x.is_open_now === true ? true : (x.is_open_now === false ? false : null)),
+    business_hours:x.business_hours || "",
+    coord_source:x.coord_source || "db",
   }));
+  await enrichWithRoadMetrics(STORES);
   lastNearbyItems = STORES;
 
   drawRadiusCircle();
@@ -1183,7 +1418,14 @@ async function loadInBounds(){
     district:x.district||"",
     lat:Number(x.lat),
     lng:Number(x.lon),
+    open_time:x.open_time || null,
+    close_time:x.close_time || null,
+    is_24h:!!x.is_24h,
+    is_open_now:(x.is_open_now === true ? true : (x.is_open_now === false ? false : null)),
+    business_hours:x.business_hours || "",
+    coord_source:x.coord_source || "db",
   }));
+  await enrichWithRoadMetrics(STORES);
   lastNearbyItems = [];
   applyFilter();
   setStatus(`Đã tải ${STORES.length} cửa hàng trong khung bản đồ ✅`, true);
@@ -1204,11 +1446,18 @@ async function searchStoreDBFirst(){
     district:x.district||"",
     lat:Number(x.lat),
     lng:Number(x.lon),
+    open_time:x.open_time || null,
+    close_time:x.close_time || null,
+    is_24h:!!x.is_24h,
+    is_open_now:(x.is_open_now === true ? true : (x.is_open_now === false ? false : null)),
+    business_hours:x.business_hours || "",
+    coord_source:x.coord_source || "db",
   }));
 
   if(!items.length) return false;
 
   STORES = items;
+  await enrichWithRoadMetrics(STORES);
   applyFilter();
 
   const bounds = L.latLngBounds(items.map(s=>[s.lat, s.lng]));
@@ -1367,10 +1616,14 @@ document.getElementById("btnReset").onclick = ()=>{
 document.getElementById("btnSortNear").onclick = sortByNearest;
 
 document.getElementById("btnExport").onclick = ()=>{
-  const items = (lastNearbyItems && lastNearbyItems.length) ? lastNearbyItems : STORES_VIEW;
+  const items = (STORES_VIEW && STORES_VIEW.length) ? STORES_VIEW : STORES;
   if(!items.length){ setStatus("Không có dữ liệu để export.", false); return; }
 
-  const header = ["id","brand","name","district","address","lat","lng","distance_km"];
+  const header = [
+    "id","brand","name","district","address","lat","lng",
+    "distance_km_estimate","distance_road_km","duration_min",
+    "open_time","close_time","is_24h","is_open_now","business_hours","coord_source"
+  ];
   const lines = [header.join(",")];
   for(const s of items){
     const row = [
@@ -1381,11 +1634,20 @@ document.getElementById("btnExport").onclick = ()=>{
       s.address_db ?? "",
       s.lat ?? "",
       s.lng ?? "",
-      s.distance_km ?? ""
+      s.distance_km ?? "",
+      s.road_distance_km ?? "",
+      s.road_duration_min ?? "",
+      s.open_time ?? "",
+      s.close_time ?? "",
+      s.is_24h ?? "",
+      s.is_open_now ?? "",
+      s.business_hours ?? "",
+      s.coord_source ?? "db",
     ].map(v => `"${String(v).replaceAll('"','""')}"`);
     lines.push(row.join(","));
   }
-  const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8"});
+  const csv = "\ufeff" + lines.join("\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `export_${ACTIVE_BRAND.toLowerCase()}_${Date.now()}.csv`;
@@ -1423,6 +1685,9 @@ document.getElementById("btnHistory").onclick = ()=>{
 };
 
 filterText.addEventListener("input", debounce(applyFilter, 200));
+if(filterOpenNow){
+  filterOpenNow.addEventListener("change", applyFilter);
+}
 
 districtSel.addEventListener("change", ()=>{
   applyFilter();

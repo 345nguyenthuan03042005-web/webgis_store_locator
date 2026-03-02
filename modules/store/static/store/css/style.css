@@ -1,4 +1,3 @@
-<style>
   :root{
     --bg:#f6f8fc;
     --card:#ffffff;
@@ -219,4 +218,3 @@
     .title{ min-width:auto; }
     .grid{ grid-template-columns: 1fr; }
   }
-</style>

@@ -13,13 +13,80 @@
       --bg:#f5f7fb; --card:#ffffff; --text:#0f172a; --muted:#64748b;
       --border:#e2e8f0; --shadow: 0 10px 25px rgba(2,6,23,.08);
       --primary:#2563eb; --danger:#ef4444; --ok:#16a34a;
+      --red:#e31c23; --red2:#c3141a; --yellow:#ffd100; --container:1320px;
     }
     *{box-sizing:border-box}
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
-    .app{height:100vh;display:grid;grid-template-columns:380px 1fr}
+    .top-header{
+      background: linear-gradient(135deg, var(--red) 0%, var(--red2) 100%);
+      position: sticky;
+      top: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      z-index: 5000;
+      box-shadow: 0 6px 20px rgba(227, 28, 35, .25);
+    }
+    .top-wrap{
+      width: 100%;
+      max-width: var(--container);
+      margin: auto;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .top-logo{
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: #fff;
+      line-height: 1;
+    }
+    .top-logo span{ color: var(--yellow); }
+    .top-nav{ display:flex; gap:32px; }
+    .top-nav a{
+      color:#fff;
+      font-weight:700;
+      font-size:15px;
+      text-decoration:none;
+      transition:all .2s;
+    }
+    .top-nav a:hover{ color: var(--yellow); transform: translateY(-1px); }
+    .top-actions{ display:flex; gap:10px; align-items:center; }
+    .top-btn-find, .top-btn-admin{
+      height:44px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:0 12px;
+      border-radius:999px;
+      text-align:center;
+      font-size:14px;
+      font-weight:800;
+      line-height:1;
+      text-decoration:none;
+    }
+    .top-btn-find{
+      width:140px;
+      background: var(--yellow);
+      color:#111;
+      border:1px solid transparent;
+      box-shadow: 0 4px 16px rgba(255, 209, 0, .4);
+    }
+    .top-btn-find:hover{ box-shadow: 0 8px 24px rgba(255, 209, 0, .5); }
+    .top-btn-admin{
+      width:112px;
+      background:#fff;
+      color:#111827;
+      border:1px solid #e0e7ff;
+    }
+    .app{height:calc(100vh - 86px);display:grid;grid-template-columns:380px 1fr}
     .panel{padding:16px;border-right:1px solid var(--border);background:linear-gradient(180deg,#fff,#f7f9ff)}
     .brand{display:flex;gap:10px;align-items:center;margin-bottom:14px}
-    .logo{width:38px;height:38px;border-radius:12px;background:var(--primary);box-shadow:var(--shadow)}
+    .brand-logo-box{width:38px;height:38px;border-radius:12px;background:var(--primary);box-shadow:var(--shadow)}
     .brand h1{font-size:16px;margin:0;line-height:1.1}
     .brand p{margin:0;color:var(--muted);font-size:12px}
 
@@ -46,16 +113,30 @@
     @media (max-width:900px){
       .app{grid-template-columns:1fr;grid-template-rows:380px 1fr}
       .panel{border-right:none;border-bottom:1px solid var(--border)}
-      #map{height:calc(100vh - 380px)}
+      #map{height:calc(100vh - 86px - 380px)}
     }
   </style>
 </head>
 
 <body>
+  <header class="top-header">
+    <div class="top-wrap">
+      <div class="top-logo">CIRCLE <span>K & GS25</span></div>
+      <nav class="top-nav">
+        <a href="{% url 'store:home' %}#about">Giới thiệu</a>
+        <a href="{% url 'store:home' %}#products">Sản phẩm</a>
+        <a href="{% url 'store:home' %}#stores">Cửa hàng</a>
+      </nav>
+      <div class="top-actions">
+        <a href="{% url 'store:home' %}#stores" class="top-btn-find">Tìm cửa hàng</a>
+        <a href="/admin/" class="top-btn-admin">Admin</a>
+      </div>
+    </div>
+  </header>
   <div class="app">
     <aside class="panel">
       <div class="brand">
-        <div class="logo"></div>
+        <div class="brand-logo-box"></div>
         <div>
           <h1>WebGIS Smart Search</h1>
           <p>Nhập “lat,lon” hoặc “tên đường/địa chỉ”</p>
