@@ -2,20 +2,41 @@
 {% load i18n admin_urls %}
 
 {% block content %}
-<div class="card">
+<div class="card admin-delete-card">
   <div class="card-body">
-    <h4 class="card-title text-danger">Xác nhận xoá</h4>
-    <p>Bạn chắc chắn muốn xoá:</p>
-
-    <div class="alert alert-warning">
-      <strong>{{ object }}</strong>
+    <div class="admin-delete-head">
+      <h4 class="card-title">X&aacute;c nh&#7853;n x&oacute;a d&#7919; li&#7879;u</h4>
+      <p class="admin-delete-sub">H&agrave;nh &#273;&#7897;ng n&agrave;y kh&ocirc;ng th&#7875; ho&agrave;n t&aacute;c.</p>
     </div>
 
-    <form method="post">{% csrf_token %}
-      <div class="d-flex" style="gap:10px;">
-        <input type="submit" class="btn btn-danger" value="Xoá">
-        <a class="btn btn-outline-secondary" href="{% url opts|admin_urlname:'change' object.pk|admin_urlquote %}">
-          Huỷ
+    {% if perms_lacking %}
+      <div class="admin-delete-alert admin-delete-alert-danger">
+        <strong>Kh&ocirc;ng th&#7875; x&oacute;a.</strong> B&#7841;n kh&ocirc;ng &#273;&#7911; quy&#7873;n x&oacute;a &#273;&#7889;i t&#432;&#7907;ng n&agrave;y.
+      </div>
+    {% elif protected %}
+      <div class="admin-delete-alert admin-delete-alert-danger">
+        <strong>Kh&ocirc;ng th&#7875; x&oacute;a.</strong> C&oacute; d&#7919; li&#7879;u li&ecirc;n k&#7871;t &#273;ang &#273;&#432;&#7907;c b&#7843;o v&#7879;.
+      </div>
+    {% else %}
+      <div class="admin-delete-alert admin-delete-alert-warn">
+        B&#7841;n ch&#7855;c ch&#7855;n mu&#7889;n x&oacute;a &#273;&#7889;i t&#432;&#7907;ng: <strong>{{ object }}</strong>?
+      </div>
+    {% endif %}
+
+    <form method="post" class="admin-delete-form">
+      {% csrf_token %}
+      <input type="hidden" name="post" value="yes">
+      {% if is_popup %}<input type="hidden" name="{{ is_popup_var }}" value="1">{% endif %}
+      {% if to_field %}<input type="hidden" name="{{ to_field_var }}" value="{{ to_field }}">{% endif %}
+
+      <div class="admin-delete-actions">
+        {% if not perms_lacking and not protected %}
+          <button type="submit" class="btn btn-danger btn-sm text-white">
+            <i class="mdi mdi-delete"></i> X&oacute;a
+          </button>
+        {% endif %}
+        <a class="btn btn-outline-secondary btn-sm" href="{% url opts|admin_urlname:'changelist' %}">
+          Quay l&#7841;i
         </a>
       </div>
     </form>

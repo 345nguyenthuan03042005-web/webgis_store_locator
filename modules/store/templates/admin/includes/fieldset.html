@@ -69,5 +69,39 @@
         // checkbox
         const checks = root.querySelectorAll('input[type="checkbox"]');
         checks.forEach(el => el.classList.add('form-check-input'));
+
+        // Multi-select UX: click to toggle without holding Ctrl/Cmd.
+        // Shift + click: select a range.
+        const multiSelects = root.querySelectorAll('select[multiple]');
+        multiSelects.forEach(selectEl => {
+            if (selectEl.dataset.multiClickBound === "1") return;
+            selectEl.dataset.multiClickBound = "1";
+
+            let lastIndex = null;
+
+            selectEl.addEventListener("mousedown", (e) => {
+                const option = e.target;
+                if (!(option instanceof HTMLOptionElement)) return;
+
+                e.preventDefault();
+                selectEl.focus();
+
+                const currentIndex = Array.prototype.indexOf.call(selectEl.options, option);
+                if (currentIndex < 0) return;
+
+                if (e.shiftKey && lastIndex !== null) {
+                    const start = Math.min(lastIndex, currentIndex);
+                    const end = Math.max(lastIndex, currentIndex);
+                    for (let i = start; i <= end; i++) {
+                        selectEl.options[i].selected = true;
+                    }
+                } else {
+                    option.selected = !option.selected;
+                    lastIndex = currentIndex;
+                }
+
+                selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+        });
     })();
 </script>

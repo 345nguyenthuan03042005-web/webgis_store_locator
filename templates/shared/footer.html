@@ -1,0 +1,45 @@
+﻿<footer class="site-footer">
+  <div class="newsletter-section">
+    <div class="container newsletter-content">
+      <h3>ĐĂNG KÝ NHẬN THÔNG TIN TỪ CIRCLE K AND GS25</h3>
+      <form class="newsletter-form">
+        <input type="email" placeholder="Nhập địa chỉ email của bạn..." required>
+        <button type="submit">ĐĂNG KÝ</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="footer-info">
+    <div class="container footer-grid">
+      <div class="footer-col">
+        <h4>CÔNG TY TNHH TTT</h4>
+        <p>Địa chỉ: 53 Đường Đức Hiền, Phường Tây Thạnh, TP. HCM</p>
+        <p>Điện thoại: +84 08 6280 1009</p>
+        <p>Email: 1250080170@sv.hcmunre.edu.vn</p>
+      </div>
+
+      <div class="footer-col">
+        <h4>VỀ CHÚNG TÔI</h4>
+        <ul>
+          <li><a href="{% url 'store:info_page' slug='gioi-thieu-circle-k' %}">Giới thiệu Circle K</a></li>
+          <li><a href="{% url 'store:home' %}#stores">Hệ thống cửa hàng</a></li>
+          <li><a href="{% url 'store:info_page' slug='tin-tuc-su-kien' %}">Tin tức và Sự kiện</a></li>
+          <li><a href="{% url 'store:info_page' slug='tuyen-dung' %}">Tuyển dụng</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4>CHÍNH SÁCH</h4>
+        <ul>
+          <li><a href="{% url 'store:info_page' slug='chinh-sach-bao-mat' %}">Chính sách bảo mật</a></li>
+          <li><a href="{% url 'store:info_page' slug='chinh-sach-thanh-toan' %}">Chính sách thanh toán</a></li>
+          <li><a href="{% url 'store:info_page' slug='dieu-khoan-su-dung' %}">Điều khoản sử dụng</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <p>&copy; 2026 Circle K AND GS25 Vietnam. All rights reserved. Code by Thai and Team.</p>
+  </div>
+</footer>
