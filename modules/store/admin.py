@@ -1,6 +1,13 @@
-﻿from django.conf import settings
+from django.conf import settings
+from django.apps import apps
 from django.contrib import admin
+from django.contrib.admin.sites import NotRegistered
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.contrib.auth.forms import UserChangeForm
+from django.contrib.auth.models import User
+from django.urls import reverse
 from django.utils.html import format_html
+from django.utils.text import capfirst
 from django import forms
 
 from .models import (
@@ -40,6 +47,77 @@ def _img(field_file, size: int = 42, media_fallback: str | None = None):
     )
 
 
+
+def _vi_permission_action(name: str) -> str:
+    mapping = (
+        ("Can add ", "Có thể thêm "),
+        ("Can change ", "Có thể sửa "),
+        ("Can delete ", "Có thể xóa "),
+        ("Can view ", "Có thể xem "),
+    )
+    for src, dst in mapping:
+        if name.startswith(src):
+            return dst + name[len(src):]
+    return name
+
+
+def _app_verbose_name(app_label: str) -> str:
+    try:
+        return apps.get_app_config(app_label).verbose_name
+    except LookupError:
+        return app_label
+
+
+class UserAdminViChangeForm(UserChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        rename = {
+            "first_name": "Tên",
+            "last_name": "Họ",
+            "email": "Địa chỉ email",
+        }
+        for field_name, label in rename.items():
+            field = self.fields.get(field_name)
+            if field is not None:
+                field.label = label
+
+        password_field = self.fields.get("password")
+        if password_field is not None and self.instance and self.instance.pk:
+            reset_url = reverse("admin:auth_user_password_change", args=(self.instance.pk,))
+            password_field.help_text = format_html(
+                "Mật khẩu gốc không được lưu nên không thể xem lại mật khẩu hiện tại. "
+                "Bạn có thể đổi mật khẩu bằng <a href=\"{}\">biểu mẫu này</a>.",
+                reset_url,
+            )
+
+        groups_field = self.fields.get("groups")
+        if groups_field is not None:
+            groups_field.help_text = (
+                "Người dùng sẽ nhận toàn bộ quyền của các nhóm được chọn. "
+                "Giữ phím Ctrl/Command để chọn nhiều mục."
+            )
+
+        perms_field = self.fields.get("user_permissions")
+        if perms_field is not None:
+            perms_field.help_text = (
+                "Quyền riêng được cấp trực tiếp cho người dùng. "
+                "Giữ phím Ctrl/Command để chọn nhiều mục."
+            )
+
+            def _permission_label(obj):
+                app_name = _app_verbose_name(obj.content_type.app_label)
+                model_cls = obj.content_type.model_class()
+                model_name = model_cls._meta.verbose_name if model_cls else obj.content_type.model
+                action_name = _vi_permission_action(obj.name)
+                return f"{capfirst(app_name)} | {capfirst(model_name)} | {action_name}"
+
+            perms_field.label_from_instance = _permission_label
+
+
+class UserAdminVi(DjangoUserAdmin):
+    form = UserAdminViChangeForm
+
 class CuaHangAdminForm(forms.ModelForm):
     class Meta:
         model = CuaHang
@@ -51,7 +129,12 @@ class CuaHangAdminForm(forms.ModelForm):
             field = self.fields.get(field_name)
             if field is not None:
                 field.widget.attrs["readonly"] = "readonly"
-                field.widget.attrs["title"] = "Toa do chi duoc lay tu ban do."
+                field.widget.attrs["title"] = "T\u1ecda \u0111\u1ed9 ch\u1ec9 \u0111\u01b0\u1ee3c l\u1ea5y t\u1eeb b\u1ea3n \u0111\u1ed3."
+        san_pham_field = self.fields.get("san_pham")
+        if san_pham_field is not None:
+            san_pham_field.help_text = (
+                "T\u00ecm nhanh v\u00e0 ch\u1ecdn theo ch\u1ebf \u0111\u1ed9 Ch\u1ecdn 1/Ch\u1ecdn nhi\u1ec1u b\u00ean d\u01b0\u1edbi danh s\u00e1ch."
+            )
 
     def clean(self):
         cleaned = super().clean()
@@ -67,7 +150,7 @@ class CuaHangAdminForm(forms.ModelForm):
             changed = abs(float(lat) - old_lat) > 1e-12 or abs(float(lon) - old_lon) > 1e-12
 
         if changed and source != "map":
-            message = "Can chot toa do bang click tren ban do truoc khi luu."
+            message = "C\u1ea7n ch\u1ed1t t\u1ecda \u0111\u1ed9 b\u1eb1ng c\u00e1ch click tr\u00ean b\u1ea3n \u0111\u1ed3 tr\u01b0\u1edbc khi l\u01b0u."
             self.add_error("vi_do", message)
             self.add_error("kinh_do", message)
 
@@ -164,7 +247,6 @@ class CuaHangAdmin(admin.ModelAdmin):
     list_select_related = ("chuoi",)
     ordering = ("chuoi__ten", "quan_huyen", "ten")
     list_per_page = 25
-    filter_horizontal = ("san_pham",)
 
     @admin.display(description="Địa chỉ")
     def dia_chi_short(self, obj):
@@ -183,7 +265,13 @@ class CuaHangAdmin(admin.ModelAdmin):
         return "-"
 
     class Media:
-        js = ("store/js/admin_coord_from_main_map.js",)
+        css = {
+            "all": ("store/css/admin_multiselect.css",),
+        }
+        js = (
+            "store/js/admin_multiselect_autocomplete_vn.js",
+            "store/js/admin_coord_from_main_map.js",
+        )
 
 
 @admin.register(NhanVien)
@@ -217,3 +305,10 @@ class KhuyenMaiAdmin(admin.ModelAdmin):
     @admin.display(description="Mô tả")
     def mo_ta_short(self, obj):
         return (obj.mo_ta[:70] + "...") if obj.mo_ta and len(obj.mo_ta) > 70 else (obj.mo_ta or "-")
+
+try:
+    admin.site.unregister(User)
+except NotRegistered:
+    pass
+
+admin.site.register(User, UserAdminVi)

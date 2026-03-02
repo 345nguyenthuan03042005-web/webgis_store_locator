@@ -27,9 +27,9 @@
     const status = byId("coord-source-status");
     if (!status) return;
     if (source === "map") {
-      status.textContent = "Nguon toa do: ban do (do chinh xac cao).";
+      status.textContent = "Ngu\u1ed3n t\u1ecda \u0111\u1ed9: b\u1ea3n \u0111\u1ed3 (\u0111\u1ed9 ch\u00ednh x\u00e1c cao).";
     } else if (source === "address_pending") {
-      status.textContent = "Da tim duoc vi tri gan dung tu dia chi. Toa do hien tai chua doi; ban phai click tren ban do de chot.";
+      status.textContent = "\u0110\u00e3 t\u00ecm \u0111\u01b0\u1ee3c v\u1ecb tr\u00ed g\u1ea7n \u0111\u00fang t\u1eeb \u0111\u1ecba ch\u1ec9. T\u1ecda \u0111\u1ed9 hi\u1ec7n t\u1ea1i ch\u01b0a \u0111\u1ed5i; b\u1ea1n ph\u1ea3i click tr\u00ean b\u1ea3n \u0111\u1ed3 \u0111\u1ec3 ch\u1ed1t.";
     } else {
       status.textContent = "";
     }
@@ -40,11 +40,11 @@
     const status = byId("coord-source-status");
     if (status && Number.isFinite(lat) && Number.isFinite(lon)) {
       status.textContent =
-        "Da tim duoc vi tri gan dung: " +
+        "\u0110\u00e3 t\u00ecm \u0111\u01b0\u1ee3c v\u1ecb tr\u00ed g\u1ea7n \u0111\u00fang: " +
         Number(lat).toFixed(6) +
         ", " +
         Number(lon).toFixed(6) +
-        ". Toa do hien tai chua doi; ban phai click tren ban do de chot.";
+        ". T\u1ecda \u0111\u1ed9 hi\u1ec7n t\u1ea1i ch\u01b0a \u0111\u1ed5i; b\u1ea1n ph\u1ea3i click tr\u00ean b\u1ea3n \u0111\u1ed3 \u0111\u1ec3 ch\u1ed1t.";
     }
   }
 
@@ -60,7 +60,7 @@
     if (!popup) {
       if (
         window.confirm(
-          "Trinh duyet dang chan popup map. Bam OK de mo map trong cung tab."
+          "Tr\u00ecnh duy\u1ec7t \u0111ang ch\u1eb7n popup map. B\u1ea5m OK \u0111\u1ec3 m\u1edf map trong c\u00f9ng tab."
         )
       ) {
         window.location.href = url.toString();
@@ -99,7 +99,7 @@
 
     [latInput, lonInput].forEach(function (input) {
       input.readOnly = true;
-      input.title = "Khong duoc nhap truc tiep. Hay lay tu dia chi hoac ban do.";
+      input.title = "Kh\u00f4ng \u0111\u01b0\u1ee3c nh\u1eadp tr\u1ef1c ti\u1ebfp. H\u00e3y l\u1ea5y t\u1eeb \u0111\u1ecba ch\u1ec9 ho\u1eb7c b\u1ea3n \u0111\u1ed3.";
     });
 
     const mapBtn = byId("btn-pick-coord-main-map");
@@ -117,14 +117,14 @@
         const addressInput = byId("id_dia_chi");
         const query = (addressInput && addressInput.value ? addressInput.value : "").trim();
         if (!query) {
-          window.alert("Vui long nhap dia chi truoc.");
+          window.alert("Vui l\u00f2ng nh\u1eadp \u0111\u1ecba ch\u1ec9 tr\u01b0\u1edbc.");
           return;
         }
         geocodeBtn.disabled = true;
         try {
           const found = await geocodeAddress(query);
           if (!found || !Number.isFinite(found.lat) || !Number.isFinite(found.lon)) {
-            window.alert("Khong tim thay toa do tu dia chi. Thu rut gon dia chi (bo ten toa nha/cao oc) roi thu lai.");
+            window.alert("Kh\u00f4ng t\u00ecm th\u1ea5y t\u1ecda \u0111\u1ed9 t\u1eeb \u0111\u1ecba ch\u1ec9. Th\u1eed r\u00fat g\u1ecdn \u0111\u1ecba ch\u1ec9 (b\u1ecf t\u00ean t\u00f2a nh\u00e0/cao \u1ed1c) r\u1ed3i th\u1eed l\u1ea1i.");
             return;
           }
           // Do not overwrite saved coordinates with approximate geocode.
@@ -132,7 +132,7 @@
           setAddressPending(found.lat, found.lon);
           openPickMap(found.lat, found.lon);
         } catch (_e) {
-          window.alert("Khong the lay toa do tu dia chi luc nay.");
+          window.alert("Kh\u00f4ng th\u1ec3 l\u1ea5y t\u1ecda \u0111\u1ed9 t\u1eeb \u0111\u1ecba ch\u1ec9 l\u00fac n\u00e0y.");
         } finally {
           geocodeBtn.disabled = false;
         }

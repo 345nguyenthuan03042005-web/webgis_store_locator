@@ -9,12 +9,12 @@
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap:10px;">
   <div>
-    <h4 class="mb-0">{% if add %}Them{% else %}Sua{% endif %} {{ opts.verbose_name }}</h4>
-    <small class="text-muted">{% if add %}Tao moi{% else %}Cap nhat{% endif %}</small>
+    <h4 class="mb-0">{% if add %}Th&ecirc;m{% else %}S&#7917;a{% endif %} {{ opts.verbose_name }}</h4>
+    <small class="text-muted">{% if add %}T&#7841;o m&#7899;i{% else %}C&#7853;p nh&#7853;t{% endif %}</small>
   </div>
 
   <a class="btn btn-outline-secondary btn-sm" href="{% url opts|admin_urlname:'changelist' %}">
-    <i class="mdi mdi-arrow-left"></i> Quay lai
+    <i class="mdi mdi-arrow-left"></i> Quay l&#7841;i
   </a>
 </div>
 
@@ -22,15 +22,12 @@
   {% csrf_token %}
 
   {% if errors %}
-    <div class="alert alert-danger">Vui long kiem tra lai du lieu.</div>
+    <div class="alert alert-danger">Vui l&ograve;ng ki&#7875;m tra l&#7841;i d&#7919; li&#7879;u.</div>
   {% endif %}
 
   {% for fieldset in adminform %}
     <div class="card mb-3">
       <div class="card-body">
-        {% if fieldset.name %}
-          <h5 class="card-title">{{ fieldset.name }}</h5>
-        {% endif %}
         {% include "admin/includes/fieldset.html" %}
       </div>
     </div>
@@ -44,13 +41,13 @@
     <input type="hidden" name="_coord_from_map" id="id_coord_from_map" value="">
     <div class="mt-2 mb-3">
       <button type="button" id="btn-pick-coord-main-map" class="btn btn-outline-primary btn-sm">
-        Chon toa do tu ban do tra cuu
+        Ch&#7885;n t&#7885;a &#273;&#7897; t&#7915; b&#7843;n &#273;&#7891; tra c&#7913;u
       </button>
       <button type="button" id="btn-geocode-address-admin" class="btn btn-outline-secondary btn-sm">
-        Lay toa do tu dia chi
+        L&#7845;y t&#7885;a &#273;&#7897; t&#7915; &#273;&#7883;a ch&#7881;
       </button>
       <small class="text-muted d-block mt-1">
-        Quy trinh toi uu: 1) Lay toa do tu dia chi de dinh vi 2) Click tren ban do de chot (bat buoc truoc khi luu).
+        Quy tr&igrave;nh t&#7889;i &#432;u: 1) L&#7845;y t&#7885;a &#273;&#7897; t&#7915; &#273;&#7883;a ch&#7881; &#273;&#7875; &#273;&#7883;nh v&#7883; 2) Click tr&ecirc;n b&#7843;n &#273;&#7891; &#273;&#7875; ch&#7889;t (b&#7855;t bu&#7897;c tr&#432;&#7899;c khi l&#432;u).
       </small>
       <small id="coord-source-status" class="text-muted d-block mt-1"></small>
     </div>
@@ -60,5 +57,16 @@
     {% submit_row %}
   </div>
 </form>
+
+<script>
+  (function () {
+    var links = document.querySelectorAll('a.button');
+    links.forEach(function (a) {
+      var txt = (a.textContent || '').trim().toLowerCase();
+      if (txt === 'reset password') a.textContent = 'Đặt lại mật khẩu';
+      if (txt === 'set password') a.textContent = 'Thiết lập mật khẩu';
+    });
+  })();
+</script>
 {% endblock %}
 
