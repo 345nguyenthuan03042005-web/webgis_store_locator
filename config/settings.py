@@ -35,7 +35,6 @@ ALLOWED_HOSTS = [
 INSTALLED_APPS = [
     'modules.store.apps.StoreConfig',
     'modules.spatial.apps.SpatialConfig',
-    'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -78,7 +77,7 @@ DATABASES = {
         'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
         'NAME': os.getenv('DB_NAME', 'webgis_db'),
         'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', '123456'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'tTT@492005'),
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '5432'),
     }
@@ -123,3 +122,4 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAIN
 SECURE_HSTS_PRELOAD = os.getenv('DJANGO_SECURE_HSTS_PRELOAD', str(not DEBUG)).lower() in ('1', 'true', 'yes', 'on')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+

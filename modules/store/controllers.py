@@ -414,3 +414,572 @@ def news_detail(request, slug):
             "page_slug": "tin-tuc-su-kien",
         },
     )
+
+
+# CMS Section
+import os
+
+from django.contrib import messages
+from django.contrib.auth import logout
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.views import LoginView
+from django.core.paginator import Paginator
+from django.forms import modelform_factory
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+
+from .models import (
+    ChuoiCuaHang,
+    CuaHang,
+    KhuyenMai,
+    NhaCungCap,
+    NhanVien,
+    NhomSanPham,
+    SanPham,
+    ThuongHieu,
+)
+
+
+MODEL_REGISTRY = {
+    "thuong-hieu": ThuongHieu,
+    "nha-cung-cap": NhaCungCap,
+    "nhom-san-pham": NhomSanPham,
+    "san-pham": SanPham,
+    "chuoi-cua-hang": ChuoiCuaHang,
+    "cua-hang": CuaHang,
+    "nhan-vien": NhanVien,
+    "khuyen-mai": KhuyenMai,
+}
+
+MODULE_LABELS = {
+    "thuong-hieu": {"vi_singular": "Thương hiệu", "vi_plural": "Thương hiệu", "en_singular": "Brand", "en_plural": "Brands"},
+    "nha-cung-cap": {"vi_singular": "Nhà cung cấp", "vi_plural": "Nhà cung cấp", "en_singular": "Supplier", "en_plural": "Suppliers"},
+    "nhom-san-pham": {"vi_singular": "Nhóm sản phẩm", "vi_plural": "Nhóm sản phẩm", "en_singular": "Product Group", "en_plural": "Product Groups"},
+    "san-pham": {"vi_singular": "Sản phẩm", "vi_plural": "Sản phẩm", "en_singular": "Product", "en_plural": "Products"},
+    "chuoi-cua-hang": {"vi_singular": "Chuỗi cửa hàng", "vi_plural": "Chuỗi cửa hàng", "en_singular": "Store Chain", "en_plural": "Store Chains"},
+    "cua-hang": {"vi_singular": "Cửa hàng", "vi_plural": "Cửa hàng", "en_singular": "Store", "en_plural": "Stores"},
+    "nhan-vien": {"vi_singular": "Nhân viên", "vi_plural": "Nhân viên", "en_singular": "Employee", "en_plural": "Employees"},
+    "khuyen-mai": {"vi_singular": "Khuyến mãi", "vi_plural": "Khuyến mãi", "en_singular": "Promotion", "en_plural": "Promotions"},
+}
+
+CMS_TRANSLATIONS = {
+    "vi": {
+        "system_settings": "Cài đặt hệ thống",
+        "dashboard": "Tổng quan",
+        "navigation": "Điều hướng",
+        "data": "Dữ liệu",
+        "logout": "Đăng xuất",
+        "add_new": "Thêm mới",
+        "save_changes": "Lưu thay đổi",
+        "back_to_list": "Quay lại danh sách",
+        "search_placeholder": "Tìm theo nội dung...",
+        "actions": "Thao tác",
+        "previous": "Trước",
+        "next": "Sau",
+        "first": "Đầu",
+        "last": "Cuối",
+        "page": "Trang",
+        "no_data": "Chưa có dữ liệu.",
+        "language": "Ngôn ngữ",
+        "theme": "Giao diện",
+        "light_theme": "Nền sáng",
+        "dark_theme": "Nền tối",
+        "vietnamese": "Tiếng Việt",
+        "english": "Tiếng Anh",
+        "save_settings": "Lưu cài đặt",
+        "settings_saved": "Đã lưu cài đặt hệ thống.",
+        "logged_in_as": "Đăng nhập bởi",
+        "internal_cms": "CMS noi bo",
+        "custom_internal_management": "Hệ thống quản trị nội bộ tự tạo",
+        "manage": "Quản lý",
+        "confirm_delete": "Xác nhận xóa",
+        "you_are_deleting": "Bạn đang xóa một bản ghi của",
+        "confirm_delete_btn": "Xác nhận xóa",
+        "cancel": "Huy",
+        "total_records": "Tổng bản ghi",
+        "all_modules": "Tất cả module dữ liệu trong hệ thống",
+        "total_modules": "Số module",
+        "module_hint": "Bao gồm danh mục, cửa hàng, nhân viên, khuyến mãi...",
+        "manage_module": "Quản lý",
+        "edit": "Sửa",
+        "delete": "Xóa",
+        "create_prefix": "Thêm",
+        "edit_prefix": "Sửa",
+        "file_current": "Tệp hiện tại",
+        "saved_successfully": "Lưu thành công.",
+        "deleted_successfully": "Xóa thành công.",
+        "no_access": "Tài khoản không có quyền truy cập CMS.",
+        "store_front": "Cửa hàng",
+        "notifications": "Thông báo",
+        "login_title": "Đăng nhập CMS",
+        "login_only_staff": "Chỉ tài khoản staff/superuser được phép truy cập.",
+        "username": "Tài khoản",
+        "password": "Mật khẩu",
+        "login": "Đăng nhập",
+        "cancel": "Hủy",
+        "coord_pick_hint": "Tọa độ chỉ được lấy từ bản đồ.",
+        "pick_on_map": "Chọn trên bản đồ",
+        "coord_saved_from_map": "Đã nhận tọa độ từ bản đồ. Hãy bấm Lưu thay đổi để chốt.",
+        "coord_required_from_map": "Cần chốt tọa độ bằng cách click trên bản đồ trước khi lưu.",
+    },
+    "en": {
+        "system_settings": "System Settings",
+        "dashboard": "Dashboard",
+        "navigation": "Navigation",
+        "data": "Data",
+        "logout": "Log Out",
+        "add_new": "Add New",
+        "save_changes": "Save Changes",
+        "back_to_list": "Back to List",
+        "search_placeholder": "Search by content...",
+        "actions": "Actions",
+        "previous": "Previous",
+        "next": "Next",
+        "first": "First",
+        "last": "Last",
+        "page": "Page",
+        "no_data": "No data yet.",
+        "language": "Language",
+        "theme": "Theme",
+        "light_theme": "Light",
+        "dark_theme": "Dark",
+        "vietnamese": "Vietnamese",
+        "english": "English",
+        "save_settings": "Save Settings",
+        "settings_saved": "System settings saved.",
+        "logged_in_as": "Logged in as",
+        "internal_cms": "Internal CMS",
+        "custom_internal_management": "Custom internal management system",
+        "manage": "Manage",
+        "confirm_delete": "Confirm Deletion",
+        "you_are_deleting": "You are deleting a record of",
+        "confirm_delete_btn": "Confirm Delete",
+        "cancel": "Cancel",
+        "total_records": "Total Records",
+        "all_modules": "All data modules in the system",
+        "total_modules": "Total Modules",
+        "module_hint": "Including categories, stores, employees, promotions...",
+        "manage_module": "Manage",
+        "edit": "Edit",
+        "delete": "Delete",
+        "create_prefix": "Create",
+        "edit_prefix": "Edit",
+        "file_current": "Current file",
+        "store_front": "Storefront",
+        "notifications": "Notifications",
+        "coord_pick_hint": "Coordinates must be selected from the map.",
+        "pick_on_map": "Pick on map",
+        "coord_saved_from_map": "Coordinates received from map. Click Save Changes to confirm.",
+        "coord_required_from_map": "Please pick coordinates on map before saving.",
+    },
+}
+
+FIELD_LABELS = {
+    "en": {
+        "ten": "Name",
+        "ghi_chu": "Notes",
+        "mo_ta": "Description",
+        "nhom_san_pham": "Category",
+        "nha_cung_cap": "Supplier",
+        "thuong_hieu": "Brand",
+        "hinh_anh": "Product Image",
+        "logo": "Logo",
+        "chuoi": "Store Chain",
+        "dia_chi": "Address",
+        "quan_huyen": "District",
+        "vi_do": "Latitude (lat)",
+        "kinh_do": "Longitude (lng)",
+        "mo_cua": "Open Time",
+        "dong_cua": "Close Time",
+        "hoat_dong_24h": "Open 24h",
+        "san_pham": "Products",
+        "cua_hang": "Store",
+        "ho_ten": "Full Name",
+        "chuc_vu": "Position",
+        "so_dien_thoai": "Phone",
+        "email": "Email",
+        "avatar": "Avatar",
+    }
+}
+
+
+def _is_admin_user(user):
+    return user.is_authenticated and (user.is_staff or user.is_superuser)
+
+
+def _require_admin_user(request):
+    if _is_admin_user(request.user):
+        return None
+    return redirect("store:admin_login")
+
+
+def _resolve_model(model_slug):
+    model = MODEL_REGISTRY.get(model_slug)
+    if model is None:
+        raise Http404("Không tìm thấy model.")
+    return model
+
+
+def _admin_pref_context(request):
+    lang = request.session.get("admin_lang", "vi")
+    if lang not in CMS_TRANSLATIONS:
+        lang = "vi"
+    theme = request.session.get("admin_theme", "light")
+    if theme not in {"light", "dark"}:
+        theme = "light"
+    return {
+        "admin_lang": lang,
+        "admin_theme": theme,
+        "t": CMS_TRANSLATIONS[lang],
+    }
+
+
+def _model_label(model_slug, lang, plural=True):
+    labels = MODULE_LABELS.get(model_slug, {})
+    if lang == "en":
+        return labels.get("en_plural" if plural else "en_singular", model_slug)
+    return labels.get("vi_plural" if plural else "vi_singular", model_slug)
+
+
+def _field_label(field, lang):
+    if lang != "en":
+        return field.verbose_name
+    return FIELD_LABELS.get("en", {}).get(field.name, field.verbose_name)
+
+
+def _menu_context(lang="vi"):
+    menu = []
+    for slug, model in MODEL_REGISTRY.items():
+        menu.append(
+            {
+                "slug": slug,
+                "name": _model_label(slug, lang, plural=True),
+                "count": model.objects.count(),
+            }
+        )
+    return menu
+
+
+def _build_file_preview_context(model, obj=None):
+    previews = {}
+    image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".jfif"}
+    for field in model._meta.fields:
+        if field.get_internal_type() not in {"ImageField", "FileField"}:
+            continue
+        is_image_field = field.get_internal_type() == "ImageField"
+        if obj is None:
+            previews[field.name] = {"url": "", "is_image": is_image_field}
+            continue
+        value = getattr(obj, field.name, None)
+        if value:
+            is_image = is_image_field
+            if not is_image:
+                try:
+                    ext = os.path.splitext(str(value.name))[1].lower()
+                    is_image = ext in image_exts
+                except Exception:
+                    is_image = False
+            try:
+                previews[field.name] = {"url": value.url, "is_image": is_image}
+            except Exception:
+                previews[field.name] = {"url": "", "is_image": is_image}
+        else:
+            previews[field.name] = {"url": "", "is_image": is_image_field}
+    return previews
+
+
+def _sanitize_admin_form(form):
+    # Remove Django's default "---------" empty option labels for select fields.
+    for field in form.fields.values():
+        if hasattr(field, "empty_label") and field.empty_label == "---------":
+            field.empty_label = ""
+        try:
+            choices = list(getattr(field, "choices", []))
+            if choices and choices[0][1] == "---------":
+                choices[0] = (choices[0][0], "")
+                field.choices = choices
+        except Exception:
+            pass
+    return form
+
+
+def _validate_coord_from_map(request, form, instance=None):
+    if not form.is_valid():
+        return False
+
+    source = (request.POST.get("_coord_from_map") or "").strip()
+    lat = form.cleaned_data.get("vi_do")
+    lon = form.cleaned_data.get("kinh_do")
+
+    changed = not bool(instance and instance.pk)
+    if instance and instance.pk and lat is not None and lon is not None:
+        try:
+            old_lat = float(instance.vi_do)
+            old_lon = float(instance.kinh_do)
+            changed = abs(float(lat) - old_lat) > 1e-12 or abs(float(lon) - old_lon) > 1e-12
+        except Exception:
+            changed = True
+
+    if changed and source != "map":
+        pref = _admin_pref_context(request)
+        msg = pref["t"]["coord_required_from_map"]
+        form.add_error("vi_do", msg)
+        form.add_error("kinh_do", msg)
+        return False
+    return True
+
+
+class AdminLoginView(LoginView):
+    template_name = "admin/login.html"
+    authentication_form = AuthenticationForm
+    redirect_authenticated_user = False
+
+    def dispatch(self, request, *args, **kwargs):
+        if _is_admin_user(request.user):
+            return redirect("store:admin_dashboard")
+        if request.user.is_authenticated:
+            # Avoid redirect loop: authenticated but not CMS-authorized users
+            # must be signed out before showing CMS login form.
+            logout(request)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        return reverse("store:admin_dashboard")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        pref = _admin_pref_context(self.request)
+        context.update(pref)
+        return context
+
+    def form_valid(self, form):
+        if not _is_admin_user(form.get_user()):
+            pref = _admin_pref_context(self.request)
+            messages.error(self.request, pref["t"]["no_access"])
+            return self.form_invalid(form)
+        return super().form_valid(form)
+
+
+def admin_logout(request):
+    logout(request)
+    return redirect("store:admin_login")
+
+
+def admin_dashboard(request):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    modules = _menu_context(lang)
+    return render(
+        request,
+        "admin/index.html",
+        {
+            "modules": modules,
+            "total_records": sum(item["count"] for item in modules),
+            **pref,
+        },
+    )
+
+
+def admin_settings(request):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    if request.method == "POST":
+        lang = request.POST.get("language", "vi")
+        theme = request.POST.get("theme", "light")
+        if lang not in CMS_TRANSLATIONS:
+            lang = "vi"
+        if theme not in {"light", "dark"}:
+            theme = "light"
+        request.session["admin_lang"] = lang
+        request.session["admin_theme"] = theme
+        messages.success(request, CMS_TRANSLATIONS[lang]["settings_saved"])
+        return redirect("store:admin_settings")
+
+    pref = _admin_pref_context(request)
+    return render(request, "admin/settings.html", {"modules": _menu_context(pref["admin_lang"]), **pref})
+
+
+def admin_list(request, model_slug):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+
+    model = _resolve_model(model_slug)
+    query = request.GET.get("q", "").strip()
+    qs = model.objects.all().order_by("-pk")
+    if query:
+        text_fields = [f.name for f in model._meta.fields if f.get_internal_type() in {"CharField", "TextField"}]
+        if text_fields:
+            from django.db.models import Q
+
+            conditions = Q()
+            for field_name in text_fields:
+                conditions |= Q(**{f"{field_name}__icontains": query})
+            qs = qs.filter(conditions)
+
+    fields = [
+        {"name": f.name, "verbose_name": _field_label(f, lang)}
+        for f in model._meta.fields
+        if f.name != "id"
+    ]
+    paginator = Paginator(qs, 15)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    rows = []
+    for item in page_obj.object_list:
+        values = []
+        for field in fields:
+            raw_value = getattr(item, field["name"])
+            field_obj = model._meta.get_field(field["name"])
+            field_type = field_obj.get_internal_type()
+            if field_type in {"ImageField", "FileField"}:
+                if raw_value:
+                    try:
+                        values.append({"type": "image", "url": raw_value.url, "text": str(raw_value)})
+                    except Exception:
+                        values.append({"type": "text", "text": str(raw_value)})
+                else:
+                    values.append({"type": "text", "text": ""})
+            elif field_type == "BooleanField":
+                values.append({"type": "bool", "value": bool(raw_value)})
+            else:
+                values.append({"type": "text", "text": "" if raw_value is None else str(raw_value)})
+        rows.append({"object": item, "values": values})
+
+    return render(
+        request,
+        "admin/change_list.html",
+        {
+            "modules": _menu_context(lang),
+            "model_slug": model_slug,
+            "model_name": _model_label(model_slug, lang, plural=True),
+            "fields": fields,
+            "rows": rows,
+            "query": query,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            **pref,
+        },
+    )
+
+
+def admin_create(request, model_slug):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+
+    model = _resolve_model(model_slug)
+    form_cls = modelform_factory(model, fields="__all__")
+    coord_picker_enabled = model_slug == "cua-hang"
+    if request.method == "POST":
+        form = _sanitize_admin_form(form_cls(request.POST, request.FILES))
+        valid = _validate_coord_from_map(request, form) if coord_picker_enabled else form.is_valid()
+        if valid:
+            form.save()
+            messages.success(request, pref["t"]["saved_successfully"])
+            return redirect("store:admin_list", model_slug=model_slug)
+    else:
+        form = _sanitize_admin_form(form_cls())
+
+    return render(
+        request,
+        "admin/change_form.html",
+        {
+            "modules": _menu_context(lang),
+            "form": form,
+            "model_slug": model_slug,
+            "model_name": _model_label(model_slug, lang, plural=False),
+            "mode": "create",
+            "file_previews": _build_file_preview_context(model),
+            "coord_picker_enabled": coord_picker_enabled,
+            **pref,
+        },
+    )
+
+
+def admin_update(request, model_slug, pk):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+
+    model = _resolve_model(model_slug)
+    obj = get_object_or_404(model, pk=pk)
+    form_cls = modelform_factory(model, fields="__all__")
+    coord_picker_enabled = model_slug == "cua-hang"
+
+    if request.method == "POST":
+        form = _sanitize_admin_form(form_cls(request.POST, request.FILES, instance=obj))
+        valid = _validate_coord_from_map(request, form, instance=obj) if coord_picker_enabled else form.is_valid()
+        if valid:
+            form.save()
+            messages.success(request, pref["t"]["saved_successfully"])
+            return redirect("store:admin_list", model_slug=model_slug)
+    else:
+        form = _sanitize_admin_form(form_cls(instance=obj))
+
+    return render(
+        request,
+        "admin/change_form.html",
+        {
+            "modules": _menu_context(lang),
+            "form": form,
+            "model_slug": model_slug,
+            "model_name": _model_label(model_slug, lang, plural=False),
+            "mode": "update",
+            "object": obj,
+            "file_previews": _build_file_preview_context(model, obj),
+            "coord_picker_enabled": coord_picker_enabled,
+            **pref,
+        },
+    )
+
+
+def admin_delete(request, model_slug, pk):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+
+    model = _resolve_model(model_slug)
+    obj = get_object_or_404(model, pk=pk)
+    if request.method == "POST":
+        obj.delete()
+        messages.success(request, pref["t"]["deleted_successfully"])
+        return redirect("store:admin_list", model_slug=model_slug)
+
+    return render(
+        request,
+        "admin/delete_confirmation.html",
+        {
+            "modules": _menu_context(lang),
+            "model_slug": model_slug,
+            "model_name": _model_label(model_slug, lang, plural=False),
+            "object": obj,
+            **pref,
+        },
+    )
+
+
+
+
+
+
+
