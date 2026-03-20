@@ -1,36 +1,33 @@
-﻿{% extends "admin/base_site.html" %}
-{% load i18n %}
-
+﻿{% extends "admin/base.html" %}
+{% block title %}Tổng quan CMS{% endblock %}
+{% block page_title %}Tổng quan dữ liệu{% endblock %}
 {% block content %}
-<div class="row">
-    {% for app in app_list %}
-    <div class="col-md-6 grid-margin stretch-card">
-        <div class="card">
-            <div class="card-body">
-                <h4 class="card-title">
-                    {% if app.app_label == "auth" %}
-                        Xác thực và phân quyền
-                    {% else %}
-                        {{ app.name }}
-                    {% endif %}
-                </h4>
-                <ul class="list-group">
-                    {% for model in app.models %}
-                    <li class="list-group-item d-flex justify-content-between">
-                        {% if app.app_label == "auth" and model.object_name == "Group" %}
-                            Nhóm quyền
-                        {% elif app.app_label == "auth" and model.object_name == "User" %}
-                            Người dùng
-                        {% else %}
-                            {{ model.name }}
-                        {% endif %}
-                        <a href="{{ model.admin_url }}" class="btn btn-sm btn-primary">Mở</a>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-    </div>
+  <div class="grid">
+    <article class="panel card">
+      <p class="stat-title">{{ t.total_records|default:"Tổng bản ghi" }}</p>
+      <p class="stat-value">{{ total_records }}</p>
+      <div class="top-sub">{{ t.all_modules|default:"Tất cả module dữ liệu trong hệ thống" }}</div>
+    </article>
+
+    <article class="panel card">
+      <p class="stat-title">{{ t.total_modules|default:"Số module" }}</p>
+      <p class="stat-value">{{ modules|length }}</p>
+      <div class="top-sub">{{ t.module_hint|default:"Bao gồm danh mục, cửa hàng, nhân viên, khuyến mãi..." }}</div>
+    </article>
+  </div>
+
+  <div class="grid" style="margin-top:14px;">
+    {% for module in modules %}
+      <article class="panel card">
+        <p class="stat-title">{{ module.name }}</p>
+        <p class="stat-value">{{ module.count }}</p>
+        <a class="btn btn-primary" href="{% url 'store:admin_list' module.slug %}">{{ t.manage_module|default:"Quản lý module" }}</a>
+      </article>
     {% endfor %}
-</div>
+  </div>
 {% endblock %}
+
+
+
+
+

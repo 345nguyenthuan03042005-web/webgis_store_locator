@@ -1040,6 +1040,7 @@ const PICK_MODE = new URLSearchParams(window.location.search).get("pick_for") ==
 const params = new URLSearchParams(window.location.search);
 const centerLat = Number.parseFloat(params.get("center_lat"));
 const centerLon = Number.parseFloat(params.get("center_lon"));
+const initialQuery = (params.get("q") || "").trim();
 if (Number.isFinite(centerLat) && Number.isFinite(centerLon)) {
   map.setView([centerLat, centerLon], 18);
 }
@@ -1171,7 +1172,7 @@ map.on("click", async (e)=>{
   setUser(lat, lng, "Đang lấy địa chỉ...");
 
   const {res, data} = await fetchJSON(`/tools/reverse-geo/?lat=${lat}&lon=${lng}`);
-  if(res && res.ok && data.ok && data.display){
+  if(res && res.ok && data.ok && data.display_address){
     setUser(lat, lng, data.display_address);
     qInput.value = data.display_address;
   }else{
@@ -1179,25 +1180,8 @@ map.on("click", async (e)=>{
     qInput.value = `${lat},${lng}`;
   }
   if (PICK_MODE) {
-    const payload = {
-      type: "admin_coord_pick",
-      lat: lat,
-      lon: lng,
-      address: (data && data.display_address) ? data.display_address : "",
-      ts: Date.now(),
-    };
-    try {
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(payload, window.location.origin);
-      }
-      localStorage.setItem("admin_coord_pick", JSON.stringify(payload));
-      setStatus("Đã gửi tọa độ về form admin.", true);
-      try { window.close(); } catch (_e) {}
-      return;
-    } catch (_e) {
-      setStatus("Không gửi được tọa độ về admin.", false);
-      return;
-    }
+    emitCoordPick(lat, lng, (data && data.display_address) ? data.display_address : "", true);
+    return;
   }
   await loadNearby();
 });
@@ -1493,6 +1477,75 @@ async function smartSearch(){
   await loadNearby();
 }
 
+function emitCoordPick(lat, lon, address, autoClose = false){
+  if (!PICK_MODE) return;
+  const payload = {
+    type: "admin_coord_pick",
+    lat: Number(lat),
+    lon: Number(lon),
+    address: address || "",
+    ts: Date.now(),
+  };
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage(payload, window.location.origin);
+    }
+    localStorage.setItem("admin_coord_pick", JSON.stringify(payload));
+    setStatus("Đã gửi tọa độ về form admin.", true);
+    if (autoClose) {
+      try { window.close(); } catch (_e) {}
+    }
+  } catch (_e) {
+    setStatus("Không gửi được tọa độ về admin.", false);
+  }
+}
+
+async function locateOnlyForPickMode(queryText){
+  const q = (queryText || "").trim();
+  if(!q) return false;
+
+  const ll = parseLatLng(q);
+  if(ll){
+    setUser(ll.lat, ll.lng, q);
+    map.setView([ll.lat, ll.lng], 18);
+    emitCoordPick(ll.lat, ll.lng, q, false);
+    setStatus("Đã định vị theo tọa độ.", true);
+    return true;
+  }
+
+  // 1) Prefer dedicated geocode endpoint (more stable for free-text addresses)
+  const g = await fetchJSON(`/tools/geocode/?q=${encodeURIComponent(q)}`);
+  if (g.res && g.res.ok && g.data && g.data.ok && g.data.location) {
+    const lat = Number(g.data.location.lat);
+    const lon = Number(g.data.location.lon);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      const display = g.data.location.display || q;
+      setUser(lat, lon, display);
+      map.setView([lat, lon], 18);
+      emitCoordPick(lat, lon, display, false);
+      setStatus("Đã định vị theo địa chỉ.", true);
+      return true;
+    }
+  }
+
+  // 2) Fallback to suggest endpoint
+  const {res, data} = await fetchJSON(`/tools/suggest/?q=${encodeURIComponent(q)}`);
+  if(res && res.ok && data && data.ok && Array.isArray(data.items) && data.items.length){
+    const it = data.items[0];
+    const lat = Number(it.lat);
+    const lon = Number(it.lon);
+    if(Number.isFinite(lat) && Number.isFinite(lon)){
+      setUser(lat, lon, it.display || q);
+      map.setView([lat, lon], 18);
+      emitCoordPick(lat, lon, it.display || q, false);
+      setStatus("Đã định vị theo địa chỉ.", true);
+      return true;
+    }
+  }
+  setStatus("Không định vị được địa chỉ/tọa độ. Hãy thử nhập tọa độ lat,lon.", false);
+  return false;
+}
+
 // ======================
 // Autocomplete
 // ======================
@@ -1548,6 +1601,10 @@ qInput.addEventListener("keydown", (e)=>{
 // Button Handlers
 // ======================
 document.getElementById("btnSearch").onclick = async ()=>{
+  if(PICK_MODE){
+    await locateOnlyForPickMode(qInput.value);
+    return;
+  }
   const okDB = await searchStoreDBFirst();
   if(okDB) return;
   await smartSearch();
@@ -1722,6 +1779,16 @@ refreshDistricts();
 setStatus("Sẵn sàng. Click map để chọn vị trí.", true);
 if (PICK_MODE) {
   setStatus("Chế độ chọn tọa độ cho admin: click 1 điểm trên bản đồ.", true);
+}
+if (initialQuery) {
+  qInput.value = initialQuery;
+  setTimeout(() => {
+    if (PICK_MODE) {
+      locateOnlyForPickMode(initialQuery);
+    } else {
+      smartSearch();
+    }
+  }, 100);
 }
 </script>
 </body>
