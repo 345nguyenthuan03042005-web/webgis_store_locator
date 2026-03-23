@@ -1,4 +1,4 @@
-﻿{% load static %}
+{% load static %}
 <!doctype html>
 <html lang="vi">
 <head>
@@ -45,10 +45,13 @@
           <a class="icon-btn" href="{% url 'store:home' %}" title="{{ t.store_front|default:'Cửa hàng' }}" aria-label="{{ t.store_front|default:'Cửa hàng' }}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.69 17 10v8h-3v-5H10v5H7v-8l5-4.31ZM12 3 2 11h3v9h6v-5h2v5h6v-9h3L12 3Z"/></svg>
           </a>
-          <a class="notif-btn" href="#" title="{{ t.notifications|default:'Thông báo' }}" aria-label="{{ t.notifications|default:'Thông báo' }}">
+          <a class="notif-btn" href="{% url 'store:admin_notifications' %}" title="{{ t.notifications|default:'Thông báo' }}" aria-label="{{ t.notifications|default:'Thông báo' }}">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2Z"/>
             </svg>
+            {% if admin_unread_notifications %}
+              <span class="notif-dot" aria-hidden="true"></span>
+            {% endif %}
           </a>
           <a class="settings-btn" href="{% url 'store:admin_settings' %}" title="{{ t.system_settings|default:'Cài đặt hệ thống' }}" aria-label="{{ t.system_settings|default:'Cài đặt hệ thống' }}">
             <svg viewBox="0 0 24 24" aria-hidden="true">

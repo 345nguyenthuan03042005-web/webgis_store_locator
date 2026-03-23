@@ -430,6 +430,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from .models import (
+    Notification,
     ChuoiCuaHang,
     CuaHang,
     KhuyenMai,
@@ -512,6 +513,10 @@ CMS_TRANSLATIONS = {
         "no_access": "Tài khoản không có quyền truy cập CMS.",
         "store_front": "Cửa hàng",
         "notifications": "Thông báo",
+        "notification_title": "Thông báo hệ thống",
+        "notification_empty": "Chưa có thông báo.",
+        "support_request": "Yêu cầu hỗ trợ",
+        "retry_request": "Yêu cầu thử lại",
         "login_title": "Đăng nhập CMS",
         "login_only_staff": "Chỉ tài khoản staff/superuser được phép truy cập.",
         "username": "Tài khoản",
@@ -568,6 +573,10 @@ CMS_TRANSLATIONS = {
         "file_current": "Current file",
         "store_front": "Storefront",
         "notifications": "Notifications",
+        "notification_title": "System Notifications",
+        "notification_empty": "No notifications yet.",
+        "support_request": "Support Request",
+        "retry_request": "Retry Request",
         "coord_pick_hint": "Coordinates must be selected from the map.",
         "pick_on_map": "Pick on map",
         "coord_saved_from_map": "Coordinates received from map. Click Save Changes to confirm.",
@@ -628,12 +637,13 @@ def _admin_pref_context(request):
     theme = request.session.get("admin_theme", "light")
     if theme not in {"light", "dark"}:
         theme = "light"
+    unread_count = Notification.objects.filter(resolved=False).count()
     return {
         "admin_lang": lang,
         "admin_theme": theme,
+        "admin_unread_notifications": unread_count,
         "t": CMS_TRANSLATIONS[lang],
     }
-
 
 def _model_label(model_slug, lang, plural=True):
     labels = MODULE_LABELS.get(model_slug, {})
@@ -976,6 +986,48 @@ def admin_delete(request, model_slug, pk):
             **pref,
         },
     )
+
+
+def admin_notifications(request):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    # mark all as seen when opening notifications
+    Notification.objects.filter(resolved=False).update(resolved=True)
+    qs = Notification.objects.all()
+    paginator = Paginator(qs, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "admin/notifications.html",
+        {
+            "modules": _menu_context(lang),
+            "page_obj": page_obj,
+            "paginator": paginator,
+            **pref,
+        },
+    )
+
+
+def report_404_action(request, action):
+    # log user intent from 404 page
+    if action not in {"retry", "support"}:
+        return redirect("store:home")
+    title = "Retry Request" if action == "retry" else "Support Request"
+    Notification.objects.create(
+        level="info",
+        title=title,
+        message="User clicked from 404 page",
+        path=(request.GET.get("path") or request.path)[:255],
+        method=request.method[:10],
+        status_code=404,
+    )
+    # redirect back or home
+    return redirect(request.GET.get("back") or "store:home")
 
 
 

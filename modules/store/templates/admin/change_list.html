@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 {% block title %}{{ model_name }}{% endblock %}
 {% block page_title %}{{ t.manage|default:"Quản lý" }} {{ model_name }}{% endblock %}
 {% block content %}
@@ -64,18 +64,28 @@
   </section>
 
   {% if paginator.num_pages > 1 %}
-    <section class="panel card" style="margin-top:14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-      {% if page_obj.has_previous %}
-        <a class="btn btn-ghost" href="?{% if query %}q={{ query|urlencode }}&{% endif %}page=1">{{ t.first|default:"Đầu" }}</a>
-        <a class="btn btn-ghost" href="?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}">{{ t.previous|default:"Trước" }}</a>
-      {% endif %}
+    <section class="panel card pagination">
+      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?{% if query %}q={{ query|urlencode }}&{% endif %}page=1{% else %}#{% endif %}" aria-label="First">
+        «
+      </a>
+      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}{% else %}#{% endif %}" aria-label="Previous">
+        ‹
+      </a>
 
-      <span class="top-sub">{{ t.page|default:"Trang" }} {{ page_obj.number }} / {{ paginator.num_pages }}</span>
+      {% for p in paginator.page_range %}
+        {% if p == 1 or p == paginator.num_pages %}
+          <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ p }}">{{ p }}</a>
+        {% elif p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
+          <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ p }}">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
 
-      {% if page_obj.has_next %}
-        <a class="btn btn-ghost" href="?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ page_obj.next_page_number }}">{{ t.next|default:"Sau" }}</a>
-        <a class="btn btn-ghost" href="?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ paginator.num_pages }}">{{ t.last|default:"Cuối" }}</a>
-      {% endif %}
+      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ page_obj.next_page_number }}{% else %}#{% endif %}" aria-label="Next">
+        ›
+      </a>
+      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ paginator.num_pages }}{% else %}#{% endif %}" aria-label="Last">
+        »
+      </a>
     </section>
   {% endif %}
 {% endblock %}

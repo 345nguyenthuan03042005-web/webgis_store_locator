@@ -192,3 +192,22 @@ class KhuyenMai(models.Model):
 
     def __str__(self) -> str:
         return self.ten
+
+
+class Notification(models.Model):
+    level = models.CharField("Mức độ", max_length=20, default="error")
+    title = models.CharField("Tiêu đề", max_length=200)
+    message = models.TextField("Nội dung", blank=True)
+    path = models.CharField("Đường dẫn", max_length=255, blank=True)
+    method = models.CharField("Phương thức", max_length=10, blank=True)
+    status_code = models.IntegerField("Mã lỗi", null=True, blank=True)
+    resolved = models.BooleanField("Đã xử lý", default=False)
+    created_at = models.DateTimeField("Thời gian", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Thông báo"
+        verbose_name_plural = "Thông báo"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.title} ({self.status_code or '-'})"

@@ -16,9 +16,8 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+html, body { height: 100%; margin: 0; padding: 0; }
 body {
-  margin: 0;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   color: var(--ink);
   background: var(--bg-1);
@@ -36,7 +35,12 @@ body[data-theme="dark"] {
   background: var(--bg-1);
 }
 
-.cms-layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+.cms-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+  height: 100vh;
+}
 .sidebar,
 .content {
   background:
@@ -121,6 +125,7 @@ body[data-theme="dark"] .content {
   justify-content: center;
   color: #0f172a;
   transition: 180ms ease;
+  position: relative;
 }
 .icon-btn {
   width: 42px;
@@ -138,6 +143,17 @@ body[data-theme="dark"] .content {
 .settings-btn svg { width: 22px; height: 22px; fill: currentColor; }
 .notif-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(15,23,42,.18); }
 .notif-btn svg { width: 22px; height: 22px; fill: currentColor; }
+.notif-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2px solid #ffffff;
+}
+body[data-theme="dark"] .notif-dot { border-color: #1f2937; }
 .icon-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(15,23,42,.18); }
 .icon-btn svg { width: 22px; height: 22px; fill: currentColor; }
 
@@ -169,6 +185,41 @@ body[data-theme="dark"] .content {
   box-shadow: var(--shadow);
 }
 .card { padding: 18px; }
+
+.pagination {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+}
+.page-link {
+  min-width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #0f172a;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  transition: 180ms ease;
+}
+.page-link:hover { transform: translateY(-2px); }
+.page-link.is-active {
+  background: #10b981;
+  border-color: #10b981;
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(16, 185, 129, 0.3);
+}
+.page-link.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
 
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
 .stat-title { margin: 0; color: var(--ink-soft); font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
