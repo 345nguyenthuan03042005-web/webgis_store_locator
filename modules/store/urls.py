@@ -16,10 +16,12 @@ urlpatterns = [
     path("admin/logout/", controllers.admin_logout, name="admin_logout"),
     path("admin/", controllers.admin_dashboard, name="admin_dashboard"),
     path("admin/settings/", controllers.admin_settings, name="admin_settings"),
+    path("admin/notifications/", controllers.admin_notifications, name="admin_notifications"),
     path("admin/<slug:model_slug>/", controllers.admin_list, name="admin_list"),
     path("admin/<slug:model_slug>/create/", controllers.admin_create, name="admin_create"),
     path("admin/<slug:model_slug>/<int:pk>/edit/", controllers.admin_update, name="admin_update"),
     path("admin/<slug:model_slug>/<int:pk>/delete/", controllers.admin_delete, name="admin_delete"),
+    path("report/404/<str:action>/", controllers.report_404_action, name="report_404_action"),
 
     # Legacy URLs: /cms/... -> /admin/...
     path("cms/login/", RedirectView.as_view(url="/admin/login/", permanent=False)),

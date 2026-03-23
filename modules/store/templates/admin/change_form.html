@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 {% block title %}{% if mode == 'create' %}{{ t.create_prefix|default:"Thêm" }} {{ model_name }}{% else %}{{ t.edit_prefix|default:"Sửa" }} {{ model_name }}{% endif %}{% endblock %}
 {% block page_title %}{% if mode == 'create' %}{{ t.create_prefix|default:"Thêm" }} {{ model_name }}{% else %}{{ t.edit_prefix|default:"Sửa" }} {{ model_name }}{% endif %}{% endblock %}
 {% block content %}
