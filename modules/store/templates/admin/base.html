@@ -23,6 +23,10 @@
           {{ t.system_settings|default:'Cài đặt hệ thống' }} <span class="chip">Config</span>
         </a>
 
+        <a href="{% url 'store:admin_user_management' %}" class="{% if request.resolver_match.url_name == 'admin_user_management' %}active{% endif %}">
+          {{ t.user_management|default:'Quản lý người dùng' }} <span class="chip">Auth</span>
+        </a>
+
         <div class="menu-label">{{ t.data|default:"Dữ liệu" }}</div>
         {% for module in modules %}
           <a href="{% url 'store:admin_list' module.slug %}" class="{% if module.slug == model_slug %}active{% endif %}">

@@ -1,120 +1,707 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
-  <title>WebGIS - Smart Search Map</title>
+  <title>Circle K & GS25 - Tìm cửa hàng</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
   <style>
     :root{
-      --bg:#f5f7fb; --card:#ffffff; --text:#0f172a; --muted:#64748b;
-      --border:#e2e8f0; --shadow: 0 10px 25px rgba(2,6,23,.08);
-      --primary:#2563eb; --danger:#ef4444; --ok:#16a34a;
-      --red:#e31c23; --red2:#c3141a; --yellow:#ffd100; --container:1320px;
+      --bg:#f3f6ff;
+      --card:#ffffff;
+      --border:#dbe4ff;
+      --ink:#0f172a;
+      --muted:#64748b;
+      --shadow:0 22px 55px rgba(15,23,42,.12);
+      --red:#e31c23;
+      --red2:#c3141a;
+      --yellow:#ffd100;
+      --yellow2:#ffb800;
+      --blue:#2563eb;
+      --green:#16a34a;
+      --soft-red:#fff1f2;
+      --soft-blue:#eff6ff;
+      --cream:#fffaf0;
+      --container:1320px;
     }
+
     *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(255,209,0,.14), transparent 28%),
+        radial-gradient(circle at top right, rgba(37,99,235,.10), transparent 30%),
+        linear-gradient(180deg,#fff8f0 0%,#f5f7ff 36%,#eef3ff 100%);
+      color:var(--ink);
+      min-height:100vh;
+    }
+    a{text-decoration:none;color:inherit}
+
     .top-header{
-      background: linear-gradient(135deg, var(--red) 0%, var(--red2) 100%);
-      position: sticky;
-      top: 0;
-      left: 0;
-      right: 0;
-      width: 100%;
-      z-index: 5000;
-      box-shadow: 0 6px 20px rgba(227, 28, 35, .25);
+      background:
+        linear-gradient(135deg,var(--red) 0%,var(--red2) 100%);
+      position:sticky;
+      top:0;
+      z-index:5000;
+      box-shadow:0 14px 32px rgba(227,28,35,.22);
+      overflow:hidden;
+    }
+    .top-header::after{
+      content:"";
+      position:absolute;
+      inset:auto 0 0;
+      height:4px;
+      background:linear-gradient(90deg,var(--yellow) 0%, #fff 20%, var(--yellow2) 42%, #fff 66%, var(--yellow) 100%);
+      opacity:.95;
     }
     .top-wrap{
-      width: 100%;
-      max-width: var(--container);
-      margin: auto;
-      padding: 16px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 16px;
+      width:min(100%,var(--container));
+      margin:auto;
+      padding:18px 20px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+      gap:16px;
     }
     .top-logo{
-      font-size: 32px;
-      font-weight: 900;
-      letter-spacing: 1.5px;
-      color: #fff;
-      line-height: 1;
+      font-size:32px;
+      font-weight:900;
+      letter-spacing:1.5px;
+      color:#fff;
+      line-height:1;
+      text-transform:uppercase;
+      text-shadow:0 4px 14px rgba(0,0,0,.16);
     }
-    .top-logo span{ color: var(--yellow); }
-    .top-nav{ display:flex; gap:32px; }
+    .top-logo span{color:var(--yellow)}
+    .top-nav{display:flex;gap:32px}
     .top-nav a{
       color:#fff;
       font-weight:700;
       font-size:15px;
-      text-decoration:none;
-      transition:all .2s;
+      opacity:.92;
+      position:relative;
+      padding-bottom:4px;
     }
-    .top-nav a:hover{ color: var(--yellow); transform: translateY(-1px); }
-    .top-actions{ display:flex; gap:10px; align-items:center; }
-    .top-btn-find, .top-btn-admin{
-      height:44px;
+    .top-nav a:hover{opacity:1}
+    .top-nav a::after{
+      content:"";
+      position:absolute;
+      left:0;
+      right:0;
+      bottom:0;
+      height:2px;
+      border-radius:999px;
+      background:rgba(255,255,255,.88);
+      transform:scaleX(0);
+      transform-origin:center;
+      transition:transform .16s ease;
+    }
+    .top-nav a:hover::after{transform:scaleX(1)}
+    .top-actions{display:flex;gap:10px;align-items:center}
+    .top-btn-find,.top-btn-admin{
+      height:48px;
       display:inline-flex;
       align-items:center;
       justify-content:center;
-      padding:0 12px;
+      padding:0 22px;
       border-radius:999px;
-      text-align:center;
-      font-size:14px;
+      font-size:15px;
       font-weight:800;
-      line-height:1;
-      text-decoration:none;
     }
     .top-btn-find{
-      width:140px;
-      background: var(--yellow);
+      background:linear-gradient(180deg,var(--yellow),var(--yellow2));
       color:#111;
-      border:1px solid transparent;
-      box-shadow: 0 4px 16px rgba(255, 209, 0, .4);
+      box-shadow:0 4px 16px rgba(255,209,0,.4);
     }
-    .top-btn-find:hover{ box-shadow: 0 8px 24px rgba(255, 209, 0, .5); }
     .top-btn-admin{
-      width:112px;
       background:#fff;
       color:#111827;
       border:1px solid #e0e7ff;
     }
-    .app{height:calc(100vh - 86px);display:grid;grid-template-columns:380px 1fr}
-    .panel{padding:16px;border-right:1px solid var(--border);background:linear-gradient(180deg,#fff,#f7f9ff)}
-    .brand{display:flex;gap:10px;align-items:center;margin-bottom:14px}
-    .brand-logo-box{width:38px;height:38px;border-radius:12px;background:var(--primary);box-shadow:var(--shadow)}
-    .brand h1{font-size:16px;margin:0;line-height:1.1}
-    .brand p{margin:0;color:var(--muted);font-size:12px}
+    .page-hero{
+      width:min(100%,var(--container));
+      margin:0 auto;
+      padding:34px 16px 0;
+      display:grid;
+      grid-template-columns:1.2fr .8fr;
+      gap:18px;
+      align-items:start;
+    }
+    .hero-copy{
+      padding:12px 4px 0;
+    }
+    .hero-kicker{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:38px;
+      padding:0 16px;
+      border-radius:999px;
+      background:linear-gradient(180deg,#fffdf5,#fff7da);
+      border:1px solid rgba(255,209,0,.4);
+      color:var(--red);
+      font-weight:900;
+      box-shadow:0 8px 24px rgba(15,23,42,.06);
+    }
+    .hero-copy h1{
+      margin:18px 0 10px;
+      font-size:clamp(32px,4vw,56px);
+      line-height:1.04;
+      letter-spacing:-1.5px;
+      max-width:840px;
+    }
+    .hero-copy p{
+      margin:0;
+      max-width:720px;
+      color:#475569;
+      font-size:18px;
+      line-height:1.7;
+      font-weight:500;
+    }
+    .hero-stats{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:14px;
+    }
+    .hero-stat{
+      background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,249,240,.92));
+      backdrop-filter:blur(10px);
+      border:1px solid rgba(219,228,255,.9);
+      border-radius:24px;
+      padding:18px 18px 16px;
+      box-shadow:var(--shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .hero-stat::before{
+      content:"";
+      position:absolute;
+      inset:0 auto 0 0;
+      width:5px;
+      background:linear-gradient(180deg,var(--red),var(--yellow));
+    }
+    .hero-stat b{
+      display:block;
+      font-size:28px;
+      line-height:1;
+      margin-bottom:8px;
+    }
+    .hero-stat span{
+      color:var(--muted);
+      font-size:14px;
+      font-weight:800;
+      line-height:1.5;
+    }
 
-    .searchBar{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:10px;box-shadow:var(--shadow)}
-    .row{display:flex;gap:8px;align-items:center}
-    input{width:100%;border:none;outline:none;font-size:14px;padding:10px;background:transparent;color:var(--text)}
-    .btn{border:none;cursor:pointer;padding:10px 12px;border-radius:12px;background:var(--primary);color:#fff;font-weight:700;font-size:13px;white-space:nowrap}
-    .hint{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.4}
-    .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
-    select,.chip{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:8px 10px;font-size:12px;color:var(--text)}
+    .locator-shell{
+      width:min(100%,var(--container));
+      margin:0 auto;
+      padding:26px 16px 20px;
+      display:grid;
+      grid-template-columns:420px 1fr;
+      gap:26px;
+      min-height:calc(100vh - 86px);
+      align-items:start;
+    }
+    .sidebar{
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+      position:sticky;
+      top:96px;
+    }
+    .panel{
+      background:rgba(255,255,255,.92);
+      backdrop-filter:blur(14px);
+      border:1px solid rgba(219,228,255,.9);
+      border-radius:30px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .topbar{
+      background:
+        radial-gradient(circle at top right, rgba(255,209,0,.26), transparent 28%),
+        linear-gradient(180deg,var(--red),var(--red2));
+      color:#fff;
+      padding:24px 22px 18px;
+      position:relative;
+    }
+    .topbar::after{
+      content:"";
+      position:absolute;
+      left:22px;
+      right:22px;
+      bottom:0;
+      height:3px;
+      border-radius:999px;
+      background:linear-gradient(90deg,rgba(255,255,255,.08),rgba(255,209,0,.92),rgba(255,255,255,.08));
+    }
+    .topbar-inner{
+      display:flex;
+      gap:14px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .brandPill,.tab{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:66px;
+      min-width:228px;
+      padding:0 22px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.22);
+      background:rgba(255,255,255,.12);
+      font-size:18px;
+      font-weight:900;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
+    }
+    .tab{
+      background:linear-gradient(180deg,#fff,#fff6ea);
+      color:var(--red);
+      border-color:rgba(255,209,0,.28);
+      box-shadow:0 10px 20px rgba(0,0,0,.10);
+    }
+    .topbar-note{
+      margin-top:16px;
+      color:rgba(255,255,255,.86);
+      font-size:14px;
+      line-height:1.6;
+      font-weight:700;
+      max-width:340px;
+    }
+    .cardHead{
+      padding:20px 22px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      background:linear-gradient(180deg,#ffffff,#fff7f7);
+      font-weight:1000;
+      font-size:18px;
+      position:relative;
+    }
+    .cardHead::before{
+      content:"";
+      position:absolute;
+      left:22px;
+      bottom:0;
+      width:72px;
+      height:3px;
+      border-radius:999px;
+      background:linear-gradient(90deg,var(--red),var(--yellow));
+    }
+    .cardBody{padding:22px}
+    .status{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      font-size:16px;
+      font-weight:900;
+      color:var(--muted);
+    }
+    .dot{
+      width:12px;
+      height:12px;
+      border-radius:999px;
+      background:var(--green);
+    }
+    .dot.bad{background:#ef4444}
+    .searchBox{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:14px 16px;
+      background:#fff;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.7);
+      position:relative;
+    }
+    .pin{
+      width:44px;
+      height:44px;
+      border-radius:999px;
+      display:grid;
+      place-items:center;
+      background:rgba(37,99,235,.12);
+      border:1px solid rgba(37,99,235,.25);
+      color:var(--blue);
+      font-weight:1000;
+      flex:0 0 auto;
+      font-size:18px;
+    }
+    .searchBox input{
+      width:100%;
+      border:none;
+      outline:none;
+      background:transparent;
+      font-size:18px;
+      font-weight:800;
+      color:var(--ink);
+    }
+    .btn{
+      border:none;
+      cursor:pointer;
+      border-radius:18px;
+      padding:16px 22px;
+      font-weight:1000;
+      white-space:nowrap;
+      font-size:18px;
+      transition:transform .12s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .btn:hover,.btnGhost:hover,.chip:hover,.item:hover{transform:translateY(-1px)}
+    .btnPrimary{
+      background:linear-gradient(180deg,#ffd100,#ffc400);
+      color:#111827;
+      box-shadow:0 10px 20px rgba(255,209,0,.28);
+    }
+    .btnPrimary:hover{
+      box-shadow:0 14px 24px rgba(255,209,0,.34);
+    }
+    .btnWhite{
+      background:#fff;
+      color:#111827;
+      border:1px solid var(--border);
+      box-shadow:0 6px 14px rgba(15,23,42,.04);
+    }
+    .controls{
+      margin-top:16px;
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    select,.chip{
+      border:1px solid var(--border);
+      background:#fff;
+      border-radius:999px;
+      padding:15px 20px;
+      font-size:18px;
+      color:var(--ink);
+      font-weight:800;
+      min-height:56px;
+      box-shadow:0 8px 18px rgba(15,23,42,.04);
+    }
     .chip{cursor:pointer;user-select:none}
-
-    .card{margin-top:14px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px;box-shadow:var(--shadow)}
-    .card h3{margin:0 0 8px 0;font-size:14px}
-    .kv{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;font-size:13px}
+    .chip:hover,.btnWhite:hover,.btnGhost:hover{
+      border-color:#c7d2fe;
+      box-shadow:0 10px 22px rgba(15,23,42,.08);
+    }
+    .hint{
+      margin-top:14px;
+      color:var(--muted);
+      font-size:15px;
+      line-height:1.5;
+      font-weight:800;
+    }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
+    .field {
+      flex:1;
+      min-width:150px;
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:12px 14px;
+      background:linear-gradient(180deg,#fff,#fcfdff);
+      box-shadow:0 8px 18px rgba(15,23,42,.04);
+    }
+    .field label {
+      display:block;
+      font-size:12px;
+      color:var(--muted);
+      font-weight:900;
+      margin-bottom:6px;
+    }
+    .field select,
+    .field input{
+      width:100%;
+      min-width:0;
+      border:none;
+      outline:none;
+      background:transparent;
+      border-radius:0;
+      padding:0;
+      min-height:0;
+      box-shadow:none;
+      color:var(--ink);
+      font-size:16px;
+      font-weight:800;
+    }
+    .field select{
+      appearance:none;
+      -webkit-appearance:none;
+      -moz-appearance:none;
+      padding-right:20px;
+    }
+    .field input::placeholder{
+      color:#94a3b8;
+      font-weight:700;
+    }
+    .toggleRow {
+      margin-top:12px;
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      gap:14px;
+      flex-wrap:wrap;
+      font-weight:800;
+    }
+    .toggleRow label {
+      display:inline-flex !important;
+      align-items:center;
+      gap:8px;
+      margin:0;
+      white-space:nowrap;
+    }
+    .toggleRow input[type="checkbox"] {
+      width:auto !important;
+      min-width:16px;
+      height:16px;
+      margin:0;
+    }
+    .list {
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      max-height:45vh;
+      overflow:auto;
+      padding-right:4px;
+    }
+    .item {
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:13px 14px;
+      cursor:pointer;
+      background:linear-gradient(180deg,#ffffff,#fdfdff);
+      transition:transform .08s ease, box-shadow .12s ease;
+    }
+    .item:hover {
+      box-shadow:0 16px 28px rgba(15,23,42,.10);
+      transform:translateY(-1px);
+    }
+    .item b { display:block; font-size:14px; }
+    .item small { display:block; color:var(--muted); margin-top:5px; line-height:1.45; }
+    .actions { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+    .mini { padding:8px 12px; border-radius:999px; font-size:12px; }
+    .actions .btn{
+      font-size:13px;
+      min-height:40px;
+      padding:10px 14px;
+    }
+    .acWrap { position:relative; }
+    .acList {
+      position:absolute;
+      left:0;
+      right:0;
+      top:calc(100% + 6px);
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:18px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      z-index:50;
+      max-height:260px;
+      overflow:auto;
+      display:none;
+    }
+    .acItem {
+      padding:10px 12px;
+      border-bottom:1px solid var(--border);
+      cursor:pointer;
+      font-size:13px;
+      font-weight:800;
+    }
+    .acItem:last-child { border-bottom:none; }
+    .acItem:hover { background:#f8fafc; }
+    .result-panel .cardBody{padding:18px}
+    .kv{
+      display:grid;
+      grid-template-columns:110px 1fr;
+      gap:6px 10px;
+      font-size:13px;
+    }
     .k{color:var(--muted)}
-    .v{color:var(--text);word-break:break-word}
-    .small{font-size:12px;color:var(--muted);margin-top:10px}
-    .copy{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
-    .btnGhost{border:1px solid var(--border);background:var(--card);color:var(--text);padding:8px 10px;border-radius:12px;cursor:pointer;font-size:12px}
+    .v{color:var(--ink);word-break:break-word}
+    .copy{
+      margin-top:12px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .btnGhost{
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--ink);
+      padding:14px 20px;
+      border-radius:999px;
+      cursor:pointer;
+      font-size:18px;
+      font-weight:800;
+      box-shadow:0 8px 18px rgba(15,23,42,.04);
+    }
+    .small{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:12px;
+      font-weight:800;
+    }
 
-    #map{height:100vh;width:100%}
+    .map-panel{
+      background:rgba(255,255,255,.94);
+      backdrop-filter:blur(14px);
+      border:1px solid rgba(219,228,255,.9);
+      border-radius:28px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:720px;
+    }
+    .map-head{
+      padding:18px 20px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:14px;
+      background:linear-gradient(180deg,#fffdf9,#fff6f0);
+      font-weight:1000;
+    }
+    .map-title{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .map-title strong{
+      font-size:22px;
+      letter-spacing:-.4px;
+    }
+    .map-title span{
+      color:var(--muted);
+      font-size:14px;
+      font-weight:700;
+    }
+    .map-badges{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      justify-content:flex-end;
+    }
+    .map-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:38px;
+      padding:0 14px;
+      border-radius:999px;
+      background:#fff;
+      color:#1d4ed8;
+      border:1px solid rgba(37,99,235,.12);
+      font-size:13px;
+      font-weight:900;
+      box-shadow:0 8px 18px rgba(15,23,42,.06);
+    }
+    button.map-badge{
+      cursor:pointer;
+      appearance:none;
+      transition:transform .12s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+    button.map-badge:hover{
+      transform:translateY(-1px);
+      box-shadow:0 12px 22px rgba(15,23,42,.10);
+      border-color:#bfdbfe;
+    }
+    .map-badge.warm{
+      background:linear-gradient(180deg,#fff8dd,#fff0b2);
+      color:#c2410c;
+      border-color:rgba(194,65,12,.12);
+    }
+    .brand-ribbon{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:16px;
+    }
+    .brand-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:38px;
+      padding:0 14px;
+      border-radius:999px;
+      background:rgba(255,255,255,.14);
+      border:1px solid rgba(255,255,255,.18);
+      font-size:13px;
+      font-weight:900;
+      letter-spacing:.2px;
+    }
+    #map{
+      width:100%;
+      height:100%;
+      min-height:650px;
+    }
+    #result {
+      display:none;
+      margin-top:16px;
+      padding:14px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:#f8fafc;
+      color:var(--ink);
+      font-size:12px;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
 
-    @media (max-width:900px){
-      .app{grid-template-columns:1fr;grid-template-rows:380px 1fr}
-      .panel{border-right:none;border-bottom:1px solid var(--border)}
-      #map{height:calc(100vh - 86px - 380px)}
+    @media (max-width: 980px){
+      .page-hero{
+        grid-template-columns:1fr;
+      }
+      .hero-stats{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+      }
+      .locator-shell{
+        grid-template-columns:1fr;
+      }
+      .top-nav{gap:18px}
+      .brandPill,.tab{min-width:0}
+      .sidebar{
+        position:static;
+      }
+    }
+    @media (max-width: 640px){
+      .top-wrap{justify-content:center}
+      .top-nav{gap:14px}
+      .page-hero{
+        padding-top:20px;
+      }
+      .hero-stats{
+        grid-template-columns:1fr;
+      }
+      .locator-shell{padding-top:16px}
+      .searchBox{flex-wrap:wrap;border-radius:22px}
+      .controls{gap:8px}
+      .cardHead{font-size:16px}
+      .status{font-size:14px}
+      .map-head{
+        align-items:flex-start;
+        flex-direction:column;
+      }
+      .map-badges{
+        justify-content:flex-start;
+      }
+      .searchBox input,.btn,select,.chip,.btnGhost{font-size:16px}
     }
   </style>
 </head>
@@ -126,278 +713,1188 @@
       <nav class="top-nav">
         <a href="{% url 'store:home' %}#about">Giới thiệu</a>
         <a href="{% url 'store:home' %}#products">Sản phẩm</a>
-        <a href="{% url 'store:home' %}#stores">Cửa hàng</a>
+        <a href="{% url 'store:map_page' %}">Cửa hàng</a>
       </nav>
       <div class="top-actions">
-        <a href="{% url 'store:home' %}#stores" class="top-btn-find">Tìm cửa hàng</a>
-        <a href="/admin/" class="top-btn-admin">Admin</a>
+        <a href="{% url 'store:map_page' %}" class="top-btn-find">Tìm cửa hàng</a>
+        <a href="{% url 'store:cart' %}" class="top-btn-admin">{{ t.cart|default:"Giỏ hàng" }}</a>
+        {% if request.user.is_authenticated %}
+          {% if show_admin_link %}
+            <a href="{% url 'store:admin_dashboard' %}" class="top-btn-admin">Admin</a>
+          {% else %}
+            <a href="{% url 'store:user_dashboard' %}" class="top-btn-admin">Tài khoản</a>
+          {% endif %}
+        {% else %}
+          <a href="{% url 'store:user_login' %}" class="top-btn-admin">{{ t.login|default:"Đăng nhập" }}</a>
+        {% endif %}
       </div>
     </div>
   </header>
-  <div class="app">
-    <aside class="panel">
-      <div class="brand">
-        <div class="brand-logo-box"></div>
-        <div>
-          <h1>WebGIS Smart Search</h1>
-          <p>Nhập “lat,lon” hoặc “tên đường/địa chỉ”</p>
-        </div>
+
+  <section class="page-hero">
+    <div class="hero-copy">
+      <div class="hero-kicker">Bản đồ cửa hàng thông minh</div>
+      <h1>Tìm cửa hàng gần bạn nhanh hơn, rõ hơn và đẹp hơn.</h1>
+      <p>Nhập địa chỉ, dùng GPS hoặc click trực tiếp lên bản đồ để xem cửa hàng Circle K và GS25 xung quanh, lọc kết quả theo khu vực và xuất dữ liệu khi cần.</p>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <b>GPS + Map</b>
+        <span>Hỗ trợ chọn vị trí bằng GPS, gõ địa chỉ hoặc click trực tiếp trên bản đồ.</span>
       </div>
-
-      <div class="searchBar">
-        <div class="row">
-          <input id="q" placeholder="VD: 10.762622,106.660172 hoặc Nguyễn Trãi, Q5, TP.HCM" />
-          <button class="btn" id="btnSearch">Tìm</button>
-        </div>
-
-        <div class="controls">
-          <select id="brand">
-            <option value="CIRCLEK">Circle K</option>
-            <option value="GS25">GS25</option>
-          </select>
-
-          <select id="maxKm">
-            <option value="0.05">Bắt dính 50m</option>
-            <option value="0.1">Bắt dính 100m</option>
-            <option value="0.2" selected>Bắt dính 200m</option>
-            <option value="0.5">Bắt dính 500m</option>
-            <option value="1">Bắt dính 1km</option>
-            <option value="2">Bắt dính 2km</option>
-          </select>
-
-          <div class="chip" id="btnMyLoc">📍 Vị trí tôi</div>
-          <div class="chip" id="btnClear">🧹 Xoá</div>
-        </div>
-
-        <div class="hint">
-          • Click lên bản đồ để lấy tọa độ và tìm nhanh.<br/>
-          • Nếu không thấy cửa hàng → tăng “Bắt dính”.
-        </div>
-
-        <div class="hint" id="smartHint" style="display:none;"></div>
+      <div class="hero-stat">
+        <b>CSV</b>
+        <span>Xuất nhanh danh sách cửa hàng đang hiển thị để kiểm tra hoặc chia sẻ.</span>
       </div>
-
-      <div class="card">
-        <h3>Kết quả</h3>
-        <div class="kv" id="kv"></div>
-        <div class="copy">
-          <button class="btnGhost" id="btnCopyCoord">Copy tọa độ</button>
-          <button class="btnGhost" id="btnCopyAddr">Copy địa chỉ</button>
-        </div>
-        <div class="small" id="status"></div>
+      <div class="hero-stat">
+        <b>Favorites</b>
+        <span>Lưu cửa hàng yêu thích và xem lại lịch sử thao tác ngay trong sidebar.</span>
       </div>
+      <div class="hero-stat">
+        <b>Route</b>
+        <span>Xem chỉ đường, khoảng cách gần nhất và làm việc tốt trên cả desktop lẫn mobile.</span>
+      </div>
+    </div>
+  </section>
+
+  <main class="locator-shell">
+    <aside class="sidebar">
+      <section class="panel">
+        <div class="topbar">
+          <div class="topbar-inner">
+            <div class="brandPill">🗺️ WebGIS Stores</div>
+            <div class="tab" data-brand="CIRCLEK">Circle K & GS25</div>
+          </div>
+          <div class="brand-ribbon">
+            <div class="brand-chip">Circle K</div>
+            <div class="brand-chip">GS25</div>
+            <div class="brand-chip">Retail Map</div>
+          </div>
+          <div class="topbar-note">
+            Trung tâm điều khiển tìm cửa hàng. Bạn có thể đổi thương hiệu, bán kính tìm kiếm, lọc theo quận và xuất danh sách chỉ với vài thao tác.
+          </div>
+        </div>
+        <div class="cardHead">
+          <span>Điều khiển & Danh sách</span>
+          <span class="status"><span id="dot" class="dot"></span><span id="status">OK</span></span>
+        </div>
+        <div class="cardBody">
+          <div class="acWrap">
+            <div class="searchBox">
+              <div class="pin">📍</div>
+              <input id="q" placeholder="Nhập địa chỉ hoặc tên cửa hàng..." autocomplete="off" />
+              <button class="btn btnPrimary" id="btnSearch">Tìm</button>
+              <button class="btn btnWhite" id="btnMyLoc">Vị trí tôi</button>
+            </div>
+            <div id="acList" class="acList"></div>
+          </div>
+
+          <div class="controls">
+            <select id="brand">
+              <option value="CIRCLEK">Circle K</option>
+              <option value="GS25">GS25</option>
+            </select>
+
+            <select id="radiusKm">
+              <option value="0.05">Bắt dính 50m</option>
+              <option value="0.1">Bắt dính 100m</option>
+              <option value="0.2" selected>Bắt dính 200m</option>
+              <option value="0.5">Bắt dính 500m</option>
+              <option value="1">Bắt dính 1km</option>
+              <option value="2">Bắt dính 2km</option>
+            </select>
+
+            <div class="chip" id="btnClear">🧹 Xóa</div>
+          </div>
+
+          <div class="hint">
+            Tip: Không muốn bật GPS 👉 click trực tiếp lên bản đồ để chọn vị trí.
+          </div>
+          <div class="toggleRow">
+            <label><input id="autoBounds" type="checkbox" /> Auto tải theo khung bản đồ</label>
+            <label><input id="filterOpenNow" type="checkbox" /> Chỉ cửa hàng đang mở</label>
+          </div>
+          <div class="row" style="margin-top:14px">
+            <div class="field">
+              <label>Quận / huyện</label>
+              <select id="districtSel">
+                <option value="">Tất cả</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Lọc nhanh</label>
+              <input id="filterText" type="text" placeholder="Tên cửa hàng, địa chỉ..." />
+            </div>
+          </div>
+          <div class="actions" style="margin-top:16px">
+            <button class="btn btnWhite mini" id="btnNearby">Tìm gần đây</button>
+            <button class="btn btnWhite mini" id="btnLoadBounds">Tải trong khung</button>
+            <button class="btn btnWhite mini" id="btnSortNear">Gần nhất</button>
+            <button class="btn btnWhite mini" id="btnExport">Xuất CSV</button>
+            <button class="btn btnWhite mini" id="btnFav">Favorites</button>
+            <button class="btn btnWhite mini" id="btnHistory">History</button>
+            <button class="btn btnWhite mini" id="btnToggleMarkers">Ẩn marker</button>
+            <button class="btn btnWhite mini" id="btnClearRoute">Xóa đường</button>
+            <button class="btn btnWhite mini" id="btnReset">Reset</button>
+          </div>
+          <div class="hint" id="smartHint" style="display:none;"></div>
+        </div>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="cardHead">
+          <span>Kết quả</span>
+        </div>
+        <div class="cardBody">
+          <div class="kv" id="kv"></div>
+          <div class="copy">
+            <button class="btnGhost" id="btnCopyCoord">Copy tọa độ</button>
+            <button class="btnGhost" id="btnCopyAddr">Copy địa chỉ</button>
+          </div>
+          <div class="small" id="dirBox" style="display:none;margin-top:16px">
+            <div style="font-size:14px;font-weight:1000;color:var(--ink);margin-bottom:8px">Chỉ đường</div>
+            <div id="dirSummary" style="color:var(--ink);margin-bottom:8px"></div>
+            <div id="dirSteps"></div>
+          </div>
+          <div class="small" style="margin-top:16px">Danh sách cửa hàng</div>
+          <div class="list" id="storeList"></div>
+          <pre id="result"></pre>
+        </div>
+      </section>
     </aside>
 
-    <div id="map"></div>
-  </div>
+    <section class="map-panel">
+      <div class="map-head">
+        <div class="map-title">
+          <strong>Bản đồ cửa hàng</strong>
+          <span>Click map để chọn vị trí, click store để xem nhanh và chỉ đường.</span>
+        </div>
+        <div class="map-badges">
+          <button type="button" class="map-badge" id="mapQuickNearby">Tìm gần theo vị trí</button>
+          <button type="button" class="map-badge warm" id="mapQuickExport">Hỗ trợ xuất CSV</button>
+        </div>
+      </div>
+      <div id="map"></div>
+    </section>
+  </main>
 
-<script>
-  const map = L.map('map', { zoomControl: true }).setView([10.7769, 106.7009], 13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  <script>
+// ======================
+// DOM Elements
+// ======================
+const out = document.getElementById('result');
+const statusEl = document.getElementById('status');
+const dot = document.getElementById('dot');
 
-  let markerQuery = null;
-  let markerStore = null;
-  let line = null;
+const qInput = document.getElementById('q');
+const acList = document.getElementById('acList');
 
-  const kv = document.getElementById('kv');
-  const statusEl = document.getElementById('status');
-  const hintEl = document.getElementById('smartHint');
-
-  const qInput = document.getElementById('q');
-  const brandSel = document.getElementById('brand');
-  const maxKmSel = document.getElementById('maxKm');
-
-  function setStatus(text, ok=true){
-    statusEl.textContent = text || "";
-    statusEl.style.color = ok ? "#16a34a" : "#ef4444";
-  }
-
-  function showHint(html){
-    if(!html){
-      hintEl.style.display = "none";
-      hintEl.innerHTML = "";
-      return;
-    }
-    hintEl.style.display = "block";
-    hintEl.innerHTML = html;
-  }
-
-  function clearAll(){
-    if(markerQuery) map.removeLayer(markerQuery), markerQuery=null;
-    if(markerStore) map.removeLayer(markerStore), markerStore=null;
-    if(line) map.removeLayer(line), line=null;
-    kv.innerHTML = "";
-    showHint("");
-    setStatus("");
-  }
-
-  function renderKV(obj){
-    kv.innerHTML = "";
-    const add = (k,v) => {
-      const dk = document.createElement('div');
-      dk.className='k'; dk.textContent = k;
-      const dv = document.createElement('div');
-      dv.className='v'; dv.textContent = v ?? "";
-      kv.appendChild(dk); kv.appendChild(dv);
-    };
-
-    add("Chế độ", obj.mode);
-    add("Tọa độ", `${obj.location.lat.toFixed(6)}, ${obj.location.lon.toFixed(6)}`);
-    add("Tên đường", obj.location.road || "(không có)");
-    add("Địa chỉ", obj.location.display_address || "(không có)");
-
-    if(obj.store){
-      add("Cửa hàng", obj.store.name);
-      add("Thương hiệu", obj.store.brand);
-      add("Địa chỉ (DB)", obj.store.address_db || "(trống)");
-      add("Khoảng cách", `${obj.store.distance_km} km`);
+function ensureHiddenElement(id, tagName, attrs = {}) {
+  let el = document.getElementById(id);
+  if (el) return el;
+  el = document.createElement(tagName);
+  el.id = id;
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (key === "text") {
+      el.textContent = value;
+    } else if (key === "checked") {
+      el.checked = value;
     } else {
-      add("Cửa hàng", "Không tìm thấy cửa hàng gần điểm này");
+      el.setAttribute(key, value);
     }
+  });
+  el.style.display = "none";
+  document.body.appendChild(el);
+  return el;
+}
+
+const radiusSel = document.getElementById('radiusKm') || ensureHiddenElement('radiusKm', 'select');
+const districtSel = document.getElementById('districtSel') || ensureHiddenElement('districtSel', 'select');
+const filterText = document.getElementById('filterText') || ensureHiddenElement('filterText', 'input', { type: 'text' });
+const filterOpenNow = document.getElementById('filterOpenNow') || ensureHiddenElement('filterOpenNow', 'input', { type: 'checkbox' });
+const autoBounds = document.getElementById('autoBounds') || ensureHiddenElement('autoBounds', 'input', { type: 'checkbox' });
+
+const storeListEl = document.getElementById('storeList') || ensureHiddenElement('storeList', 'div');
+
+const dirBox = document.getElementById("dirBox") || ensureHiddenElement('dirBox', 'div');
+const dirSummary = document.getElementById("dirSummary") || ensureHiddenElement('dirSummary', 'span');
+const dirSteps = document.getElementById("dirSteps") || ensureHiddenElement('dirSteps', 'div');
+
+// ======================
+// State
+// ======================
+let ACTIVE_BRAND = "CIRCLEK";
+let currentCenter = null; // {lat, lng, display?}
+let markersVisible = true;
+
+let STORES = [];
+let STORES_VIEW = [];
+let lastNearbyItems = [];
+
+let LIST_LIMIT = 60;
+
+let routingControl = null;
+let radiusCircle = null;
+const ROAD_PROFILE = "driving";
+const ROAD_TOP_N = 8;
+
+const LS_FAV = "webgis:favs:v1";
+const LS_HIS = "webgis:history:v1";
+
+// ======================
+// Utils
+// ======================
+function setStatus(text, ok=true){
+  statusEl.textContent = text || '';
+  dot.className = ok ? "dot" : "dot bad";
+  statusEl.style.color = ok ? '#16a34a' : '#ef4444';
+}
+
+function showJSON(obj){
+  if(!out) return;              
+  out.style.display = "block";
+  out.textContent = JSON.stringify(obj, null, 2);
+}
+
+
+function esc(s){
+  return (s??"").toString().replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+}
+
+function debounce(fn, ms=250){
+  let t=null;
+  return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); };
+}
+
+function haversineKm(lat1,lng1,lat2,lng2){
+  const R=6371.0;
+  const toRad=x=>x*Math.PI/180;
+  const dlat=toRad(lat2-lat1);
+  const dlng=toRad(lng2-lng1);
+  const a=Math.sin(dlat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dlng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+
+function getRadiusKm(){ return Number(radiusSel.value || 0.5); }
+function getDistrict(){ return (districtSel.value||"").trim(); }
+
+function parseLatLng(text){
+  const m = (text||"").trim().match(/^\s*(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if(!m) return null;
+  const lat = Number(m[1]), lng = Number(m[2]);
+  if(Number.isFinite(lat) && Number.isFinite(lng) && lat>=-90 && lat<=90 && lng>=-180 && lng<=180){
+    return {lat, lng};
   }
+  return null;
+}
 
-  function popupHtmlQuery(obj){
-    const lat = obj.location.lat.toFixed(6);
-    const lon = obj.location.lon.toFixed(6);
-    return `
-      <b>Điểm truy vấn</b><br/>
-      <b>Tọa độ:</b> ${lat}, ${lon}<br/>
-      <b>Tên đường:</b> ${obj.location.road || "(không có)"}<br/>
-      <b>Địa chỉ:</b> ${obj.location.display_address || "(không có)"}
-    `;
+function openStatusText(s){
+  if(s?.is_24h) return "Mở 24/7";
+  if(s?.is_open_now === true) return "Đang mở";
+  if(s?.is_open_now === false) return "Đã đóng";
+  if(s?.business_hours) return `Giờ: ${s.business_hours}`;
+  return "Chưa có giờ hoạt động";
+}
+
+function distanceText(s){
+  if(Number.isFinite(s?.road_distance_km)){
+    const mins = Number.isFinite(s?.road_duration_min) ? ` ~ ${Number(s.road_duration_min).toFixed(0)} phút` : "";
+    return `Theo đường: ${Number(s.road_distance_km).toFixed(2)} km${mins}`;
   }
+  const d = currentCenter ? haversineKm(currentCenter.lat, currentCenter.lng, s.lat, s.lng) : (s?.distance_km ?? null);
+  return d != null ? `Ước lượng: ${Number(d).toFixed(2)} km` : "";
+}
 
-  function popupHtmlStore(s){
-    return `
-      <b>${s.name}</b><br/>
-      <b>Brand:</b> ${s.brand}<br/>
-      <b>DB Address:</b> ${s.address_db || "(trống)"}<br/>
-      <b>Tọa độ:</b> ${s.lat.toFixed(6)}, ${s.lon.toFixed(6)}<br/>
-      <b>Khoảng cách:</b> ${s.distance_km} km
-    `;
-  }
-
-  async function smartSearch(q, maxKmOverride=null){
-    const brand = brandSel.value;
-    const maxKm = maxKmOverride ?? maxKmSel.value;
-
-    setStatus("Đang tìm...");
-    showHint("");
-
-    const url = `/tools/smart-search/?q=${encodeURIComponent(q)}&brand=${encodeURIComponent(brand)}&max_km=${encodeURIComponent(maxKm)}`;
+async function fetchJSON(url){
+  try{
     const res = await fetch(url);
-    const data = await res.json();
-
-    if(!res.ok){
-      setStatus(data.error || "Lỗi", false);
-      return;
+    const text = await res.text();
+    let data = null;
+    try{ data = JSON.parse(text); }
+    catch{ data = { ok:false, error:"Loading...", raw:text.slice(0,250) }; }
+    if(!res.ok || data.ok === false){
+      setStatus(data.error || `HTTP ${res.status}`, false);
+    }else{
+      setStatus(data.message || "OK ✅", true);
     }
-
-    renderKV(data);
-    setStatus(data.message || "OK", !!data.store);
-
-    const qLat = data.location.lat;
-    const qLon = data.location.lon;
-
-    if(markerQuery) map.removeLayer(markerQuery);
-    markerQuery = L.marker([qLat, qLon]).addTo(map).bindPopup(popupHtmlQuery(data));
-
-    if(markerStore) map.removeLayer(markerStore);
-    if(line) map.removeLayer(line);
-
-    if(data.store){
-      markerStore = L.marker([data.store.lat, data.store.lon]).addTo(map).bindPopup(popupHtmlStore(data.store));
-      line = L.polyline([[qLat, qLon], [data.store.lat, data.store.lon]]).addTo(map);
-      map.fitBounds(line.getBounds(), { padding: [30, 30] });
-      markerStore.openPopup();
-    } else {
-      map.setView([qLat, qLon], 18);
-      markerQuery.openPopup();
-
-      if(data.suggested_max_km){
-        showHint(`
-          <div style="margin-top:10px;">
-            <b>Gợi ý:</b> thử tăng bán kính bắt dính.<br/>
-            <button class="btn" id="btnExpand" style="margin-top:8px;">
-              Mở rộng lên ${data.suggested_max_km} km
-            </button>
-          </div>
-        `);
-        setTimeout(() => {
-          const btn = document.getElementById('btnExpand');
-          if(btn) btn.onclick = () => smartSearch(q, data.suggested_max_km);
-        }, 0);
-      }
-    }
+    return {res, data};
+  }catch(e){
+    showJSON({ok:false, error:String(e)});
+    setStatus("Lỗi mạng/Fetch ❌", false);
+    return {res:null, data:null};
   }
+}
 
-  // Search button / Enter
-  document.getElementById('btnSearch').onclick = () => {
-    const q = qInput.value.trim();
-    if(!q) return setStatus("Nhập lat,lon hoặc địa chỉ.", false);
-    smartSearch(q);
-  };
-  qInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') document.getElementById('btnSearch').click(); });
+async function postJSON(url, body){
+  try{
+    const res = await fetch(url, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(body)
+    });
+    const text = await res.text();
+    let data = null;
+    try{ data = JSON.parse(text); }
+    catch{ data = { ok:false, error:"Response is not JSON", raw:text.slice(0,250) }; }
+    if(!res.ok || data.ok === false){
+      setStatus(data.error || `HTTP ${res.status}`, false);
+    }else{
+      setStatus(data.message || "OK ✅", true);
+    }
+    return {res, data};
+  }catch(e){
+    showJSON({ok:false, error:String(e)});
+    setStatus("Lỗi mạng/Fetch ❌", false);
+    return {res:null, data:null};
+  }
+}
 
-  // Clear
-  document.getElementById('btnClear').onclick = ()=>{
-    qInput.value = "";
-    clearAll();
-  };
+function showDirections(summaryText, stepsHtml){
+  dirBox.style.display = "block";
+  dirSummary.textContent = summaryText || "";
+  dirSteps.innerHTML = stepsHtml || "";
+}
+function hideDirections(){
+  dirBox.style.display = "none";
+  dirSummary.textContent = "";
+  dirSteps.innerHTML = "";
+}
 
-  // My location
-  document.getElementById('btnMyLoc').onclick = ()=>{
-    if(!navigator.geolocation){ setStatus("Trình duyệt không hỗ trợ GPS.", false); return; }
-    setStatus("Đang lấy vị trí...");
-    navigator.geolocation.getCurrentPosition(
-      (pos)=>{
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        const q = `${lat.toFixed(6)},${lon.toFixed(6)}`;
-        qInput.value = q;
-        smartSearch(q);
-      },
-      ()=> setStatus("Không lấy được vị trí (hãy cấp quyền GPS).", false),
-      { enableHighAccuracy:true, timeout:8000 }
-    );
-  };
+// ======================
+// Map Initialization
+// ======================
+const map = L.map("map").setView([10.7769, 106.7009], 12);
+const PICK_MODE = new URLSearchParams(window.location.search).get("pick_for") === "admin_cuahang";
+const params = new URLSearchParams(window.location.search);
+const centerLat = Number.parseFloat(params.get("center_lat"));
+const centerLon = Number.parseFloat(params.get("center_lon"));
+const initialQuery = (params.get("q") || "").trim();
+if (Number.isFinite(centerLat) && Number.isFinite(centerLon)) {
+  map.setView([centerLat, centerLon], 18);
+}
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors | WebGIS Project – Thuan"
+}).addTo(map);
 
-  // Copy coord/address
-  document.getElementById('btnCopyCoord').onclick = async ()=>{
-    const vals = Array.from(kv.querySelectorAll('.v'));
-    const coord = vals[1]?.textContent || "";
-    try{ await navigator.clipboard.writeText(coord); setStatus("Đã copy tọa độ ✅"); }
-    catch{ setStatus("Không copy được.", false); }
-  };
-  document.getElementById('btnCopyAddr').onclick = async ()=>{
-    const vals = Array.from(kv.querySelectorAll('.v'));
-    const addr = vals[3]?.textContent || "";
-    try{ await navigator.clipboard.writeText(addr); setStatus("Đã copy địa chỉ ✅"); }
-    catch{ setStatus("Không copy được.", false); }
-  };
+const userIcon = L.divIcon({
+  className:"",
+  html:`<div style="width:16px;height:16px;border-radius:999px;background:#2563eb;border:3px solid #fff;box-shadow:0 10px 20px rgba(37,99,235,.35)"></div>`,
+  iconSize:[16,16], iconAnchor:[8,8]
+});
+const storeIcon = L.divIcon({
+  className:"",
+  html:`<div style="width:18px;height:18px;border-radius:7px;background:linear-gradient(180deg,#e31c23,#c3141a);border:2px solid #fff;box-shadow:0 12px 22px rgba(227,28,35,.35)"></div>`,
+  iconSize:[18,18], iconAnchor:[9,9]
+});
 
-  // Click map => search latlon
-  map.on('click', (e)=>{
-    const q = `${e.latlng.lat.toFixed(6)},${e.latlng.lng.toFixed(6)}`;
-    qInput.value = q;
-    smartSearch(q);
+const cluster = L.markerClusterGroup();
+map.addLayer(cluster);
+
+let userMarker = null;
+
+function clearRoute(){
+  if(routingControl){
+    map.removeControl(routingControl);
+    routingControl = null;
+  }
+  hideDirections();
+}
+
+function drawRadiusCircle(){
+  if(!currentCenter) return;
+  const m = getRadiusKm() * 1000;
+  if(radiusCircle) radiusCircle.remove();
+  radiusCircle = L.circle([currentCenter.lat, currentCenter.lng], {
+    radius: m,
+    weight: 2,
+    opacity: .9,
+    fillOpacity: .10
+  }).addTo(map);
+}
+
+function setUser(lat, lng, display=""){
+  currentCenter = {lat, lng, display};
+  if(userMarker) userMarker.remove();
+  userMarker = L.marker([lat, lng], {icon:userIcon}).addTo(map);
+  userMarker.bindPopup(`<b>Vị trí</b><br/>${esc(display || (lat.toFixed(6)+", "+lng.toFixed(6)))}`).openPopup();
+  map.setView([lat, lng], 16);
+  clearRoute();
+  drawRadiusCircle();
+}
+
+function renderMarkers(list){
+  cluster.clearLayers();
+  if(!markersVisible) return;
+  list.forEach(s=>{
+    const m = L.marker([s.lat, s.lng], {icon:storeIcon});
+    m.on("click", ()=> openStorePopup(s));
+    cluster.addLayer(m);
+  });
+}
+
+function openStorePopup(s){
+  const html = `
+    <b>${esc(s.name || "Cửa hàng")}</b><br/>
+    ${esc(s.address_db || "")}<br/>
+    <small style="color:#64748b">Quận: ${esc(s.district || "")}</small><br/>
+    <small style="color:#2563eb">${esc(openStatusText(s))}</small><br/>
+    <small style="color:#64748b">${esc(distanceText(s))}</small><br/>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btnWhite mini" onclick="routeToStore(${s.lat},${s.lng},'${esc(s.name||"Store")}')">🧭 Chỉ đường</button>
+      <button class="btn btnWhite mini" onclick="toggleFav(${s.id})">⭐ Yêu thích</button>
+    </div>
+  `;
+  L.popup({maxWidth:360})
+    .setLatLng([s.lat, s.lng])
+    .setContent(html)
+    .openOn(map);
+}
+
+window.routeToStore = function(lat, lng, name){
+  if(!currentCenter){
+    setStatus("Chưa có vị trí. Click map hoặc bấm Vị trí tôi.", false);
+    return;
+  }
+  clearRoute();
+
+  routingControl = L.Routing.control({
+    waypoints: [
+      L.latLng(currentCenter.lat, currentCenter.lng),
+      L.latLng(lat, lng),
+    ],
+    addWaypoints:false,
+    draggableWaypoints:false,
+    routeWhileDragging:false,
+    show: false
+  }).addTo(map);
+
+  routingControl.on("routesfound", (e)=>{
+    const r = e.routes[0];
+    const km = (r.summary.totalDistance/1000).toFixed(2);
+    const min = (r.summary.totalTime/60).toFixed(0);
+    setStatus(`Tới ${name}: ${km} km ~ ${min} phút`, true);
+
+    const inst = (r.instructions || []).map((it, idx)=>{
+      const dkm = it.distance ? (it.distance/1000).toFixed(2)+" km" : "";
+      const txt = (it.text || "").replaceAll("<","&lt;").replaceAll(">","&gt;");
+      return `<div style="padding:8px 0;border-bottom:1px dashed #e5e7eb">
+                <b>${idx+1}.</b> ${txt}
+                <div style="color:#64748b;font-weight:800">${dkm}</div>
+              </div>`;
+    }).join("");
+
+    showDirections(`${km} km • ${min} phút`, inst || `<div style="color:#64748b;font-weight:900">Không có hướng dẫn chi tiết.</div>`);
   });
 
-  // Auto-run from URL
-  (function autoFromUrl(){
-    const params = new URLSearchParams(window.location.search);
-    const q = params.get('q');
-    const brand = params.get('brand');
-    const maxKm = params.get('max_km');
+  routingControl.on("routingerror", ()=>{
+    setStatus("Không tìm được đường. Thử lại!", false);
+  });
+};
 
-    if(brand && (brand === 'CIRCLEK' || brand === 'GS25')) brandSel.value = brand;
-    if(maxKm) maxKmSel.value = maxKm;
+// ======================
+// Map Events
+// ======================
+map.on("click", async (e)=>{
+  const lat = e.latlng.lat;
+  const lng = e.latlng.lng;
+  setUser(lat, lng, "Đang lấy địa chỉ...");
 
-    if(q){
-      qInput.value = q;
-      smartSearch(q, maxKm ? Number(maxKm) : null);
+  const {res, data} = await fetchJSON(`/tools/reverse-geo/?lat=${lat}&lon=${lng}`);
+  if(res && res.ok && data.ok && data.display_address){
+    setUser(lat, lng, data.display_address);
+    qInput.value = data.display_address;
+  }else{
+    setUser(lat, lng, "Không lấy được địa chỉ — dùng tọa độ");
+    qInput.value = `${lat},${lng}`;
+  }
+  if (PICK_MODE) {
+    emitCoordPick(lat, lng, (data && data.display_address) ? data.display_address : "", true);
+    return;
+  }
+  await loadNearby();
+});
+
+const loadBoundsDebounced = debounce(async ()=>{
+  if(autoBounds.checked){
+    await loadInBounds();
+  }
+}, 450);
+map.on("moveend", loadBoundsDebounced);
+
+// ======================
+// Favorites & History
+// ======================
+function loadFavs(){
+  try{ return JSON.parse(localStorage.getItem(LS_FAV) || "[]"); }catch{ return []; }
+}
+function saveFavs(arr){
+  localStorage.setItem(LS_FAV, JSON.stringify(arr));
+}
+window.toggleFav = function(id){
+  const favs = loadFavs();
+  const exists = favs.includes(id);
+  const next = exists ? favs.filter(x=>x!==id) : [...favs, id];
+  saveFavs(next);
+  setStatus(exists ? "Đã bỏ yêu thích." : "Đã thêm yêu thích ⭐", true);
+};
+
+function addHistory(item){
+  try{
+    const arr = JSON.parse(localStorage.getItem(LS_HIS) || "[]");
+    const next = [item, ...arr.filter(x=>x && x.text !== item.text)].slice(0, 20);
+    localStorage.setItem(LS_HIS, JSON.stringify(next));
+  }catch{}
+}
+
+// ======================
+// Render List
+// ======================
+function renderList(arr){
+  storeListEl.innerHTML = "";
+  if(!arr.length){
+    storeListEl.innerHTML = `<div style="color:#64748b;font-weight:900">Chưa có dữ liệu. Click map hoặc bấm Vị trí tôi để bắt đầu.</div>`;
+    return;
+  }
+
+  const favs = loadFavs();
+  const slice = arr.slice(0, LIST_LIMIT);
+
+  slice.forEach(s=>{
+    const div = document.createElement("div");
+    div.className = "item";
+
+    const distTxt = distanceText(s);
+    const isFav = favs.includes(s.id);
+
+    div.innerHTML = `
+      <b>${esc(s.name || "Store")} ${isFav ? "⭐" : ""}</b>
+      <small>${esc(s.address_db || "")}</small>
+      <small>Quận: <b>${esc(s.district || "")}</b> • ${distTxt ? `<b>${esc(distTxt)}</b>` : ""}</small>
+      <small><b>${esc(openStatusText(s))}</b></small>
+      <div class="actions">
+        <button class="btn btnWhite mini" data-act="fly">📌 Xem</button>
+        <button class="btn btnWhite mini" data-act="route">🧭 Chỉ đường</button>
+        <button class="btn btnWhite mini" data-act="fav">⭐ Yêu thích</button>
+      </div>
+    `;
+
+    div.querySelector('[data-act="fly"]').onclick = (ev)=>{
+      ev.stopPropagation();
+      map.setView([s.lat, s.lng], 18);
+      openStorePopup(s);
+    };
+    div.querySelector('[data-act="route"]').onclick = (ev)=>{
+      ev.stopPropagation();
+      map.setView([s.lat, s.lng], 18);
+      window.routeToStore(s.lat, s.lng, (s.name||"Store"));
+    };
+    div.querySelector('[data-act="fav"]').onclick = (ev)=>{
+      ev.stopPropagation();
+      window.toggleFav(s.id);
+      renderList(STORES_VIEW);
+    };
+
+    div.onclick = ()=>{
+      map.setView([s.lat, s.lng], 18);
+      openStorePopup(s);
+    };
+
+    storeListEl.appendChild(div);
+  });
+
+  if(arr.length > LIST_LIMIT){
+    const more = document.createElement("div");
+    more.className = "item";
+    more.style.textAlign = "center";
+    more.style.fontWeight = "1000";
+    more.style.color = "#2563eb";
+    more.innerHTML = `Xem thêm (${arr.length - LIST_LIMIT})`;
+    more.onclick = ()=>{
+      LIST_LIMIT += 60;
+      renderList(STORES_VIEW);
+    };
+    storeListEl.appendChild(more);
+  }
+}
+
+function applyFilter(){
+  LIST_LIMIT = 60;
+  const t = (filterText.value||"").trim().toLowerCase();
+  const d = getDistrict().toLowerCase();
+  const openOnly = !!(filterOpenNow && filterOpenNow.checked);
+
+  STORES_VIEW = STORES.filter(s=>{
+    const hay = ((s.name||"")+" "+(s.address_db||"")).toLowerCase();
+    const okText = !t || hay.includes(t);
+    const okDist = !d || ((s.district||"").toLowerCase() === d);
+    const okOpen = !openOnly || s.is_24h || s.is_open_now === true;
+    return okText && okDist && okOpen;
+  });
+
+  renderList(STORES_VIEW);
+  renderMarkers(STORES_VIEW);
+}
+
+function sortByNearest(){
+  if(!currentCenter){
+    setStatus("Chưa có vị trí để sắp xếp.", false);
+    return;
+  }
+  STORES_VIEW = [...STORES_VIEW].sort((a,b)=>{
+    const da = Number.isFinite(a.road_duration_min) ? a.road_duration_min : haversineKm(currentCenter.lat, currentCenter.lng, a.lat, a.lng);
+    const db = Number.isFinite(b.road_duration_min) ? b.road_duration_min : haversineKm(currentCenter.lat, currentCenter.lng, b.lat, b.lng);
+    return da - db;
+  });
+  renderList(STORES_VIEW);
+  setStatus("Đã sắp xếp gần nhất ✅", true);
+}
+
+async function enrichWithRoadMetrics(items){
+  if(!currentCenter || !Array.isArray(items) || !items.length) return;
+  const ranked = [...items].sort((a,b)=>{
+    const da = haversineKm(currentCenter.lat, currentCenter.lng, a.lat, a.lng);
+    const db = haversineKm(currentCenter.lat, currentCenter.lng, b.lat, b.lng);
+    return da - db;
+  });
+  const targets = ranked.slice(0, ROAD_TOP_N);
+  await Promise.all(targets.map(async (s)=>{
+    try{
+      const from = `${currentCenter.lat},${currentCenter.lng}`;
+      const to = `${s.lat},${s.lng}`;
+      const url = `/tools/route-osrm/?profile=${ROAD_PROFILE}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&alternatives=0`;
+      const res = await fetch(url);
+      if(!res.ok) return;
+      const data = await res.json();
+      if(!data?.ok || !Array.isArray(data.routes) || !data.routes.length) return;
+      const r = data.routes[0];
+      s.road_distance_km = Number((r.summary.totalDistance/1000).toFixed(3));
+      s.road_duration_min = Number((r.summary.totalTime/60).toFixed(1));
+    }catch(_e){}
+  }));
+}
+
+// ======================
+// API Calls
+// ======================
+async function refreshDistricts(){
+  const {res, data} = await fetchJSON(`/tools/districts/?brand=${encodeURIComponent(ACTIVE_BRAND)}`);
+  if(!res || !res.ok || !data.ok) return;
+  const items = data.districts || [];
+  districtSel.innerHTML = `<option value="">Tất cả</option>` + items.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");
+}
+
+async function loadNearby(){
+  if(!currentCenter){
+    setStatus("Chưa có vị trí. Click map hoặc bấm Vị trí tôi.", false);
+    return;
+  }
+  const radius = getRadiusKm();
+  const district = getDistrict();
+  const url = `/tools/stores-in-radius/?lat=${currentCenter.lat}&lon=${currentCenter.lng}&radius_km=${radius}&brand=${encodeURIComponent(ACTIVE_BRAND)}&district=${encodeURIComponent(district)}`;
+  const {res, data} = await fetchJSON(url);
+  if(!res || !res.ok || !data.ok) return;
+
+  STORES = (data.stores || []).map(x=>({
+    id:x.id, name:x.name, brand:x.brand,
+    address_db:x.address_db||"",
+    district:x.district||"",
+    lat:Number(x.lat),
+    lng:Number(x.lon),
+    distance_km:x.distance_km,
+    open_time:x.open_time || null,
+    close_time:x.close_time || null,
+    is_24h:!!x.is_24h,
+    is_open_now:(x.is_open_now === true ? true : (x.is_open_now === false ? false : null)),
+    business_hours:x.business_hours || "",
+    coord_source:x.coord_source || "db",
+  }));
+  await enrichWithRoadMetrics(STORES);
+  lastNearbyItems = STORES;
+
+  drawRadiusCircle();
+  applyFilter();
+  sortByNearest();
+  setStatus(`Tìm thấy ${STORES.length} cửa hàng quanh bạn `, true);
+}
+
+async function loadInBounds(){
+  const district = getDistrict();
+  const b = map.getBounds();
+  const url = `/tools/stores-in-bounds/?brand=${encodeURIComponent(ACTIVE_BRAND)}&district=${encodeURIComponent(district)}&south=${b.getSouth()}&west=${b.getWest()}&north=${b.getNorth()}&east=${b.getEast()}`;
+  const {res, data} = await fetchJSON(url);
+  if(!res || !res.ok || !data.ok) return;
+
+  STORES = (data.stores || []).map(x=>({
+    id:x.id, name:x.name, brand:x.brand,
+    address_db:x.address_db||"",
+    district:x.district||"",
+    lat:Number(x.lat),
+    lng:Number(x.lon),
+    open_time:x.open_time || null,
+    close_time:x.close_time || null,
+    is_24h:!!x.is_24h,
+    is_open_now:(x.is_open_now === true ? true : (x.is_open_now === false ? false : null)),
+    business_hours:x.business_hours || "",
+    coord_source:x.coord_source || "db",
+  }));
+  await enrichWithRoadMetrics(STORES);
+  lastNearbyItems = [];
+  applyFilter();
+  setStatus(`Đã tải ${STORES.length} cửa hàng trong khung bản đồ ✅`, true);
+}
+
+async function searchStoreDBFirst(){
+  const q = (qInput.value || "").trim();
+  if(q.length < 2) return false;
+
+  const district = getDistrict();
+  setStatus("Đang tìm trong DB...");
+  const {res, data} = await fetchJSON(`/tools/search-stores/?brand=${encodeURIComponent(ACTIVE_BRAND)}&q=${encodeURIComponent(q)}&district=${encodeURIComponent(district)}&limit=200`);
+  if(!res || !res.ok || !data.ok) return false;
+
+  const items = (data.stores || []).map(x=>({
+    id:x.id, name:x.name, brand:x.brand,
+    address_db:x.address_db||"",
+    district:x.district||"",
+    lat:Number(x.lat),
+    lng:Number(x.lon),
+    open_time:x.open_time || null,
+    close_time:x.close_time || null,
+    is_24h:!!x.is_24h,
+    is_open_now:(x.is_open_now === true ? true : (x.is_open_now === false ? false : null)),
+    business_hours:x.business_hours || "",
+    coord_source:x.coord_source || "db",
+  }));
+
+  if(!items.length) return false;
+
+  STORES = items;
+  await enrichWithRoadMetrics(STORES);
+  applyFilter();
+
+  const bounds = L.latLngBounds(items.map(s=>[s.lat, s.lng]));
+  map.fitBounds(bounds.pad(0.25));
+
+  setStatus(`Tìm DB: ${items.length} kết quả ✅`, true);
+  return true;
+}
+
+async function smartSearch(){
+  const q = (qInput.value||"").trim();
+  if(!q){
+    setStatus("Nhập địa chỉ hoặc tên cửa hàng.", false);
+    return;
+  }
+  addHistory({type:"search", text:q, ts:Date.now()});
+
+  const ll = parseLatLng(q);
+
+  const body = {
+    ten: ACTIVE_BRAND,
+    dia_chi: q,
+    lat: ll ? ll.lat : null,
+    lng: ll ? ll.lng : null,
+    max_km: getRadiusKm()
+  };
+
+  setStatus("Đang tìm địa chỉ (Nominatim)...");
+  const {res, data} = await postJSON("/tools/smart-search/", body);
+  if(!res || !res.ok || !data.location) return;
+
+  setUser(Number(data.location.lat), Number(data.location.lon), data.location.display_address || q);
+  await loadNearby();
+}
+
+function emitCoordPick(lat, lon, address, autoClose = false){
+  if (!PICK_MODE) return;
+  const payload = {
+    type: "admin_coord_pick",
+    lat: Number(lat),
+    lon: Number(lon),
+    address: address || "",
+    ts: Date.now(),
+  };
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage(payload, window.location.origin);
     }
-  })();
+    localStorage.setItem("admin_coord_pick", JSON.stringify(payload));
+    setStatus("Đã gửi tọa độ về form admin.", true);
+    if (autoClose) {
+      try { window.close(); } catch (_e) {}
+    }
+  } catch (_e) {
+    setStatus("Không gửi được tọa độ về admin.", false);
+  }
+}
+
+async function locateOnlyForPickMode(queryText){
+  const q = (queryText || "").trim();
+  if(!q) return false;
+
+  const ll = parseLatLng(q);
+  if(ll){
+    setUser(ll.lat, ll.lng, q);
+    map.setView([ll.lat, ll.lng], 18);
+    emitCoordPick(ll.lat, ll.lng, q, false);
+    setStatus("Đã định vị theo tọa độ.", true);
+    return true;
+  }
+
+  // 1) Prefer dedicated geocode endpoint (more stable for free-text addresses)
+  const g = await fetchJSON(`/tools/geocode/?q=${encodeURIComponent(q)}`);
+  if (g.res && g.res.ok && g.data && g.data.ok && g.data.location) {
+    const lat = Number(g.data.location.lat);
+    const lon = Number(g.data.location.lon);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      const display = g.data.location.display || q;
+      setUser(lat, lon, display);
+      map.setView([lat, lon], 18);
+      emitCoordPick(lat, lon, display, false);
+      setStatus("Đã định vị theo địa chỉ.", true);
+      return true;
+    }
+  }
+
+  // 2) Fallback to suggest endpoint
+  const {res, data} = await fetchJSON(`/tools/suggest/?q=${encodeURIComponent(q)}`);
+  if(res && res.ok && data && data.ok && Array.isArray(data.items) && data.items.length){
+    const it = data.items[0];
+    const lat = Number(it.lat);
+    const lon = Number(it.lon);
+    if(Number.isFinite(lat) && Number.isFinite(lon)){
+      setUser(lat, lon, it.display || q);
+      map.setView([lat, lon], 18);
+      emitCoordPick(lat, lon, it.display || q, false);
+      setStatus("Đã định vị theo địa chỉ.", true);
+      return true;
+    }
+  }
+  setStatus("Không định vị được địa chỉ/tọa độ. Hãy thử nhập tọa độ lat,lon.", false);
+  return false;
+}
+
+// ======================
+// Autocomplete
+// ======================
+function hideAC(){ acList.style.display="none"; acList.innerHTML=""; }
+function showAC(items){
+  if(!items || !items.length){ hideAC(); return; }
+  acList.innerHTML = items.map((it, idx)=>`
+    <div class="acItem" data-idx="${idx}">
+      ${esc(it.display || "")}
+    </div>
+  `).join("");
+  acList.style.display="block";
+
+  acList.querySelectorAll(".acItem").forEach(el=>{
+    el.onclick = ()=>{
+      const i = Number(el.dataset.idx);
+      const it = items[i];
+      if(!it) return;
+      hideAC();
+      const lat = Number(it.lat);
+      const lon = Number(it.lon);
+      qInput.value = it.display || "";
+      setUser(lat, lon, it.display || "");
+      addHistory({type:"suggest", text: it.display || "", ts: Date.now()});
+      loadNearby();
+    };
+  });
+}
+
+const suggestDebounced = debounce(async ()=>{
+  const q = (qInput.value||"").trim();
+  if(q.length < 3){ hideAC(); return; }
+
+  const {res, data} = await fetchJSON(`/tools/suggest/?q=${encodeURIComponent(q)}`);
+  if(!res || !res.ok || !data.ok){ hideAC(); return; }
+  showAC(data.items || []);
+}, 280);
+
+qInput.addEventListener("input", suggestDebounced);
+document.addEventListener("click", (e)=>{
+  if(!acList.contains(e.target) && e.target !== qInput) hideAC();
+});
+
+qInput.addEventListener("keydown", (e)=>{
+  if(e.key === "Enter"){
+    e.preventDefault();
+    document.getElementById("btnSearch").click();
+    hideAC();
+  }
+});
+
+// ======================
+// Button Handlers
+// ======================
+document.getElementById("btnSearch").onclick = async ()=>{
+  if(PICK_MODE){
+    await locateOnlyForPickMode(qInput.value);
+    return;
+  }
+  const okDB = await searchStoreDBFirst();
+  if(okDB) return;
+  await smartSearch();
+};
+
+document.getElementById("btnMyLoc").onclick = ()=>{
+  if(!navigator.geolocation){
+    setStatus("Trình duyệt không hỗ trợ Geolocation ❌", false);
+    return;
+  }
+  setStatus("Đang truy cập vị trí...");
+  navigator.geolocation.getCurrentPosition(
+    async (pos)=>{
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      setUser(lat, lng, "Vị trí hiện tại");
+
+      const {res, data} = await fetchJSON(`/tools/reverse-geo/?lat=${lat}&lon=${lng}`);
+      if(res && res.ok && data.ok && data.display_address){
+        setUser(lat, lng, data.display_address);
+        qInput.value = data.display_address;
+      }else{
+        qInput.value = `${lat},${lng}`;
+      }
+
+      addHistory({type:"gps", text:"My location", ts:Date.now()});
+      await loadNearby();
+    },
+    (err)=>{
+      let msg = "Không lấy được vị trí.";
+      if(err.code === 1) msg = "Bạn đã từ chối quyền vị trí.";
+      else if(err.code === 2) msg = "Không xác định được vị trí.";
+      else if(err.code === 3) msg = "Lấy vị trí bị timeout.";
+      setStatus("❌ " + msg + " (Bạn có thể click bản đồ để chọn vị trí)", false);
+    },
+    {enableHighAccuracy:true, timeout:10000, maximumAge:0}
+  );
+};
+
+document.getElementById("brand").addEventListener("change", (e)=>{
+  ACTIVE_BRAND = e.target.value || "CIRCLEK";
+  setStatus(`Đã chọn ${ACTIVE_BRAND}.`, true);
+  refreshDistricts();
+  if(currentCenter) loadNearby();
+});
+
+document.getElementById("btnClear").onclick = ()=>{
+  qInput.value = "";
+  hideAC();
+  clearRoute();
+  if(radiusCircle){ radiusCircle.remove(); radiusCircle = null; }
+  if(userMarker){ userMarker.remove(); userMarker = null; }
+  currentCenter = null;
+  STORES = [];
+  STORES_VIEW = [];
+  lastNearbyItems = [];
+  renderList([]);
+  renderMarkers([]);
+  const kv = document.getElementById("kv");
+  if(kv) kv.innerHTML = "";
+  if(out){
+    out.textContent = "";
+    out.style.display = "none";
+  }
+  hideDirections();
+  setStatus("Đã xóa dữ liệu tìm kiếm.", true);
+};
+
+document.getElementById("btnNearby").onclick = loadNearby;
+document.getElementById("btnLoadBounds").onclick = loadInBounds;
+
+document.getElementById("btnToggleMarkers").onclick = ()=>{
+  markersVisible = !markersVisible;
+  document.getElementById("btnToggleMarkers").textContent = markersVisible ? "Ẩn marker" : "Hiện marker";
+  renderMarkers(STORES_VIEW);
+};
+
+document.getElementById("btnClearRoute").onclick = ()=>{
+  clearRoute();
+  setStatus("Đã xóa đường.", true);
+};
+
+document.getElementById("btnReset").onclick = ()=>{
+  currentCenter = null;
+  clearRoute();
+  if(userMarker){ userMarker.remove(); userMarker=null; }
+  if(radiusCircle){ radiusCircle.remove(); radiusCircle=null; }
+  cluster.clearLayers();
+  STORES = []; STORES_VIEW = []; lastNearbyItems = [];
+  renderList([]);
+  map.setView([10.7769, 106.7009], 12);
+  setStatus("Đã reset. Click map hoặc bấm Vị trí tôi để bắt đầu.", true);
+};
+
+document.getElementById("btnSortNear").onclick = sortByNearest;
+
+document.getElementById("btnExport").onclick = ()=>{
+  const items = (STORES_VIEW && STORES_VIEW.length) ? STORES_VIEW : STORES;
+  if(!items.length){ setStatus("Không có dữ liệu để export.", false); return; }
+
+  const header = [
+    "id","brand","name","district","address","lat","lng",
+    "distance_km_estimate","distance_road_km","duration_min",
+    "open_time","close_time","is_24h","is_open_now","business_hours","coord_source"
+  ];
+  const lines = [header.join(",")];
+  for(const s of items){
+    const row = [
+      s.id ?? "",
+      s.brand ?? "",
+      s.name ?? "",
+      s.district ?? "",
+      s.address_db ?? "",
+      s.lat ?? "",
+      s.lng ?? "",
+      s.distance_km ?? "",
+      s.road_distance_km ?? "",
+      s.road_duration_min ?? "",
+      s.open_time ?? "",
+      s.close_time ?? "",
+      s.is_24h ?? "",
+      s.is_open_now ?? "",
+      s.business_hours ?? "",
+      s.coord_source ?? "db",
+    ].map(v => `"${String(v).replaceAll('"','""')}"`);
+    lines.push(row.join(","));
+  }
+  const csv = "\ufeff" + lines.join("\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `export_${ACTIVE_BRAND.toLowerCase()}_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setStatus("Đã export CSV ✅", true);
+};
+
+document.getElementById("btnFav").onclick = ()=>{
+  const favs = loadFavs();
+  if(!favs.length){
+    setStatus("Chưa có cửa hàng yêu thích.", false);
+    return;
+  }
+  const favList = STORES.filter(s=>favs.includes(s.id));
+  if(!favList.length){
+    setStatus("Favorites chưa nằm trong list hiện tại. Hãy tìm quanh vị trí trước.", false);
+    return;
+  }
+  STORES_VIEW = favList;
+  renderList(STORES_VIEW);
+  renderMarkers(STORES_VIEW);
+  setStatus(`Đang xem Favorites (${STORES_VIEW.length}) ⭐`, true);
+};
+
+document.getElementById("btnHistory").onclick = ()=>{
+  try{
+    const arr = JSON.parse(localStorage.getItem(LS_HIS) || "[]");
+    if(!arr.length){ setStatus("Chưa có lịch sử.", false); return; }
+    showJSON({history: arr});
+    setStatus("Đã mở lịch sử.", true);
+  }catch{
+    setStatus("Không đọc được lịch sử.", false);
+  }
+};
+
+const mapQuickNearby = document.getElementById("mapQuickNearby");
+if(mapQuickNearby){
+  mapQuickNearby.onclick = ()=> document.getElementById("btnNearby").click();
+}
+
+const mapQuickExport = document.getElementById("mapQuickExport");
+if(mapQuickExport){
+  mapQuickExport.onclick = ()=> document.getElementById("btnExport").click();
+}
+
+document.getElementById("btnCopyCoord").onclick = async ()=>{
+  if(!currentCenter){
+    setStatus("Chưa có tọa độ để copy.", false);
+    return;
+  }
+  const value = `${currentCenter.lat},${currentCenter.lng}`;
+  try{
+    await navigator.clipboard.writeText(value);
+    setStatus("Đã copy tọa độ.", true);
+  }catch{
+    setStatus("Không copy được tọa độ.", false);
+  }
+};
+
+document.getElementById("btnCopyAddr").onclick = async ()=>{
+  const value = currentCenter?.display || qInput.value || "";
+  if(!value){
+    setStatus("Chưa có địa chỉ để copy.", false);
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(value);
+    setStatus("Đã copy địa chỉ.", true);
+  }catch{
+    setStatus("Không copy được địa chỉ.", false);
+  }
+};
+
+if(filterText){
+  filterText.addEventListener("input", debounce(applyFilter, 200));
+}
+if(filterOpenNow){
+  filterOpenNow.addEventListener("change", applyFilter);
+}
+
+if(districtSel){
+  districtSel.addEventListener("change", ()=>{
+    applyFilter();
+    if(currentCenter) loadNearby();
+  });
+}
+
+if(radiusSel){
+  radiusSel.addEventListener("change", ()=>{
+    drawRadiusCircle();
+    if(currentCenter) loadNearby();
+  });
+}
+
+// ======================
+// Brand Tabs
+// ======================
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick = ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    ACTIVE_BRAND = t.dataset.brand;
+    setStatus(`Đã chọn ${ACTIVE_BRAND}.`, true);
+    refreshDistricts();
+    if(currentCenter) loadNearby();
+  };
+});
+
+// ======================
+// Initialization
+// ======================
+renderList([]);
+if(out){
+  out.textContent = "";
+  out.style.display = "none";
+}
+refreshDistricts();
+setStatus("Sẵn sàng. Click map để chọn vị trí.", true);
+if (PICK_MODE) {
+  setStatus("Chế độ chọn tọa độ cho admin: click 1 điểm trên bản đồ.", true);
+}
+if (initialQuery) {
+  qInput.value = initialQuery;
+  setTimeout(() => {
+    if (PICK_MODE) {
+      locateOnlyForPickMode(initialQuery);
+    } else {
+      smartSearch();
+    }
+  }, 100);
+}
 </script>
 </body>
 </html>
+

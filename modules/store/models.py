@@ -1,4 +1,5 @@
-﻿from django.db import models
+﻿from django.conf import settings
+from django.db import models
 
 
 class ThuongHieu(models.Model):
@@ -37,6 +38,12 @@ class NhomSanPham(models.Model):
 
 class SanPham(models.Model):
     ten = models.CharField("Tên sản phẩm", max_length=120)
+    gia_ban = models.DecimalField(
+        "Giá bán",
+        max_digits=12,
+        decimal_places=0,
+        default=0,
+    )
 
     nhom_san_pham = models.ForeignKey(
         "NhomSanPham",
@@ -211,3 +218,77 @@ class Notification(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title} ({self.status_code or '-'})"
+
+
+class HoSoKhachHang(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ho_so_khach_hang",
+        verbose_name="Tài khoản",
+    )
+    so_dien_thoai = models.CharField("Số điện thoại", max_length=20, blank=True)
+    dia_chi = models.CharField("Địa chỉ", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Hồ sơ khách hàng"
+        verbose_name_plural = "Hồ sơ khách hàng"
+
+    def __str__(self) -> str:
+        return f"Hồ sơ {self.user.username}"
+
+
+class DonHang(models.Model):
+    STATUS_CHOICES = (
+        ("pending", "Chờ xử lý"),
+        ("confirmed", "Đã xác nhận"),
+        ("shipping", "Đang giao"),
+        ("delivered", "Đã giao"),
+        ("done", "Hoàn tất"),
+        ("cancelled", "Đã hủy"),
+    )
+
+    khach_hang = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        verbose_name="Khách hàng",
+    )
+    ho_ten_nguoi_nhan = models.CharField("Họ tên người nhận", max_length=120)
+    so_dien_thoai = models.CharField("Số điện thoại", max_length=20)
+    dia_chi_giao_hang = models.CharField("Địa chỉ giao hàng", max_length=255)
+    ghi_chu = models.TextField("Ghi chú", blank=True)
+    trang_thai = models.CharField("Trạng thái", max_length=20, choices=STATUS_CHOICES, default="pending")
+    tong_so_luong = models.PositiveIntegerField("Tổng số lượng", default=0)
+    tong_tien = models.DecimalField("Tổng tiền", max_digits=12, decimal_places=0, default=0)
+    created_at = models.DateTimeField("Thời gian tạo", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Đơn hàng"
+        verbose_name_plural = "Đơn hàng"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Đơn hàng #{self.pk} - {self.khach_hang.username}"
+
+
+class ChiTietDonHang(models.Model):
+    don_hang = models.ForeignKey(
+        "DonHang",
+        on_delete=models.CASCADE,
+        related_name="items",
+        verbose_name="Đơn hàng",
+    )
+    san_pham = models.ForeignKey(
+        "SanPham",
+        on_delete=models.CASCADE,
+        verbose_name="Sản phẩm",
+    )
+    so_luong = models.PositiveIntegerField("Số lượng", default=1)
+    don_gia = models.DecimalField("Đơn giá", max_digits=12, decimal_places=0, default=0)
+
+    class Meta:
+        verbose_name = "Chi tiết đơn hàng"
+        verbose_name_plural = "Chi tiết đơn hàng"
+
+    def __str__(self) -> str:
+        return f"{self.san_pham.ten} x {self.so_luong}"

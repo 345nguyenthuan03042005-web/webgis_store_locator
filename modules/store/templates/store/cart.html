@@ -1,0 +1,121 @@
+{% load static %}
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ t.cart|default:"Giỏ hàng" }}</title>
+  <link rel="stylesheet" href="{% static 'admin/css/style.css' %}">
+</head>
+<body data-theme="light">
+  <main class="content" style="max-width:1100px;margin:0 auto;padding:28px 18px;">
+    {% if messages %}{% for message in messages %}<div class="msg">{{ message }}</div>{% endfor %}{% endif %}
+
+    <section class="panel card" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;">
+        <div>
+          <h1 class="top-title" style="font-size:30px;margin-bottom:6px;">{{ t.cart|default:"Giỏ hàng" }}</h1>
+          <div class="top-sub">Kiểm tra lại số lượng, cập nhật giỏ hàng và chuyển sang thanh toán khi sẵn sàng.</div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <a class="btn btn-light" href="{% url 'store:product_catalog' %}">{{ t.continue_shopping|default:"Tiếp tục mua sắm" }}</a>
+          {% if request.user.is_authenticated %}
+            <a class="btn btn-light" href="{% url 'store:my_orders' %}">{{ t.my_orders|default:"Đơn hàng của tôi" }}</a>
+          {% else %}
+            <a class="btn btn-light" href="{% url 'store:user_login' %}">{{ t.login|default:"Đăng nhập" }}</a>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    {% if cart_items %}
+      <div style="display:grid;grid-template-columns:minmax(0,1.8fr) minmax(280px,.9fr);gap:18px;align-items:start;">
+        <section class="panel card">
+          <form id="cart-update-form" method="post" action="{% url 'store:cart_update' %}">
+            {% csrf_token %}
+            <div style="overflow:auto;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>{{ t.products_page|default:"Sản phẩm" }}</th>
+                    <th>{{ t.unit_price|default:"Đơn giá" }}</th>
+                    <th>{{ t.quantity|default:"Số lượng" }}</th>
+                    <th>{{ t.line_total|default:"Thành tiền" }}</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in cart_items %}
+                    <tr>
+                      <td>
+                        <div style="font-weight:800;">{{ item.product.ten }}</div>
+                        <div class="top-sub">{{ item.product.nhom_san_pham|default:"Sản phẩm tiện lợi" }}</div>
+                      </td>
+                      <td>{{ item.display_unit_price }}</td>
+                      <td style="min-width:110px;">
+                        <input
+                          type="number"
+                          min="0"
+                          name="qty_{{ item.product.pk }}"
+                          value="{{ item.quantity }}"
+                          style="width:88px;padding:10px 12px;border:1px solid #dbe4ff;border-radius:12px;font-weight:800;"
+                        >
+                      </td>
+                      <td><strong>{{ item.display_line_total }}</strong></td>
+                      <td>
+                        <button class="btn btn-light" type="submit" form="remove-item-{{ item.product.pk }}">Xóa</button>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;">
+              <button class="btn btn-light" type="submit">{{ t.save_changes|default:"Lưu thay đổi" }}</button>
+              <a class="btn btn-primary" href="{% url 'store:checkout' %}">{{ t.checkout|default:"Thanh toán" }}</a>
+            </div>
+          </form>
+          {% for item in cart_items %}
+            <form id="remove-item-{{ item.product.pk }}" method="post" action="{% url 'store:cart_remove' item.product.pk %}">
+              {% csrf_token %}
+            </form>
+          {% endfor %}
+        </section>
+
+        <aside class="panel card">
+          <h2 style="margin-top:0;font-size:24px;">Tóm tắt đơn hàng</h2>
+          <div style="display:grid;gap:10px;">
+            <div style="display:flex;justify-content:space-between;gap:10px;">
+              <span class="top-sub">{{ t.quantity|default:"Số lượng" }}</span>
+              <strong>{{ cart_total_quantity }}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:10px;">
+              <span class="top-sub">{{ t.total_amount|default:"Tổng tiền" }}</span>
+              <strong style="font-size:20px;">{{ display_cart_total_amount }}</strong>
+            </div>
+          </div>
+
+          <div style="display:grid;gap:10px;margin-top:18px;">
+            <a class="btn btn-primary" href="{% url 'store:checkout' %}">{{ t.place_order|default:"Đặt hàng" }}</a>
+            <a class="btn btn-light" href="{% url 'store:product_catalog' %}">{{ t.continue_shopping|default:"Tiếp tục mua sắm" }}</a>
+            <form method="post" action="{% url 'store:cart_clear' %}">
+              {% csrf_token %}
+              <button class="btn btn-light" type="submit" style="width:100%;">Xóa toàn bộ giỏ hàng</button>
+            </form>
+          </div>
+        </aside>
+      </div>
+    {% else %}
+      <section class="panel card" style="text-align:center;padding:36px 24px;">
+        <h2 style="margin-top:0;">{{ t.cart_empty|default:"Giỏ hàng đang trống." }}</h2>
+        <p class="top-sub" style="max-width:560px;margin:0 auto 18px;">Bạn chưa có sản phẩm nào trong giỏ. Hãy quay lại danh mục để thêm sản phẩm rồi thanh toán sau.</p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <a class="btn btn-primary" href="{% url 'store:product_catalog' %}">{{ t.continue_shopping|default:"Tiếp tục mua sắm" }}</a>
+          <a class="btn btn-light" href="{% url 'store:map_page' %}">Tìm cửa hàng</a>
+        </div>
+      </section>
+    {% endif %}
+  </main>
+</body>
+</html>

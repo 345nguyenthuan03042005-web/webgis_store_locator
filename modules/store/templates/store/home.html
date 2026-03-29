@@ -651,13 +651,22 @@
     <nav>
       <a href="#about">Giới thiệu</a>
       <a href="#products">Sản phẩm</a>
-      <a href="#stores">Cửa hàng</a>
+      <a href="{% url 'store:map_page' %}">Cửa hàng</a>
     </nav>
 
-    <div class="header-actions">
-      <a href="#stores" class="btnFind">Tìm cửa hàng</a>
-      <a href="/admin/" class="btn btnWhite mini">Admin</a>
-    </div>
+      <div class="header-actions">
+        <a href="{% url 'store:map_page' %}" class="btnFind">Tìm cửa hàng</a>
+        <a href="{% url 'store:cart' %}" class="btn btnWhite mini">{{ t.cart|default:"Giỏ hàng" }}{% if cart_total_quantity %} ({{ cart_total_quantity }}){% endif %}</a>
+        {% if request.user.is_authenticated %}
+          {% if show_admin_link %}
+            <a href="{% url 'store:admin_dashboard' %}" class="btn btnWhite mini">Admin</a>
+          {% else %}
+            <a href="{% url 'store:user_dashboard' %}" class="btn btnWhite mini">Tài khoản</a>
+          {% endif %}
+        {% else %}
+          <a href="{% url 'store:user_login' %}" class="btn btnWhite mini">{{ t.login|default:"Đăng nhập" }}</a>
+        {% endif %}
+      </div>
   </div>
 </header>
 
@@ -666,7 +675,7 @@
   <div class="hero-content">
     <h1>Tiện lợi 24/7</h1>
     <p>Circle K & GS25 - Luôn bên bạn mọi lúc, mọi nơi</p>
-    <a href="#stores" class="btn">Tìm cửa hàng gần bạn</a>
+    <a href="{% url 'store:map_page' %}" class="btn">Tìm cửa hàng gần bạn</a>
   </div>
 </section>
 
@@ -682,64 +691,45 @@
 
 <!-- ================= PRODUCTS ================= -->
 <section id="products" class="products">
-  <h2>Sản phẩm nổi bật</h2>
+  <h2>{{ t.featured_products|default:"Sản phẩm nổi bật" }}</h2>
   <div class="product-grid">
-    <div class="product-card">
-      <img src="https://www.circlek.com/sites/default/files/2023-06/circle_k_coffee_canada_920x575.jpg" alt="Nước uống & trà sữa">
-      <div class="product-info">
-        <h3>🥤 Nước uống & trà sữa</h3>
-        <p>Trà sữa trân châu, trà trái cây, nước tăng lực, nước ngọt</p>
+    {% for product in featured_products %}
+      <div class="product-card">
+        {% if product.hinh_anh %}
+          <img src="{{ product.hinh_anh.url }}" alt="{{ product.ten }}">
+        {% else %}
+          <img src="https://www.circlek.com/sites/default/files/2024-03/our_products_920x575.jpg" alt="{{ product.ten }}">
+        {% endif %}
+        <div class="product-info">
+          <h3>{{ product.ten }}</h3>
+          <p>{{ product.nhom_san_pham|default:"Sản phẩm tiện lợi" }} | {{ product.thuong_hieu|default:"Chuỗi cửa hàng" }}</p>
+          <p style="font-weight:900;color:#0f766e;">{{ product.display_price }}</p>
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
+            <form method="post" action="{% url 'store:cart_add' product.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'store:cart' %}">
+              <button class="btn btnWhite mini" type="submit">{{ t.add_to_cart|default:"Thêm vào giỏ" }}</button>
+            </form>
+            <form method="post" action="{% url 'store:cart_add' product.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'store:checkout' %}">
+              <button class="btn btnPrimary mini" type="submit">{{ t.buy_now|default:"Mua ngay" }}</button>
+            </form>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="product-card">
-      <img src="https://www.circlek.com/sites/default/files/2024-03/our_products_920x575.jpg" alt="Đồ ăn nhanh & bánh mì">
-      <div class="product-info">
-        <h3>🍔 Đồ ăn nhanh & bánh mì</h3>
-        <p>Bánh mì kẹp, gà rán, hotdog, cơm nắm, sandwich</p>
+    {% empty %}
+      <div class="product-card">
+        <div class="product-info">
+          <h3>Chưa có sản phẩm</h3>
+          <p>Dữ liệu sản phẩm sẽ hiển thị tại đây khi được cập nhật.</p>
+        </div>
       </div>
-    </div>
-    <div class="product-card">
-      <img src="https://www.circlek.com/sites/default/files/2023-06/circle_k_coffee_canada_920x575.jpg" alt="Cà phê & đồ uống nóng">
-      <div class="product-info">
-        <h3>☕ Cà phê & đồ uống nóng</h3>
-        <p>Cà phê đen, latte, cappuccino, trà nóng, matcha</p>
-      </div>
-    </div>
-    <div class="product-card">
-      <img src="https://www.circlek.com/sites/default/files/2024-03/our_products_920x575.jpg" alt="Kem & snack">
-      <div class="product-info">
-        <h3>🍦 Kem & snack</h3>
-        <p>Kem que, kem hộp, snack, bánh kẹo, đồ ăn vặt</p>
-      </div>
-    </div>
-    <div class="product-card">
-      <img src="https://assets1.ccentral.ca/images/v/max_width_1440/s3fs-public/2024-09/20240905_174355.jpg" alt="Bia & đồ uống có cồn">
-      <div class="product-info">
-        <h3>🍺 Bia & đồ uống có cồn</h3>
-        <p>Bia lon, rượu nhẹ, đồ uống giải khát có gas</p>
-      </div>
-    </div>
-    <div class="product-card">
-      <img src="https://imgproxy.divecdn.com/xCWrndKRHbwmxjMxtC5HkdhiULqSmh6gxopTsNWfMAg/g:ce/rs:fit:1600:0/Z3M6Ly9kaXZlc2l0ZS1zdG9yYWdlL2RpdmVpbWFnZS9DLVN0b3JlX0NhbmR5LmpwZWc=.webp" alt="Bánh kẹo & đồ ngọt">
-      <div class="product-info">
-        <h3>🍬 Bánh kẹo & đồ ngọt</h3>
-        <p>Kẹo dẻo, sô cô la, bánh quy, đồ ngọt nhập khẩu</p>
-      </div>
-    </div>
-    <div class="product-card">
-      <img src="https://www.circlek.com/sites/default/files/2024-03/car_wash_920x575px.jpg" alt="Đồ dùng cá nhân">
-      <div class="product-info">
-        <h3>🧴 Đồ dùng cá nhân</h3>
-        <p>Kem đánh răng, bàn chải, khăn giấy, sản phẩm vệ sinh</p>
-      </div>
-    </div>
-    <div class="product-card">
-      <img src="https://www.circlek.com/sites/default/files/2024-09/b2b_ck_pro_920x575.jpg" alt="Đồ ăn sẵn">
-      <div class="product-info">
-        <h3>🍱 Đồ ăn sẵn</h3>
-        <p>Cơm hộp, salad, trái cây tươi, đồ ăn chay</p>
-      </div>
-    </div>
+    {% endfor %}
+  </div>
+  <div style="margin-top:18px;text-align:center;">
+    <a class="btn btnPrimary" href="{% url 'store:product_catalog' %}">{{ t.products_page|default:"Sản phẩm" }}</a>
+    <a class="btn btnWhite" href="{% url 'store:cart' %}">{{ t.cart|default:"Giỏ hàng" }}{% if cart_total_quantity %} ({{ cart_total_quantity }}){% endif %}</a>
   </div>
 </section>
 
@@ -747,120 +737,22 @@
 <section id="stores" class="store-locator">
   <h2>Hệ thống cửa hàng Circle K & GS25</h2>
   <p style="text-align:center; color:#64748b; margin-bottom:30px; font-size:18px;">
-    Nhập địa chỉ hoặc bật GPS để tìm cửa hàng gần bạn nhất
+    Tính năng tìm cửa hàng đã được chuyển sang trang riêng để dễ dùng và gọn hơn.
   </p>
 
-  <div class="wrapMain">
-    <!-- LEFT PANEL: Controls & List -->
-    <div class="panel">
-      <div class="topbar">
-        <div class="wrap">
-          <div class="brandPill">🗺️ WebGIS Stores</div>
-          <div class="tabs">
-            <div class="tab active" data-brand="CIRCLEK">Circle K & GS25</div>
-          </div>
-        </div>
+  <div style="max-width:980px;margin:0 auto;padding:0 20px;">
+    <div class="panel" style="padding:32px; text-align:center; background:linear-gradient(135deg,#fff 0%,#fff8f8 100%);">
+      <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(227,28,35,.08);color:#b91c1c;font-weight:900;">
+        🗺️ Trang tìm cửa hàng riêng
       </div>
-
-      <div class="card">
-        <div class="cardHead">
-          <span>Điều khiển & Danh sách</span>
-          <span class="status"><span id="dot" class="dot"></span><span id="status">Sẵn sàng.</span></span>
-        </div>
-
-        <div class="cardBody">
-          <!-- Search -->
-          <div class="acWrap">
-            <div class="searchBox">
-              <div class="pin">📍</div>
-              <input id="q" placeholder="Nhập địa chỉ hoặc tên cửa hàng..." autocomplete="off"/>
-              <button class="btn btnPrimary" id="btnSearch">Tìm</button>
-              <button class="btn btnWhite" id="btnMyLoc">Vị trí tôi</button>
-            </div>
-            <div class="acList" id="acList"></div>
-          </div>
-          <div class="hint">
-            Tip: Không muốn bật GPS 👉 click trực tiếp lên bản đồ để chọn vị trí.
-          </div>
-
-          <div class="toggleRow">
-            <label>
-              <input type="checkbox" id="autoBounds"/>
-              Auto tải theo khung bản đồ
-            </label>
-            <span>• Enter để tìm nhanh</span>
-          </div>
-
-          <!-- Filters -->
-          <div class="row" style="margin-top:12px">
-            <div class="field" style="max-width:150px">
-              <label>Bán kính (km)</label>
-              <select id="radiusKm">
-                <option value="0.2">0.2</option>
-                <option value="0.5" selected>0.5</option>
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="5">5</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label>Quận / Huyện</label>
-              <select id="districtSel">
-                <option value="">Tất cả</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="row" style="margin-top:10px">
-            <button class="btn btnBlue" id="btnNearby">Tìm quanh vị trí</button>
-            <button class="btn btnWhite" id="btnLoadBounds">Tải trong khung</button>
-            <button class="btn btnWhite" id="btnToggleMarkers">Ẩn marker</button>
-            <button class="btn btnWhite" id="btnClearRoute">Xóa đường</button>
-            <button class="btn btnWhite" id="btnReset">Reset</button>
-          </div>
-
-          <div class="row" style="margin-top:10px">
-            <div class="field">
-              <label>Lọc trong danh sách</label>
-              <input id="filterText" placeholder="Gõ tên / địa chỉ..." />
-            </div>
-            <label style="display:flex;align-items:center;gap:8px;font-weight:800;white-space:nowrap">
-              <input type="checkbox" id="filterOpenNow" />
-              Chỉ đang mở
-            </label>
-            <button class="btn btnWhite" id="btnSortNear">Gần nhất</button>
-          </div>
-
-          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn btnWhite mini" id="btnExport">Xuất CSV</button>
-            <button class="btn btnWhite mini" id="btnFav">⭐ Favorites</button>
-            <button class="btn btnWhite mini" id="btnHistory">🕘 History</button>
-          </div>
-
-          <div style="margin-top:12px;font-weight:1000;font-size:13px">Danh sách cửa hàng</div>
-          <div class="list" id="storeList" style="margin-top:10px"></div>
-
-          <!-- Directions panel -->
-          <div id="dirBox" style="margin-top:12px; display:none; border:1px solid var(--border); border-radius:14px; overflow:hidden">
-            <div style="padding:10px 12px; font-weight:1000; font-size:13px; background:#f8fafc; border-bottom:1px solid var(--border)">
-              🧭 Chỉ đường
-              <span id="dirSummary" style="color:#64748b; font-weight:900; margin-left:6px"></span>
-            </div>
-            <div id="dirSteps" style="padding:10px 12px; font-size:13px; line-height:1.5; max-height:220px; overflow:auto"></div>
-          </div>
-
-        </div>
+      <h3 style="margin:18px 0 10px;font-size:32px;line-height:1.2;">Tìm cửa hàng gần bạn trên bản đồ tương tác</h3>
+      <p style="max-width:760px;margin:0 auto 22px;color:#475569;font-size:17px;line-height:1.7;">
+        Chọn vị trí trên bản đồ, dùng GPS, tìm theo địa chỉ và xem chỉ đường ngay trên trang tìm cửa hàng chuyên biệt.
+      </p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <a class="btn btnPrimary" href="{% url 'store:map_page' %}">Mở trang tìm cửa hàng</a>
+        <a class="btn btnWhite" href="{% url 'store:product_catalog' %}">Xem sản phẩm</a>
       </div>
-    </div>
-
-    <!-- RIGHT PANEL: Map -->
-    <div class="panel">
-      <div class="cardHead">
-        <span>Bản đồ</span>
-        <span class="status">Click map để chọn vị trí • Click store để xem • Chỉ đường </span>
-      </div>
-      <div id="map"></div>
     </div>
   </div>
 </section>
@@ -870,6 +762,7 @@
 
 <!-- ================= JAVASCRIPT ================= -->
 <script>
+if (document.getElementById('map') && document.getElementById('q')) {
 // ======================
 // DOM Elements
 // ======================
@@ -1790,6 +1683,7 @@ if (initialQuery) {
       smartSearch();
     }
   }, 100);
+}
 }
 </script>
 </body>

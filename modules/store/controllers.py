@@ -2,15 +2,47 @@
 
 
 def home(request):
-    return render(request, "store/home.html")
+    featured_products = list(SanPham.objects.order_by("ten")[:8])
+    for product in featured_products:
+        product.display_price = _format_currency(product.gia_ban)
+    return render(
+        request,
+        "store/home.html",
+        {
+            "featured_products": featured_products,
+            "cart_total_quantity": _cart_items(request)[1],
+            **_admin_pref_context(request),
+        },
+    )
 
 
 def store_list_page(request):
-    return render(request, "store/store_list.html")
+    pref = _admin_pref_context(request)
+    qs = CuaHang.objects.select_related("chuoi").order_by("ten")
+    paginator = Paginator(qs, 12)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    return render(
+        request,
+        "store/store_list.html",
+        {
+            "stores": page_obj.object_list,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "cart_total_quantity": _cart_items(request)[1],
+            **pref,
+        },
+    )
 
 
 def map_page(request):
-    return render(request, "store/map.html")
+    return render(
+        request,
+        "store/map.html",
+        {
+            "cart_total_quantity": _cart_items(request)[1],
+            **_admin_pref_context(request),
+        },
+    )
 
 
 INFO_PAGES = {
@@ -333,6 +365,7 @@ def _news_entries():
 
 
 def info_page(request, slug):
+    pref = _admin_pref_context(request)
     page = INFO_PAGES.get(slug)
     if not page:
         return render(
@@ -346,6 +379,7 @@ def info_page(request, slug):
                 "sections": [],
                 "hero_image": "https://images.unsplash.com/photo-1585238342024-78d387f4a707?auto=format&fit=crop&w=1400&q=80",
                 "is_not_found": True,
+                **pref,
             },
         )
 
@@ -370,10 +404,12 @@ def info_page(request, slug):
         featured_news, news_items = _news_entries()
         context["featured_news"] = featured_news
         context["news_items"] = news_items
+    context.update(pref)
     return render(request, "store/info_page.html", context=context)
 
 
 def news_detail(request, slug):
+    pref = _admin_pref_context(request)
     featured_news, news_items = _news_entries()
     all_news = [featured_news] + news_items
     article = next((n for n in all_news if n.get("slug") == slug), None)
@@ -388,6 +424,7 @@ def news_detail(request, slug):
                 "article": None,
                 "related_news": all_news[:6],
                 "is_not_found": True,
+                **pref,
             },
         )
 
@@ -412,24 +449,34 @@ def news_detail(request, slug):
             "article": article_data,
             "related_news": related_news,
             "page_slug": "tin-tuc-su-kien",
+            **pref,
         },
     )
 
 
 # CMS Section
 import os
+import re
+from decimal import Decimal
 
 from django.contrib import messages
-from django.contrib.auth import logout
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth import get_user_model, login, logout, update_session_auth_hash
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, SetPasswordForm, UserCreationForm
+from django.contrib.auth.models import Group
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.forms import modelform_factory
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from .models import (
+    ChiTietDonHang,
+    DonHang,
+    HoSoKhachHang,
     Notification,
     ChuoiCuaHang,
     CuaHang,
@@ -451,7 +498,18 @@ MODEL_REGISTRY = {
     "cua-hang": CuaHang,
     "nhan-vien": NhanVien,
     "khuyen-mai": KhuyenMai,
+    "ho-so-khach-hang": HoSoKhachHang,
+    "don-hang": DonHang,
+    "chi-tiet-don-hang": ChiTietDonHang,
 }
+
+User = get_user_model()
+ROLE_ADMIN = "Admin"
+ROLE_USER = "User"
+ROLE_CHOICES = (
+    (ROLE_ADMIN, "Admin"),
+    (ROLE_USER, "User"),
+)
 
 MODULE_LABELS = {
     "thuong-hieu": {"vi_singular": "Thương hiệu", "vi_plural": "Thương hiệu", "en_singular": "Brand", "en_plural": "Brands"},
@@ -462,6 +520,9 @@ MODULE_LABELS = {
     "cua-hang": {"vi_singular": "Cửa hàng", "vi_plural": "Cửa hàng", "en_singular": "Store", "en_plural": "Stores"},
     "nhan-vien": {"vi_singular": "Nhân viên", "vi_plural": "Nhân viên", "en_singular": "Employee", "en_plural": "Employees"},
     "khuyen-mai": {"vi_singular": "Khuyến mãi", "vi_plural": "Khuyến mãi", "en_singular": "Promotion", "en_plural": "Promotions"},
+    "ho-so-khach-hang": {"vi_singular": "Hồ sơ khách hàng", "vi_plural": "Hồ sơ khách hàng", "en_singular": "Customer Profile", "en_plural": "Customer Profiles"},
+    "don-hang": {"vi_singular": "Đơn hàng", "vi_plural": "Đơn hàng", "en_singular": "Order", "en_plural": "Orders"},
+    "chi-tiet-don-hang": {"vi_singular": "Chi tiết đơn hàng", "vi_plural": "Chi tiết đơn hàng", "en_singular": "Order Item", "en_plural": "Order Items"},
 }
 
 CMS_TRANSLATIONS = {
@@ -491,13 +552,13 @@ CMS_TRANSLATIONS = {
         "save_settings": "Lưu cài đặt",
         "settings_saved": "Đã lưu cài đặt hệ thống.",
         "logged_in_as": "Đăng nhập bởi",
-        "internal_cms": "CMS noi bo",
+        "internal_cms": "CMS nội bộ",
         "custom_internal_management": "Hệ thống quản trị nội bộ tự tạo",
         "manage": "Quản lý",
         "confirm_delete": "Xác nhận xóa",
         "you_are_deleting": "Bạn đang xóa một bản ghi của",
         "confirm_delete_btn": "Xác nhận xóa",
-        "cancel": "Huy",
+        "cancel": "Hủy",
         "total_records": "Tổng bản ghi",
         "all_modules": "Tất cả module dữ liệu trong hệ thống",
         "total_modules": "Số module",
@@ -513,12 +574,78 @@ CMS_TRANSLATIONS = {
         "no_access": "Tài khoản không có quyền truy cập CMS.",
         "store_front": "Cửa hàng",
         "notifications": "Thông báo",
+        "user_management": "Quản lý người dùng",
+        "role": "Vai trò",
+        "admin_role": "Admin",
+        "user_role": "User",
+        "account_status": "Trạng thái",
+        "active": "Hoạt động",
+        "inactive": "Ngưng",
+        "create_user": "Tạo người dùng",
+        "full_name": "Họ tên",
+        "update_role": "Cập nhật quyền",
+        "user_area": "Trang người dùng",
+        "user_portal": "Khu vực người dùng",
+        "welcome_user": "Xin chào",
+        "user_intro": "Trang dành cho tài khoản người dùng đã đăng nhập.",
+        "access_admin": "Vào trang quản trị",
+        "user_login_title": "Đăng nhập người dùng",
+        "user_login_hint": "Tài khoản người dùng sẽ vào trang người dùng. Tài khoản admin sẽ được chuyển sang CMS.",
+        "user_created": "Đã tạo tài khoản mới.",
+        "user_updated": "Đã cập nhật quyền người dùng.",
+        "register": "Đăng ký",
+        "products_page": "Sản phẩm",
+        "cart": "Giỏ hàng",
+        "checkout": "Thanh toán",
+        "my_orders": "Đơn hàng của tôi",
+        "buy_now": "Mua ngay",
+        "add_to_cart": "Thêm vào giỏ",
+        "cart_empty": "Giỏ hàng đang trống.",
+        "continue_shopping": "Tiếp tục mua sắm",
+        "place_order": "Đặt hàng",
+        "receiver_name": "Người nhận",
+        "delivery_address": "Địa chỉ giao hàng",
+        "quantity": "Số lượng",
+        "order_success": "Đã tạo đơn hàng thành công.",
+        "login_to_buy": "Bạn cần đăng nhập tài khoản khách hàng để mua sản phẩm.",
+        "product_added": "Đã thêm sản phẩm vào giỏ hàng.",
+        "cart_updated": "Đã cập nhật giỏ hàng.",
+        "order_status": "Trạng thái đơn",
+        "order_code": "Mã đơn",
+        "order_time": "Thời gian đặt",
+        "product_catalog_intro": "Khách có thể xem hàng tự do, nhưng cần tài khoản để thêm giỏ và đặt mua.",
+        "customer_profile": "Hồ sơ khách hàng",
+        "update_profile": "Cập nhật hồ sơ",
+        "profile_saved": "Đã lưu hồ sơ khách hàng.",
+        "all_statuses": "Tất cả trạng thái",
+        "confirm_order": "Xác nhận đơn",
+        "ship_order": "Bắt đầu giao",
+        "deliver_order": "Đã giao",
+        "complete_order": "Hoàn tất đơn",
+        "cancel_order": "Hủy đơn",
+        "order_status_updated": "Đã cập nhật trạng thái đơn hàng.",
+        "unit_price": "Đơn giá",
+        "line_total": "Thành tiền",
+        "total_amount": "Tổng tiền",
+        "featured_products": "Sản phẩm nổi bật",
+        "password_strength": "Độ mạnh mật khẩu",
+        "password_weak": "Yếu",
+        "password_medium": "Trung bình",
+        "password_strong": "Mạnh",
+        "password_hint": "Nên có ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.",
+        "password_too_weak": "Mật khẩu đang quá yếu. Hãy dùng ít nhất 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt.",
+        "change_password": "Đổi mật khẩu",
+        "reset_password": "Đặt lại mật khẩu",
+        "password_updated": "Đã cập nhật mật khẩu.",
+        "current_password": "Mật khẩu hiện tại",
+        "new_password": "Mật khẩu mới",
+        "confirm_password": "Xác nhận mật khẩu",
         "notification_title": "Thông báo hệ thống",
         "notification_empty": "Chưa có thông báo.",
         "support_request": "Yêu cầu hỗ trợ",
         "retry_request": "Yêu cầu thử lại",
         "login_title": "Đăng nhập CMS",
-        "login_only_staff": "Chỉ tài khoản staff/superuser được phép truy cập.",
+        "login_only_staff": "Chỉ tài khoản Admin mới được phép truy cập.",
         "username": "Tài khoản",
         "password": "Mật khẩu",
         "login": "Đăng nhập",
@@ -573,6 +700,72 @@ CMS_TRANSLATIONS = {
         "file_current": "Current file",
         "store_front": "Storefront",
         "notifications": "Notifications",
+        "user_management": "User Management",
+        "role": "Role",
+        "admin_role": "Admin",
+        "user_role": "User",
+        "account_status": "Status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "create_user": "Create User",
+        "full_name": "Full Name",
+        "update_role": "Update Role",
+        "user_area": "User Area",
+        "user_portal": "User Portal",
+        "welcome_user": "Welcome",
+        "user_intro": "This page is for authenticated user accounts.",
+        "access_admin": "Open Admin",
+        "user_login_title": "User Login",
+        "user_login_hint": "Regular users enter the user area. Admin accounts are redirected to the CMS.",
+        "user_created": "New user created.",
+        "user_updated": "User role updated.",
+        "register": "Register",
+        "products_page": "Products",
+        "cart": "Cart",
+        "checkout": "Checkout",
+        "my_orders": "My Orders",
+        "buy_now": "Buy Now",
+        "add_to_cart": "Add to Cart",
+        "cart_empty": "Your cart is empty.",
+        "continue_shopping": "Continue Shopping",
+        "place_order": "Place Order",
+        "receiver_name": "Receiver",
+        "delivery_address": "Delivery Address",
+        "quantity": "Quantity",
+        "order_success": "Order created successfully.",
+        "login_to_buy": "Please sign in with a customer account before purchasing.",
+        "product_added": "Product added to cart.",
+        "cart_updated": "Cart updated.",
+        "order_status": "Order Status",
+        "order_code": "Order Code",
+        "order_time": "Order Time",
+        "product_catalog_intro": "Visitors can browse products freely, but must sign in to add to cart and checkout.",
+        "customer_profile": "Customer Profile",
+        "update_profile": "Update Profile",
+        "profile_saved": "Customer profile saved.",
+        "all_statuses": "All Statuses",
+        "confirm_order": "Confirm Order",
+        "ship_order": "Start Delivery",
+        "deliver_order": "Delivered",
+        "complete_order": "Complete Order",
+        "cancel_order": "Cancel Order",
+        "order_status_updated": "Order status updated.",
+        "unit_price": "Unit Price",
+        "line_total": "Line Total",
+        "total_amount": "Total Amount",
+        "featured_products": "Featured Products",
+        "password_strength": "Password Strength",
+        "password_weak": "Weak",
+        "password_medium": "Medium",
+        "password_strong": "Strong",
+        "password_hint": "Use at least 8 characters with uppercase, lowercase, numbers, and special characters.",
+        "password_too_weak": "Password is too weak. Use at least 8 characters with uppercase, lowercase, numbers, and special characters.",
+        "change_password": "Change Password",
+        "reset_password": "Reset Password",
+        "password_updated": "Password updated.",
+        "current_password": "Current Password",
+        "new_password": "New Password",
+        "confirm_password": "Confirm Password",
         "notification_title": "System Notifications",
         "notification_empty": "No notifications yet.",
         "support_request": "Support Request",
@@ -593,6 +786,7 @@ FIELD_LABELS = {
         "nha_cung_cap": "Supplier",
         "thuong_hieu": "Brand",
         "hinh_anh": "Product Image",
+        "gia_ban": "Price",
         "logo": "Logo",
         "chuoi": "Store Chain",
         "dia_chi": "Address",
@@ -609,12 +803,214 @@ FIELD_LABELS = {
         "so_dien_thoai": "Phone",
         "email": "Email",
         "avatar": "Avatar",
+        "user": "User",
+        "khach_hang": "Customer",
+        "ho_ten_nguoi_nhan": "Receiver",
+        "dia_chi_giao_hang": "Delivery Address",
+        "ghi_chu": "Note",
+        "trang_thai": "Status",
+        "tong_so_luong": "Total Quantity",
+        "tong_tien": "Total Amount",
+        "don_hang": "Order",
+        "so_luong": "Quantity",
+        "don_gia": "Unit Price",
+        "created_at": "Created At",
     }
 }
 
 
 def _is_admin_user(user):
-    return user.is_authenticated and (user.is_staff or user.is_superuser)
+    if not user.is_authenticated:
+        return False
+    return _ensure_user_role(user) == ROLE_ADMIN
+
+
+def _is_regular_user(user):
+    return user.is_authenticated and not _is_admin_user(user)
+
+
+def _require_regular_user(request):
+    if _is_regular_user(request.user):
+        return None
+    if _is_admin_user(request.user):
+        return redirect("store:admin_dashboard")
+    return redirect("store:user_login")
+
+
+def _require_customer_account(request):
+    if _is_regular_user(request.user):
+        return None
+    next_url = request.POST.get("next") or request.get_full_path() or reverse("store:product_catalog")
+    if _is_admin_user(request.user):
+        logout(request)
+    login_url = reverse("store:user_login")
+    if next_url:
+        login_url = f"{login_url}?next={next_url}"
+    return redirect(login_url)
+
+
+def _cart_session(request):
+    return request.session.setdefault("cart", {})
+
+
+def _remember_post_login_cart_action(request, product_id, next_url):
+    request.session["post_login_cart_action"] = {
+        "product_id": int(product_id),
+        "next": next_url or reverse("store:cart"),
+    }
+    request.session.modified = True
+
+
+def _resume_post_login_cart_action(request):
+    payload = request.session.pop("post_login_cart_action", None)
+    if not payload:
+        return None
+
+    product_id = payload.get("product_id")
+    if product_id:
+        cart = _cart_session(request)
+        key = str(product_id)
+        cart[key] = int(cart.get(key, 0)) + 1
+        request.session.modified = True
+    return payload.get("next") or reverse("store:cart")
+
+
+def _format_currency(value):
+    try:
+        amount = int(Decimal(value))
+    except Exception:
+        amount = 0
+    return f"{amount:,}".replace(",", ".") + " đ"
+
+
+def _get_customer_profile(user):
+    profile, _ = HoSoKhachHang.objects.get_or_create(user=user)
+    return profile
+
+
+def _cart_items(request):
+    cart = _cart_session(request)
+    product_ids = [int(pid) for pid in cart.keys() if str(pid).isdigit()]
+    products = {p.pk: p for p in SanPham.objects.filter(pk__in=product_ids)}
+    items = []
+    total_quantity = 0
+    total_amount = Decimal("0")
+    for pid, quantity in cart.items():
+        try:
+            product = products[int(pid)]
+        except Exception:
+            continue
+        qty = max(int(quantity), 0)
+        if qty <= 0:
+            continue
+        unit_price = product.gia_ban or Decimal("0")
+        line_total = unit_price * qty
+        total_quantity += qty
+        total_amount += line_total
+        items.append({"product": product, "quantity": qty, "unit_price": unit_price, "line_total": line_total})
+    return items, total_quantity, total_amount
+
+
+def _ensure_role_groups():
+    admin_group, _ = Group.objects.get_or_create(name=ROLE_ADMIN)
+    user_group, _ = Group.objects.get_or_create(name=ROLE_USER)
+    return {ROLE_ADMIN: admin_group, ROLE_USER: user_group}
+
+
+def _ensure_user_role(user):
+    groups = _ensure_role_groups()
+    if not user or not user.is_authenticated:
+        return None
+
+    target_role = None
+    if user.groups.filter(name=ROLE_ADMIN).exists():
+        target_role = ROLE_ADMIN
+    elif user.groups.filter(name=ROLE_USER).exists():
+        target_role = ROLE_USER
+    elif user.is_superuser or user.is_staff:
+        target_role = ROLE_ADMIN
+    else:
+        target_role = ROLE_USER
+
+    target_group = groups[target_role]
+    needs_group_sync = not user.groups.filter(pk=target_group.pk).exists() or user.groups.exclude(pk=target_group.pk).exists()
+    expected_is_staff = target_role == ROLE_ADMIN
+    needs_staff_sync = user.is_staff != expected_is_staff
+
+    if needs_group_sync:
+        user.groups.set([target_group])
+    if needs_staff_sync:
+        user.is_staff = expected_is_staff
+        user.save(update_fields=["is_staff"])
+
+    return target_role
+
+
+def _get_user_role(user):
+    return _ensure_user_role(user) or ROLE_USER
+
+
+def _sync_user_role(user, role: str):
+    groups = _ensure_role_groups()
+    role = ROLE_ADMIN if role == ROLE_ADMIN else ROLE_USER
+    user.groups.set([groups[role]])
+    user.is_staff = role == ROLE_ADMIN
+    user.save(update_fields=["is_staff"])
+
+
+def _clean_user_email(raw_email: str, exclude_user_id=None):
+    email = (raw_email or "").strip().lower()
+    if not email:
+        return "", None
+
+    try:
+        validate_email(email)
+    except ValidationError:
+        return email, "Email không đúng định dạng."
+
+    query = User.objects.filter(email__iexact=email)
+    if exclude_user_id is not None:
+        query = query.exclude(pk=exclude_user_id)
+    if query.exists():
+        return email, "Email đã tồn tại."
+
+    return email, None
+
+
+def _password_strength(password: str):
+    password = password or ""
+    score = 0
+    if len(password) >= 8:
+        score += 1
+    if len(password) >= 12:
+        score += 1
+    if re.search(r"[A-Z]", password):
+        score += 1
+    if re.search(r"[a-z]", password):
+        score += 1
+    if re.search(r"\d", password):
+        score += 1
+    if re.search(r"[^A-Za-z0-9]", password):
+        score += 1
+
+    if score <= 3:
+        return "weak"
+    if score <= 4:
+        return "medium"
+    return "strong"
+
+
+def _enforce_password_strength(form, pref):
+    password = (
+        form.data.get("new_password1")
+        or form.data.get("password1")
+        or ""
+    )
+    strength = _password_strength(password)
+    if password and strength == "weak":
+        target_field = "new_password1" if "new_password1" in form.fields else "password1"
+        form.add_error(target_field, pref["t"]["password_too_weak"])
+    return strength
 
 
 def _require_admin_user(request):
@@ -642,6 +1038,7 @@ def _admin_pref_context(request):
         "admin_lang": lang,
         "admin_theme": theme,
         "admin_unread_notifications": unread_count,
+        "show_admin_link": _is_admin_user(request.user),
         "t": CMS_TRANSLATIONS[lang],
     }
 
@@ -771,9 +1168,103 @@ class AdminLoginView(LoginView):
         return super().form_valid(form)
 
 
+class UserLoginView(LoginView):
+    template_name = "user/login.html"
+    authentication_form = AuthenticationForm
+    redirect_authenticated_user = False
+
+    def dispatch(self, request, *args, **kwargs):
+        if _is_admin_user(request.user) and not request.GET.get("next"):
+            return redirect("store:admin_dashboard")
+        if _is_regular_user(request.user):
+            next_url = request.GET.get("next")
+            if next_url:
+                return redirect(next_url)
+            return redirect("store:user_dashboard")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        user = self.request.user
+        if _is_admin_user(user):
+            return reverse("store:admin_dashboard")
+        resumed_url = _resume_post_login_cart_action(self.request)
+        if resumed_url:
+            return resumed_url
+        next_url = self.request.POST.get("next") or self.request.GET.get("next")
+        if next_url:
+            return next_url
+        return reverse("store:user_dashboard")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        pref = _admin_pref_context(self.request)
+        context.update(pref)
+        return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        _ensure_user_role(self.request.user)
+        return response
+
+
+def user_register(request):
+    pref = _admin_pref_context(request)
+    form = UserCreationForm()
+    email_value = ""
+    full_name_value = ""
+    password_strength = ""
+
+    if request.user.is_authenticated:
+        if _is_admin_user(request.user):
+            return redirect("store:admin_dashboard")
+        return redirect("store:user_dashboard")
+
+    if request.method == "POST":
+        form = UserCreationForm(request.POST)
+        email_value = (request.POST.get("email") or "").strip()
+        full_name_value = (request.POST.get("full_name") or "").strip()
+        password_strength = _password_strength(request.POST.get("password1") or "")
+        email, email_error = _clean_user_email(email_value)
+        if email_error:
+            form.add_error(None, email_error)
+        if password_strength == "weak":
+            form.add_error("password1", pref["t"]["password_too_weak"])
+        if form.is_valid():
+            user = form.save(commit=False)
+            if full_name_value:
+                parts = full_name_value.split(" ", 1)
+                user.first_name = parts[0]
+                user.last_name = parts[1] if len(parts) > 1 else ""
+            user.email = email
+            user.is_active = True
+            user.save()
+            _sync_user_role(user, ROLE_USER)
+            _get_customer_profile(user)
+            login(request, user)
+            messages.success(request, pref["t"]["user_created"])
+            return redirect("store:user_dashboard")
+
+    return render(
+        request,
+        "user/register.html",
+        {
+            "form": form,
+            "email_value": email_value,
+            "full_name_value": full_name_value,
+            "password_strength_value": password_strength,
+            **pref,
+        },
+    )
+
+
 def admin_logout(request):
     logout(request)
     return redirect("store:admin_login")
+
+
+def user_logout(request):
+    logout(request)
+    return redirect("store:user_login")
 
 
 def admin_dashboard(request):
@@ -790,6 +1281,189 @@ def admin_dashboard(request):
         {
             "modules": modules,
             "total_records": sum(item["count"] for item in modules),
+            **pref,
+        },
+    )
+
+
+def admin_user_password(request, pk):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    user_obj = get_object_or_404(User, pk=pk)
+    form = SetPasswordForm(user=user_obj)
+    password_strength = ""
+
+    if request.method == "POST":
+        form = SetPasswordForm(user=user_obj, data=request.POST)
+        password_strength = _enforce_password_strength(form, pref)
+        if form.is_valid():
+            form.save()
+            messages.success(request, pref["t"]["password_updated"])
+            return redirect("store:admin_user_management")
+
+    return render(
+        request,
+        "admin/password_form.html",
+        {
+            "modules": _menu_context(pref["admin_lang"]),
+            "form": form,
+            "page_heading": f'{pref["t"]["reset_password"]}: {user_obj.username}',
+            "password_strength_value": password_strength,
+            **pref,
+        },
+    )
+
+
+def admin_order_status_action(request, pk, status):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    if status not in {"confirmed", "shipping", "delivered", "done", "cancelled"}:
+        return redirect("store:admin_list", model_slug="don-hang")
+
+    order = get_object_or_404(DonHang, pk=pk)
+    allowed_transitions = {
+        "pending": {"confirmed", "cancelled"},
+        "confirmed": {"shipping", "cancelled"},
+        "shipping": {"delivered", "cancelled"},
+        "delivered": set(),
+        "done": set(),
+        "cancelled": set(),
+    }
+    if status not in allowed_transitions.get(order.trang_thai, set()):
+        redirect_url = reverse("store:admin_list", kwargs={"model_slug": "don-hang"})
+        query = request.GET.urlencode()
+        if query:
+            redirect_url = f"{redirect_url}?{query}"
+        return redirect(redirect_url)
+
+    order.trang_thai = status
+    order.save(update_fields=["trang_thai"])
+    messages.success(request, _admin_pref_context(request)["t"]["order_status_updated"])
+
+    redirect_url = reverse("store:admin_list", kwargs={"model_slug": "don-hang"})
+    query = request.GET.urlencode()
+    if query:
+        redirect_url = f"{redirect_url}?{query}"
+    return redirect(redirect_url)
+
+
+def admin_user_management(request):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    _ensure_role_groups()
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    form = UserCreationForm()
+    create_user_email = ""
+    create_user_full_name = ""
+    create_user_role = ROLE_USER
+    create_user_is_active = True
+    create_user_password_strength = ""
+    query = request.GET.get("q", "").strip()
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "create_user":
+            form = UserCreationForm(request.POST)
+            create_user_email = (request.POST.get("email") or "").strip()
+            create_user_full_name = (request.POST.get("full_name") or "").strip()
+            create_user_role = request.POST.get("role", ROLE_USER)
+            create_user_is_active = request.POST.get("is_active") == "on"
+            create_user_password_strength = _password_strength(request.POST.get("password1") or "")
+            email, email_error = _clean_user_email(create_user_email)
+            if email_error:
+                form.add_error(None, email_error)
+            if create_user_password_strength == "weak":
+                form.add_error("password1", pref["t"]["password_too_weak"])
+            if form.is_valid():
+                user = form.save(commit=False)
+                if create_user_full_name:
+                    parts = create_user_full_name.split(" ", 1)
+                    user.first_name = parts[0]
+                    user.last_name = parts[1] if len(parts) > 1 else ""
+                user.email = email
+                user.is_active = create_user_is_active
+                user.save()
+                _sync_user_role(user, create_user_role)
+                messages.success(request, pref["t"]["user_created"])
+                return redirect("store:admin_user_management")
+        elif action == "update_role":
+            user = get_object_or_404(User, pk=request.POST.get("user_id"))
+            full_name = (request.POST.get("full_name") or "").strip()
+            email_input = (request.POST.get("email") or "").strip()
+            email, email_error = _clean_user_email(email_input, exclude_user_id=user.pk)
+            if email_error:
+                messages.error(request, f"{user.username}: {email_error}")
+                redirect_url = reverse("store:admin_user_management")
+                if query:
+                    redirect_url = f"{redirect_url}?q={query}"
+                return redirect(redirect_url)
+
+            if full_name:
+                parts = full_name.split(" ", 1)
+                user.first_name = parts[0]
+                user.last_name = parts[1] if len(parts) > 1 else ""
+            else:
+                user.first_name = ""
+                user.last_name = ""
+            user.email = email
+            if not user.is_superuser:
+                user.is_active = request.POST.get("is_active") == "on"
+                user.save(update_fields=["first_name", "last_name", "email", "is_active"])
+            else:
+                user.save(update_fields=["first_name", "last_name", "email"])
+            _sync_user_role(user, request.POST.get("role", ROLE_USER))
+            messages.success(request, pref["t"]["user_updated"])
+            redirect_url = reverse("store:admin_user_management")
+            if query:
+                redirect_url = f"{redirect_url}?q={query}"
+            return redirect(redirect_url)
+
+    user_qs = User.objects.order_by("username")
+    if query:
+        user_qs = user_qs.filter(
+            Q(username__icontains=query)
+            | Q(email__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+        )
+
+    paginator = Paginator(user_qs, 15)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    users = []
+    for user in page_obj.object_list:
+        users.append(
+            {
+                "object": user,
+                "role": _get_user_role(user),
+                "full_name": user.get_full_name().strip() or "-",
+            }
+        )
+
+    return render(
+        request,
+        "admin/user_management.html",
+        {
+            "modules": _menu_context(lang),
+            "create_user_form": form,
+            "create_user_email": create_user_email,
+            "create_user_full_name": create_user_full_name,
+            "create_user_role": create_user_role,
+            "create_user_is_active": create_user_is_active,
+            "create_user_password_strength": create_user_password_strength,
+            "users": users,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "query": query,
+            "role_choices": ROLE_CHOICES,
             **pref,
         },
     )
@@ -826,7 +1500,13 @@ def admin_list(request, model_slug):
 
     model = _resolve_model(model_slug)
     query = request.GET.get("q", "").strip()
+    status_filter = request.GET.get("status", "").strip()
     qs = model.objects.all().order_by("-pk")
+    if model_slug == "don-hang" and status_filter in {"pending", "confirmed", "shipping", "delivered", "done", "cancelled"}:
+        if status_filter == "done":
+            qs = qs.filter(trang_thai__in=["done", "delivered"])
+        else:
+            qs = qs.filter(trang_thai=status_filter)
     if query:
         text_fields = [f.name for f in model._meta.fields if f.get_internal_type() in {"CharField", "TextField"}]
         if text_fields:
@@ -862,9 +1542,31 @@ def admin_list(request, model_slug):
                     values.append({"type": "text", "text": ""})
             elif field_type == "BooleanField":
                 values.append({"type": "bool", "value": bool(raw_value)})
+            elif field["name"] in {"trang_thai"}:
+                display = str(raw_value)
+                try:
+                    display = getattr(item, f"get_{field['name']}_display")()
+                except Exception:
+                    pass
+                values.append({"type": "status", "value": str(raw_value), "text": display})
+            elif field["name"] in {"gia_ban", "tong_tien", "don_gia"}:
+                values.append({"type": "money", "text": _format_currency(raw_value)})
             else:
                 values.append({"type": "text", "text": "" if raw_value is None else str(raw_value)})
-        rows.append({"object": item, "values": values})
+        row = {"object": item, "values": values}
+        if model_slug == "don-hang":
+            status_actions = []
+            if item.trang_thai == "pending":
+                status_actions.append({"value": "confirmed", "label": pref["t"]["confirm_order"]})
+                status_actions.append({"value": "cancelled", "label": pref["t"]["cancel_order"]})
+            elif item.trang_thai == "confirmed":
+                status_actions.append({"value": "shipping", "label": pref["t"]["ship_order"]})
+                status_actions.append({"value": "cancelled", "label": pref["t"]["cancel_order"]})
+            elif item.trang_thai == "shipping":
+                status_actions.append({"value": "delivered", "label": pref["t"]["deliver_order"]})
+                status_actions.append({"value": "cancelled", "label": pref["t"]["cancel_order"]})
+            row["status_actions"] = status_actions
+        rows.append(row)
 
     return render(
         request,
@@ -876,6 +1578,7 @@ def admin_list(request, model_slug):
             "fields": fields,
             "rows": rows,
             "query": query,
+            "status_filter": status_filter,
             "page_obj": page_obj,
             "paginator": paginator,
             **pref,
@@ -1009,6 +1712,301 @@ def admin_notifications(request):
             "page_obj": page_obj,
             "paginator": paginator,
             **pref,
+        },
+    )
+
+
+def user_dashboard(request):
+    unauthorized = _require_regular_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    profile = _get_customer_profile(request.user)
+    return render(
+        request,
+        "user/dashboard.html",
+        {
+            "role_label": pref["t"]["user_role"],
+            "profile": profile,
+            **pref,
+        },
+    )
+
+
+def user_profile(request):
+    unauthorized = _require_regular_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    profile = _get_customer_profile(request.user)
+
+    if request.method == "POST":
+        full_name = (request.POST.get("full_name") or "").strip()
+        email_input = (request.POST.get("email") or "").strip()
+        phone = (request.POST.get("phone") or "").strip()
+        address = (request.POST.get("address") or "").strip()
+        email, email_error = _clean_user_email(email_input, exclude_user_id=request.user.pk)
+        if email_error:
+            messages.error(request, email_error)
+        else:
+            if full_name:
+                parts = full_name.split(" ", 1)
+                request.user.first_name = parts[0]
+                request.user.last_name = parts[1] if len(parts) > 1 else ""
+            else:
+                request.user.first_name = ""
+                request.user.last_name = ""
+            request.user.email = email
+            request.user.save(update_fields=["first_name", "last_name", "email"])
+            profile.so_dien_thoai = phone
+            profile.dia_chi = address
+            profile.save(update_fields=["so_dien_thoai", "dia_chi"])
+            messages.success(request, pref["t"]["profile_saved"])
+            return redirect("store:user_profile")
+
+    return render(
+        request,
+        "user/profile.html",
+        {
+            "profile": profile,
+            **pref,
+        },
+    )
+
+
+def user_password_change(request):
+    unauthorized = _require_regular_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    form = PasswordChangeForm(user=request.user)
+    password_strength = ""
+
+    if request.method == "POST":
+        form = PasswordChangeForm(user=request.user, data=request.POST)
+        password_strength = _enforce_password_strength(form, pref)
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)
+            messages.success(request, pref["t"]["password_updated"])
+            return redirect("store:user_dashboard")
+
+    return render(
+        request,
+        "user/password_form.html",
+        {
+            "form": form,
+            "password_strength_value": password_strength,
+            **pref,
+        },
+    )
+
+
+def product_catalog(request):
+    pref = _admin_pref_context(request)
+    qs = SanPham.objects.select_related("nhom_san_pham", "thuong_hieu").order_by("ten")
+    paginator = Paginator(qs, 9)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    products = list(page_obj.object_list)
+    for product in products:
+        product.display_price = _format_currency(product.gia_ban)
+    _, cart_total_quantity, _ = _cart_items(request)
+    return render(
+        request,
+        "store/product_catalog.html",
+        {
+            "products": products,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "cart_total_quantity": cart_total_quantity,
+            **pref,
+        },
+    )
+
+
+def cart_add(request, pk):
+    if request.method != "POST":
+        return redirect("store:product_catalog")
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        _remember_post_login_cart_action(request, pk, request.POST.get("next"))
+        messages.error(request, _admin_pref_context(request)["t"]["login_to_buy"])
+        return unauthorized
+
+    product = get_object_or_404(SanPham, pk=pk)
+    cart = _cart_session(request)
+    key = str(product.pk)
+    cart[key] = int(cart.get(key, 0)) + 1
+    request.session.modified = True
+    messages.success(request, _admin_pref_context(request)["t"]["product_added"])
+    return redirect(request.POST.get("next") or "store:cart")
+
+
+def cart_view(request):
+    items, total_quantity, total_amount = _cart_items(request)
+    for item in items:
+        item["display_unit_price"] = _format_currency(item["unit_price"])
+        item["display_line_total"] = _format_currency(item["line_total"])
+    return render(
+        request,
+        "store/cart.html",
+        {
+            "cart_items": items,
+            "cart_total_quantity": total_quantity,
+            "cart_total_amount": total_amount,
+            "display_cart_total_amount": _format_currency(total_amount),
+            **_admin_pref_context(request),
+        },
+    )
+
+
+def cart_update(request):
+    if request.method != "POST":
+        return redirect("store:cart")
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        messages.error(request, _admin_pref_context(request)["t"]["login_to_buy"])
+        return unauthorized
+
+    cart = _cart_session(request)
+    for key in list(cart.keys()):
+        qty = request.POST.get(f"qty_{key}")
+        if qty is None:
+            continue
+        try:
+            qty_int = max(int(qty), 0)
+        except ValueError:
+            qty_int = 0
+        if qty_int == 0:
+            cart.pop(key, None)
+        else:
+            cart[key] = qty_int
+    request.session.modified = True
+    messages.success(request, _admin_pref_context(request)["t"]["cart_updated"])
+    return redirect("store:cart")
+
+
+def cart_remove(request, pk):
+    if request.method != "POST":
+        return redirect("store:cart")
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        messages.error(request, _admin_pref_context(request)["t"]["login_to_buy"])
+        return unauthorized
+
+    cart = _cart_session(request)
+    cart.pop(str(pk), None)
+    request.session.modified = True
+    messages.success(request, "Đã xóa sản phẩm khỏi giỏ hàng.")
+    return redirect("store:cart")
+
+
+def cart_clear(request):
+    if request.method != "POST":
+        return redirect("store:cart")
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        messages.error(request, _admin_pref_context(request)["t"]["login_to_buy"])
+        return unauthorized
+
+    request.session["cart"] = {}
+    request.session.modified = True
+    messages.success(request, "Đã xóa toàn bộ giỏ hàng.")
+    return redirect("store:cart")
+
+
+def checkout_view(request):
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        messages.error(request, _admin_pref_context(request)["t"]["login_to_buy"])
+        return unauthorized
+
+    items, total_quantity, total_amount = _cart_items(request)
+    for item in items:
+        item["display_unit_price"] = _format_currency(item["unit_price"])
+        item["display_line_total"] = _format_currency(item["line_total"])
+    pref = _admin_pref_context(request)
+    if not items:
+        messages.error(request, pref["t"]["cart_empty"])
+        return redirect("store:product_catalog")
+
+    profile = _get_customer_profile(request.user)
+    initial_name = request.user.get_full_name().strip()
+    initial_email = request.user.email or ""
+    initial_phone = profile.so_dien_thoai or ""
+    initial_address = profile.dia_chi or ""
+    if request.method == "POST":
+        receiver_name = (request.POST.get("receiver_name") or "").strip()
+        phone = (request.POST.get("phone") or "").strip()
+        address = (request.POST.get("address") or "").strip()
+        note = (request.POST.get("note") or "").strip()
+        if receiver_name and phone and address:
+            order = DonHang.objects.create(
+                khach_hang=request.user,
+                ho_ten_nguoi_nhan=receiver_name,
+                so_dien_thoai=phone,
+                dia_chi_giao_hang=address,
+                ghi_chu=note,
+                tong_so_luong=total_quantity,
+                tong_tien=total_amount,
+            )
+            for item in items:
+                ChiTietDonHang.objects.create(
+                    don_hang=order,
+                    san_pham=item["product"],
+                    so_luong=item["quantity"],
+                    don_gia=item["unit_price"],
+                )
+            profile.so_dien_thoai = phone
+            profile.dia_chi = address
+            profile.save(update_fields=["so_dien_thoai", "dia_chi"])
+            request.session["cart"] = {}
+            request.session.modified = True
+            messages.success(request, pref["t"]["order_success"])
+            return redirect("store:my_orders")
+        messages.error(request, "Vui lòng điền đầy đủ thông tin nhận hàng.")
+    return render(
+        request,
+        "store/checkout.html",
+        {
+            "cart_items": items,
+            "cart_total_quantity": total_quantity,
+            "cart_total_amount": total_amount,
+            "display_cart_total_amount": _format_currency(total_amount),
+            "initial_name": initial_name,
+            "initial_email": initial_email,
+            "initial_phone": initial_phone,
+            "initial_address": initial_address,
+            **pref,
+        },
+    )
+
+
+def my_orders(request):
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        return unauthorized
+    qs = DonHang.objects.filter(khach_hang=request.user).prefetch_related("items__san_pham")
+    paginator = Paginator(qs, 10)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    orders = list(page_obj.object_list)
+    for order in orders:
+        order.display_total_amount = _format_currency(order.tong_tien)
+        for item in order.items.all():
+            item.display_unit_price = _format_currency(item.don_gia)
+    _, cart_total_quantity, _ = _cart_items(request)
+    return render(
+        request,
+        "store/my_orders.html",
+        {
+            "orders": orders,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "cart_total_quantity": cart_total_quantity,
+            **_admin_pref_context(request),
         },
     )
 

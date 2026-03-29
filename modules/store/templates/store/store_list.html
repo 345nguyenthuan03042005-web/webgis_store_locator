@@ -20,14 +20,10 @@
       background: var(--bg);
       color: var(--text);
     }
-
     .top-header {
       background: linear-gradient(135deg, var(--red) 0%, var(--red2) 100%);
       position: sticky;
       top: 0;
-      left: 0;
-      right: 0;
-      width: 100%;
       z-index: 5000;
       box-shadow: 0 6px 20px rgba(227, 28, 35, .25);
     }
@@ -56,9 +52,8 @@
       font-weight: 700;
       font-size: 15px;
       text-decoration: none;
-      transition: all .2s;
     }
-    .top-nav a:hover { color: var(--yellow); transform: translateY(-1px); }
+    .top-nav a:hover { color: var(--yellow); }
     .top-actions { display: flex; gap: 10px; align-items: center; }
     .top-btn-find,
     .top-btn-admin {
@@ -78,21 +73,18 @@
       width: 140px;
       background: var(--yellow);
       color: #111;
-      border: 1px solid transparent;
       box-shadow: 0 4px 16px rgba(255, 209, 0, .4);
     }
-    .top-btn-find:hover { box-shadow: 0 8px 24px rgba(255, 209, 0, .5); }
     .top-btn-admin {
       width: 112px;
       background: #fff;
       color: #111827;
       border: 1px solid #e0e7ff;
     }
-
     .content {
-      max-width: 1000px;
+      max-width: 1080px;
       margin: 32px auto;
-      padding: 0 20px;
+      padding: 0 20px 40px;
     }
     .card {
       background: #fff;
@@ -101,8 +93,54 @@
       padding: 24px;
       box-shadow: 0 10px 25px rgba(2, 6, 23, .08);
     }
-    h1 { margin: 0 0 10px; font-size: 28px; }
-    p { margin: 0; color: #475569; }
+    .store-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+    .store-item {
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 18px;
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+    }
+    .store-item h2 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+    .muted { color: #475569; }
+    .pagination {
+      margin-top: 18px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+    }
+    .page-link {
+      min-width: 40px;
+      height: 40px;
+      padding: 0 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      border: 1px solid #d8e1ef;
+      background: #fff;
+      color: #0f172a;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .page-link.is-active {
+      background: #0f766e;
+      border-color: #0f766e;
+      color: #fff;
+    }
+    .page-link.is-disabled {
+      opacity: .45;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
@@ -112,19 +150,63 @@
       <nav class="top-nav">
         <a href="{% url 'store:home' %}#about">Giới thiệu</a>
         <a href="{% url 'store:home' %}#products">Sản phẩm</a>
-        <a href="{% url 'store:home' %}#stores">Cửa hàng</a>
+        <a href="{% url 'store:map_page' %}">Cửa hàng</a>
       </nav>
       <div class="top-actions">
-        <a href="{% url 'store:home' %}#stores" class="top-btn-find">Tìm cửa hàng</a>
-        <a href="/admin/" class="top-btn-admin">Admin</a>
+        <a href="{% url 'store:map_page' %}" class="top-btn-find">Tìm cửa hàng</a>
+        <a href="{% url 'store:cart' %}" class="top-btn-admin">{{ t.cart|default:"Giỏ hàng" }}</a>
+        {% if request.user.is_authenticated %}
+          {% if show_admin_link %}
+            <a href="{% url 'store:admin_dashboard' %}" class="top-btn-admin">Admin</a>
+          {% else %}
+            <a href="{% url 'store:user_dashboard' %}" class="top-btn-admin">Tài khoản</a>
+          {% endif %}
+        {% else %}
+          <a href="{% url 'store:user_login' %}" class="top-btn-admin">{{ t.login|default:"Đăng nhập" }}</a>
+        {% endif %}
       </div>
     </div>
   </header>
 
   <main class="content">
     <section class="card">
-      <h1>Danh sách cửa hàng</h1>
-      <p>Trang này đang ở bản đơn giản và sẽ tiếp tục được mở rộng theo dữ liệu ORM.</p>
+      <h1 style="margin:0 0 10px;">Danh sách cửa hàng</h1>
+      <p class="muted">Khám phá hệ thống cửa hàng Circle K và GS25 theo từng trang để tra cứu nhanh hơn.</p>
+
+      <div class="store-grid">
+        {% for store in stores %}
+          <article class="store-item">
+            <h2>{{ store.ten }}</h2>
+            <p class="muted"><strong>Chuỗi:</strong> {{ store.chuoi.ten }}</p>
+            <p class="muted"><strong>Địa chỉ:</strong> {{ store.dia_chi }}</p>
+            <p class="muted"><strong>Quận/Huyện:</strong> {{ store.quan_huyen }}</p>
+            <p class="muted">
+              <strong>Giờ hoạt động:</strong>
+              {% if store.hoat_dong_24h %}
+                24/7
+              {% else %}
+                {{ store.mo_cua|time:"H:i"|default:"--:--" }} - {{ store.dong_cua|time:"H:i"|default:"--:--" }}
+              {% endif %}
+            </p>
+          </article>
+        {% empty %}
+          <p>Chưa có dữ liệu cửa hàng.</p>
+        {% endfor %}
+      </div>
+
+      {% if paginator.num_pages > 1 %}
+        <div class="pagination">
+          <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page=1{% else %}#{% endif %}">Đầu</a>
+          <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page={{ page_obj.previous_page_number }}{% else %}#{% endif %}">Trước</a>
+          {% for p in paginator.page_range %}
+            {% if p == 1 or p == paginator.num_pages or p >= page_obj.number|add:"-1" and p <= page_obj.number|add:"1" %}
+              <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?page={{ p }}">{{ p }}</a>
+            {% endif %}
+          {% endfor %}
+          <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ page_obj.next_page_number }}{% else %}#{% endif %}">Sau</a>
+          <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ paginator.num_pages }}{% else %}#{% endif %}">Cuối</a>
+        </div>
+      {% endif %}
     </section>
   </main>
 </body>

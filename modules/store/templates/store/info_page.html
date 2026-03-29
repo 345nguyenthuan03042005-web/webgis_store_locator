@@ -494,12 +494,21 @@
       <nav>
         <a href="{% url 'store:home' %}#about">Giới thiệu</a>
         <a href="{% url 'store:home' %}#products">Sản phẩm</a>
-        <a href="{% url 'store:home' %}#stores">Cửa hàng</a>
+        <a href="{% url 'store:map_page' %}">Cửa hàng</a>
       </nav>
 
       <div class="header-actions">
-        <a href="{% url 'store:home' %}#stores" class="btnFind">Tìm cửa hàng</a>
-        <a href="/admin/" class="btn btnWhite mini">Admin</a>
+        <a href="{% url 'store:map_page' %}" class="btnFind">Tìm cửa hàng</a>
+        <a href="{% url 'store:cart' %}" class="btn btnWhite mini">{{ t.cart|default:"Giỏ hàng" }}</a>
+        {% if request.user.is_authenticated %}
+          {% if show_admin_link %}
+            <a href="{% url 'store:admin_dashboard' %}" class="btn btnWhite mini">Admin</a>
+          {% else %}
+            <a href="{% url 'store:user_dashboard' %}" class="btn btnWhite mini">Tài khoản</a>
+          {% endif %}
+        {% else %}
+          <a href="{% url 'store:user_login' %}" class="btn btnWhite mini">{{ t.login|default:"Đăng nhập" }}</a>
+        {% endif %}
       </div>
     </div>
   </header>
@@ -573,7 +582,7 @@
 
     <div class="actions">
       <a class="primary" href="{% url 'store:home' %}">Về trang chủ</a>
-      <a href="{% url 'store:home' %}#stores">Hệ thống cửa hàng</a>
+      <a href="{% url 'store:map_page' %}">Hệ thống cửa hàng</a>
       <a href="{% url 'store:home' %}#products">Sản phẩm nổi bật</a>
     </div>
   {% endif %}

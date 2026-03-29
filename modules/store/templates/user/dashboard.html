@@ -1,0 +1,52 @@
+{% load static %}
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ t.user_portal|default:"Khu vực người dùng" }}</title>
+  <link rel="stylesheet" href="{% static 'admin/css/style.css' %}">
+</head>
+<body data-theme="light">
+  <main class="content" style="max-width:960px;margin:0 auto;padding:32px 18px;">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="msg">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <section class="panel card">
+      <p class="stat-title">{{ t.user_area|default:"Trang người dùng" }}</p>
+      <h1 style="margin:8px 0 10px;">{{ t.welcome_user|default:"Xin chào" }} {{ request.user.get_full_name|default:request.user.username }}</h1>
+      <p class="top-sub">{{ t.user_intro|default:"Trang dành cho tài khoản người dùng đã đăng nhập." }}</p>
+
+      <div class="grid" style="margin-top:18px;">
+        <article class="panel" style="background:rgba(255,255,255,.06);border-radius:18px;padding:18px;">
+          <p class="stat-title">{{ t.username|default:"Tài khoản" }}</p>
+          <p class="stat-value" style="font-size:24px;">{{ request.user.username }}</p>
+        </article>
+        <article class="panel" style="background:rgba(255,255,255,.06);border-radius:18px;padding:18px;">
+          <p class="stat-title">{{ t.role|default:"Vai trò" }}</p>
+          <p class="stat-value" style="font-size:24px;">{{ role_label }}</p>
+        </article>
+        <article class="panel" style="background:rgba(255,255,255,.06);border-radius:18px;padding:18px;">
+          <p class="stat-title">{{ t.delivery_address|default:"Địa chỉ giao hàng" }}</p>
+          <p class="stat-value" style="font-size:18px;">{{ profile.dia_chi|default:"Chưa cập nhật" }}</p>
+        </article>
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:18px;">
+        <a class="btn btn-primary" href="{% url 'store:home' %}">{{ t.store_front|default:"Cửa hàng" }}</a>
+        <a class="btn btn-light" href="{% url 'store:product_catalog' %}">{{ t.products_page|default:"Sản phẩm" }}</a>
+        <a class="btn btn-light" href="{% url 'store:my_orders' %}">{{ t.my_orders|default:"Đơn hàng của tôi" }}</a>
+        <a class="btn btn-light" href="{% url 'store:user_profile' %}">{{ t.customer_profile|default:"Hồ sơ khách hàng" }}</a>
+        <a class="btn btn-light" href="{% url 'store:user_password_change' %}">{{ t.change_password|default:"Đổi mật khẩu" }}</a>
+        {% if show_admin_link %}
+          <a class="btn btn-light" href="{% url 'store:admin_dashboard' %}">{{ t.access_admin|default:"Vào trang quản trị" }}</a>
+        {% endif %}
+        <a class="btn btn-light" href="{% url 'store:user_logout' %}">{{ t.logout|default:"Đăng xuất" }}</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

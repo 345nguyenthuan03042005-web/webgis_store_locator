@@ -2,15 +2,28 @@
 {% block title %}{{ model_name }}{% endblock %}
 {% block page_title %}{{ t.manage|default:"Quản lý" }} {{ model_name }}{% endblock %}
 {% block content %}
-  <section class="panel card" style="margin-bottom:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+  <section class="panel card toolbar-card" style="margin-bottom:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
     <form method="get" class="search-box" style="flex:1; min-width:220px; margin:0;">
       <input type="text" name="q" value="{{ query }}" placeholder="{{ t.search_placeholder|default:'Tìm theo nội dung...' }}">
+      {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
     </form>
     <a class="btn btn-primary" href="{% url 'store:admin_create' model_slug %}">{{ t.add_new|default:"Thêm mới" }}</a>
   </section>
 
-  <section class="panel card table-wrap">
-    <table>
+  {% if model_slug == 'don-hang' %}
+    <section class="panel card filter-pills" style="margin-bottom:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <a class="btn {% if not status_filter %}btn-primary{% else %}btn-light{% endif %}" href="{% url 'store:admin_list' model_slug %}{% if query %}?q={{ query|urlencode }}{% endif %}">{{ t.all_statuses|default:"Tất cả trạng thái" }}</a>
+      <a class="btn {% if status_filter == 'pending' %}btn-primary{% else %}btn-light{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}status=pending">Chờ xử lý</a>
+      <a class="btn {% if status_filter == 'confirmed' %}btn-primary{% else %}btn-light{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}status=confirmed">Đã xác nhận</a>
+      <a class="btn {% if status_filter == 'shipping' %}btn-primary{% else %}btn-light{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}status=shipping">Đang giao</a>
+      <a class="btn {% if status_filter == 'delivered' %}btn-primary{% else %}btn-light{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}status=delivered">Đã giao</a>
+      <a class="btn {% if status_filter == 'done' %}btn-primary{% else %}btn-light{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}status=done">Hoàn tất</a>
+      <a class="btn {% if status_filter == 'cancelled' %}btn-primary{% else %}btn-light{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}status=cancelled">Đã hủy</a>
+    </section>
+  {% endif %}
+
+  <section class="panel card table-wrap {% if model_slug == 'don-hang' %}order-table-wrap{% endif %}">
+    <table class="{% if model_slug == 'don-hang' %}order-table{% endif %}">
       <thead>
         <tr>
           <th>ID</th>
@@ -25,7 +38,7 @@
           <tr>
             <td>{{ row.object.pk }}</td>
             {% for value in row.values %}
-              <td class="{% if value.type == 'bool' %}bool-col{% endif %}">
+              <td class="{% if value.type == 'bool' %}bool-col{% endif %} {% if value.type == 'status' %}status-col{% endif %} {% if value.type == 'money' %}money-col{% endif %}">
                 {% if value.type == "image" %}
                   <a href="{{ value.url }}" target="_blank" rel="noopener">
                     <img class="avatar" src="{{ value.url }}" alt="{{ value.text }}">
@@ -38,6 +51,10 @@
                       <span class="bool-badge is-false" title="Không hoạt động 24 giờ">✗</span>
                     {% endif %}
                   </span>
+                {% elif value.type == "money" %}
+                  <strong>{{ value.text }}</strong>
+                {% elif value.type == "status" %}
+                  <span class="chip {% if value.value == 'pending' %}chip-warn{% elif value.value == 'confirmed' %}chip-info{% elif value.value == 'shipping' %}chip-info{% elif value.value == 'delivered' or value.value == 'done' %}chip-success{% elif value.value == 'cancelled' %}chip-danger{% endif %}">{{ value.text }}</span>
                 {% else %}
                   {{ value.text|truncatechars:120 }}
                 {% endif %}
@@ -45,6 +62,11 @@
             {% endfor %}
             <td class="action-col">
               <div class="action-buttons">
+                {% if row.status_actions %}
+                  {% for action in row.status_actions %}
+                    <a class="btn btn-light" href="{% url 'store:admin_order_status_action' row.object.pk action.value %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if status_filter %}status={{ status_filter|urlencode }}&{% endif %}page={{ page_obj.number }}">{{ action.label }}</a>
+                  {% endfor %}
+                {% endif %}
                 <a class="btn btn-ghost btn-icon" href="{% url 'store:admin_update' model_slug row.object.pk %}" title="{{ t.edit|default:'Sửa' }}" aria-label="{{ t.edit|default:'Sửa' }}">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25Zm2.92 2.33H5v-.92l9.06-9.06.92.92L5.92 19.58ZM20.71 6.04a1 1 0 0 0 0-1.41L19.37 3.29a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75 1.13-1.13Z"/></svg>
                 </a>
@@ -65,25 +87,25 @@
 
   {% if paginator.num_pages > 1 %}
     <section class="panel card pagination">
-      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?{% if query %}q={{ query|urlencode }}&{% endif %}page=1{% else %}#{% endif %}" aria-label="First">
+      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if status_filter %}status={{ status_filter|urlencode }}&{% endif %}page=1{% else %}#{% endif %}" aria-label="First">
         «
       </a>
-      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}{% else %}#{% endif %}" aria-label="Previous">
+      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if status_filter %}status={{ status_filter|urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}{% else %}#{% endif %}" aria-label="Previous">
         ‹
       </a>
 
       {% for p in paginator.page_range %}
         {% if p == 1 or p == paginator.num_pages %}
-          <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ p }}">{{ p }}</a>
+          <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if status_filter %}status={{ status_filter|urlencode }}&{% endif %}page={{ p }}">{{ p }}</a>
         {% elif p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
-          <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ p }}">{{ p }}</a>
+          <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if status_filter %}status={{ status_filter|urlencode }}&{% endif %}page={{ p }}">{{ p }}</a>
         {% endif %}
       {% endfor %}
 
-      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ page_obj.next_page_number }}{% else %}#{% endif %}" aria-label="Next">
+      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if status_filter %}status={{ status_filter|urlencode }}&{% endif %}page={{ page_obj.next_page_number }}{% else %}#{% endif %}" aria-label="Next">
         ›
       </a>
-      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?{% if query %}q={{ query|urlencode }}&{% endif %}page={{ paginator.num_pages }}{% else %}#{% endif %}" aria-label="Last">
+      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if status_filter %}status={{ status_filter|urlencode }}&{% endif %}page={{ paginator.num_pages }}{% else %}#{% endif %}" aria-label="Last">
         »
       </a>
     </section>

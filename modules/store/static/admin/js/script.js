@@ -1,4 +1,46 @@
 ﻿document.addEventListener("DOMContentLoaded", () => {
+  const getPasswordStrength = (password) => {
+    let score = 0;
+    if ((password || "").length >= 8) score += 1;
+    if ((password || "").length >= 12) score += 1;
+    if (/[A-Z]/.test(password || "")) score += 1;
+    if (/[a-z]/.test(password || "")) score += 1;
+    if (/\d/.test(password || "")) score += 1;
+    if (/[^A-Za-z0-9]/.test(password || "")) score += 1;
+    if (score <= 3) return "weak";
+    if (score <= 4) return "medium";
+    return "strong";
+  };
+
+  document.querySelectorAll("[data-password-meter]").forEach((form) => {
+    const passwordInput =
+      form.querySelector("input[name='password1']") ||
+      form.querySelector("input[name='new_password1']");
+    const meterBar = form.querySelector("[data-password-meter-bar]");
+    const meterLabel = form.querySelector("[data-password-meter-label]");
+    if (!passwordInput || !meterBar || !meterLabel) return;
+
+    const labels = {
+      weak: meterLabel.dataset.weak || "Yeu",
+      medium: meterLabel.dataset.medium || "Trung binh",
+      strong: meterLabel.dataset.strong || "Manh",
+    };
+
+    const renderStrength = () => {
+      meterBar.classList.remove("is-weak", "is-medium", "is-strong");
+      if (!passwordInput.value) {
+        meterLabel.textContent = "-";
+        return;
+      }
+      const strength = getPasswordStrength(passwordInput.value);
+      meterBar.classList.add(`is-${strength}`);
+      meterLabel.textContent = labels[strength];
+    };
+
+    passwordInput.addEventListener("input", renderStrength);
+    renderStrength();
+  });
+
   const panels = document.querySelectorAll(".panel, .card");
   panels.forEach((el, idx) => {
     el.classList.add("fade-up");
