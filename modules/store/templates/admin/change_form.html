@@ -11,9 +11,8 @@
           <div class="top-sub">{{ t.coord_pick_hint|default:"Tọa độ chỉ được lấy từ bản đồ." }}</div>
           <a
             class="btn btn-ghost"
-            href="{% url 'store:home' %}?pick_for=admin_cuahang"
+            href="{% url 'store:map_page' %}?pick_for=admin_cuahang"
             target="_blank"
-            rel="noopener"
             id="btn-pick-coord"
             data-lat-field="id_vi_do"
             data-lon-field="id_kinh_do"
@@ -66,9 +65,6 @@
     </form>
   </section>
 {% endblock %}
-
-
-
 
 
 

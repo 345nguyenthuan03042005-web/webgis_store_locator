@@ -15,6 +15,7 @@ urlpatterns = [
     path("cart/clear/", controllers.cart_clear, name="cart_clear"),
     path("checkout/", controllers.checkout_view, name="checkout"),
     path("orders/", controllers.my_orders, name="my_orders"),
+    path("feedback/", controllers.feedback_view, name="feedback"),
     path("stores/", controllers.store_list_page, name="stores_page"),
     path("map/", controllers.map_page, name="map_page"),
     path("info/<slug:slug>/", controllers.info_page, name="info_page"),

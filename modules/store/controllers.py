@@ -464,6 +464,8 @@ from django.contrib.auth import get_user_model, login, logout, update_session_au
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, SetPasswordForm, UserCreationForm
 from django.contrib.auth.models import Group
 from django.contrib.auth.views import LoginView
+from django.conf import settings
+from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
@@ -476,6 +478,7 @@ from django.urls import reverse
 from .models import (
     ChiTietDonHang,
     DonHang,
+    GopYKhachHang,
     HoSoKhachHang,
     Notification,
     ChuoiCuaHang,
@@ -498,6 +501,7 @@ MODEL_REGISTRY = {
     "cua-hang": CuaHang,
     "nhan-vien": NhanVien,
     "khuyen-mai": KhuyenMai,
+    "gop-y-khach-hang": GopYKhachHang,
     "ho-so-khach-hang": HoSoKhachHang,
     "don-hang": DonHang,
     "chi-tiet-don-hang": ChiTietDonHang,
@@ -520,6 +524,7 @@ MODULE_LABELS = {
     "cua-hang": {"vi_singular": "Cửa hàng", "vi_plural": "Cửa hàng", "en_singular": "Store", "en_plural": "Stores"},
     "nhan-vien": {"vi_singular": "Nhân viên", "vi_plural": "Nhân viên", "en_singular": "Employee", "en_plural": "Employees"},
     "khuyen-mai": {"vi_singular": "Khuyến mãi", "vi_plural": "Khuyến mãi", "en_singular": "Promotion", "en_plural": "Promotions"},
+    "gop-y-khach-hang": {"vi_singular": "Góp ý khách hàng", "vi_plural": "Góp ý khách hàng", "en_singular": "Customer Feedback", "en_plural": "Customer Feedback"},
     "ho-so-khach-hang": {"vi_singular": "Hồ sơ khách hàng", "vi_plural": "Hồ sơ khách hàng", "en_singular": "Customer Profile", "en_plural": "Customer Profiles"},
     "don-hang": {"vi_singular": "Đơn hàng", "vi_plural": "Đơn hàng", "en_singular": "Order", "en_plural": "Orders"},
     "chi-tiet-don-hang": {"vi_singular": "Chi tiết đơn hàng", "vi_plural": "Chi tiết đơn hàng", "en_singular": "Order Item", "en_plural": "Order Items"},
@@ -803,6 +808,9 @@ FIELD_LABELS = {
         "so_dien_thoai": "Phone",
         "email": "Email",
         "avatar": "Avatar",
+        "chu_de": "Subject",
+        "noi_dung": "Feedback Content",
+        "da_phan_hoi": "Responded",
         "user": "User",
         "khach_hang": "Customer",
         "ho_ten_nguoi_nhan": "Receiver",
@@ -886,6 +894,41 @@ def _format_currency(value):
 def _get_customer_profile(user):
     profile, _ = HoSoKhachHang.objects.get_or_create(user=user)
     return profile
+
+
+def _send_feedback_emails(feedback):
+    user_subject = "Circle K & GS25 đã nhận góp ý của bạn"
+    user_message = (
+        f"Xin chào {feedback.ho_ten},\n\n"
+        "Chúng tôi đã nhận được góp ý của bạn và sẽ phản hồi sớm nhất có thể.\n\n"
+        f"Chủ đề: {feedback.chu_de}\n"
+        f"Nội dung: {feedback.noi_dung}\n\n"
+        "Cảm ơn bạn đã đồng hành cùng Circle K & GS25."
+    )
+    admin_subject = f"Góp ý mới từ website: {feedback.chu_de}"
+    admin_message = (
+        "Hệ thống vừa ghi nhận một góp ý mới.\n\n"
+        f"Họ tên: {feedback.ho_ten}\n"
+        f"Email: {feedback.email}\n"
+        f"Số điện thoại: {feedback.so_dien_thoai or '-'}\n"
+        f"Chủ đề: {feedback.chu_de}\n"
+        f"Nội dung:\n{feedback.noi_dung}\n"
+    )
+
+    send_mail(
+        user_subject,
+        user_message,
+        settings.DEFAULT_FROM_EMAIL,
+        [feedback.email],
+        fail_silently=False,
+    )
+    send_mail(
+        admin_subject,
+        admin_message,
+        settings.DEFAULT_FROM_EMAIL,
+        [settings.FEEDBACK_NOTIFICATION_EMAIL],
+        fail_silently=False,
+    )
 
 
 def _cart_items(request):
@@ -1916,6 +1959,72 @@ def cart_clear(request):
     request.session.modified = True
     messages.success(request, "Đã xóa toàn bộ giỏ hàng.")
     return redirect("store:cart")
+
+
+def feedback_view(request):
+    pref = _admin_pref_context(request)
+    initial_name = ""
+    initial_email = ""
+    initial_phone = ""
+    if request.user.is_authenticated and _is_regular_user(request.user):
+        profile = _get_customer_profile(request.user)
+        initial_name = request.user.get_full_name().strip()
+        initial_email = request.user.email or ""
+        initial_phone = profile.so_dien_thoai or ""
+
+    form_data = {
+        "ho_ten": initial_name,
+        "email": initial_email,
+        "so_dien_thoai": initial_phone,
+        "chu_de": "",
+        "noi_dung": "",
+    }
+    errors = {}
+
+    if request.method == "POST":
+        form_data = {
+            "ho_ten": (request.POST.get("ho_ten") or "").strip(),
+            "email": (request.POST.get("email") or "").strip(),
+            "so_dien_thoai": (request.POST.get("so_dien_thoai") or "").strip(),
+            "chu_de": (request.POST.get("chu_de") or "").strip(),
+            "noi_dung": (request.POST.get("noi_dung") or "").strip(),
+        }
+        if not form_data["ho_ten"]:
+            errors["ho_ten"] = "Vui lòng nhập họ tên."
+        if not form_data["email"]:
+            errors["email"] = "Vui lòng nhập email."
+        else:
+            try:
+                validate_email(form_data["email"])
+            except ValidationError:
+                errors["email"] = "Email không đúng định dạng."
+        if not form_data["chu_de"]:
+            errors["chu_de"] = "Vui lòng nhập chủ đề."
+        if not form_data["noi_dung"]:
+            errors["noi_dung"] = "Vui lòng nhập nội dung góp ý."
+
+        if not errors:
+            feedback = GopYKhachHang.objects.create(**form_data)
+            try:
+                _send_feedback_emails(feedback)
+                messages.success(request, "Đã gửi góp ý thành công. Vui lòng kiểm tra email để xem phản hồi xác nhận.")
+            except Exception:
+                messages.warning(
+                    request,
+                    "Hệ thống đã lưu góp ý, nhưng chưa gửi được email. Hãy kiểm tra lại cấu hình Mailtrap trong .env.",
+                )
+            return redirect("store:feedback")
+
+    return render(
+        request,
+        "store/feedback.html",
+        {
+            "feedback_form": form_data,
+            "feedback_errors": errors,
+            "cart_total_quantity": _cart_items(request)[1],
+            **pref,
+        },
+    )
 
 
 def checkout_view(request):

@@ -2,11 +2,13 @@ from datetime import time
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core import mail
 from django.test import TestCase
+from django.test.utils import override_settings
 
 from modules.store.controllers import ROLE_ADMIN, ROLE_USER, _ensure_role_groups
 from modules.spatial.controllers import _store_dict
-from modules.store.models import ChiTietDonHang, ChuoiCuaHang, CuaHang, DonHang, SanPham
+from modules.store.models import ChiTietDonHang, ChuoiCuaHang, CuaHang, DonHang, GopYKhachHang, SanPham
 
 
 class SmokeTests(TestCase):
@@ -300,3 +302,53 @@ class CustomerPurchaseFlowTests(TestCase):
         self.assertEqual(order.tong_so_luong, 2)
         self.assertEqual(order.tong_tien, 60000)
         self.assertTrue(ChiTietDonHang.objects.filter(don_hang=order, san_pham=self.product, so_luong=2).exists())
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    DEFAULT_FROM_EMAIL="noreply@example.com",
+    FEEDBACK_NOTIFICATION_EMAIL="support@example.com",
+)
+class FeedbackFlowTests(TestCase):
+    def test_feedback_page_ok(self):
+        response = self.client.get("/feedback/")
+        self.assertEqual(response.status_code, 200)
+
+    def test_feedback_submission_saves_and_sends_mail(self):
+        response = self.client.post(
+            "/feedback/",
+            {
+                "ho_ten": "Nguyen Van A",
+                "email": "nguyenvana@example.com",
+                "so_dien_thoai": "0900000000",
+                "chu_de": "Góp ý về dịch vụ",
+                "noi_dung": "Nhân viên hỗ trợ rất nhiệt tình.",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(GopYKhachHang.objects.count(), 1)
+        feedback = GopYKhachHang.objects.first()
+        self.assertEqual(feedback.ho_ten, "Nguyen Van A")
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[0].to, ["nguyenvana@example.com"])
+        self.assertEqual(mail.outbox[1].to, ["support@example.com"])
+
+    def test_feedback_submission_validates_required_fields(self):
+        response = self.client.post(
+            "/feedback/",
+            {
+                "ho_ten": "",
+                "email": "sai-dinh-dang",
+                "chu_de": "",
+                "noi_dung": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vui lòng nhập họ tên.")
+        self.assertContains(response, "Email không đúng định dạng.")
+        self.assertContains(response, "Vui lòng nhập chủ đề.")
+        self.assertContains(response, "Vui lòng nhập nội dung góp ý.")
+        self.assertEqual(GopYKhachHang.objects.count(), 0)

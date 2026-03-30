@@ -238,6 +238,24 @@ class HoSoKhachHang(models.Model):
         return f"Hồ sơ {self.user.username}"
 
 
+class GopYKhachHang(models.Model):
+    ho_ten = models.CharField("Họ tên", max_length=120)
+    email = models.EmailField("Email")
+    so_dien_thoai = models.CharField("Số điện thoại", max_length=20, blank=True)
+    chu_de = models.CharField("Chủ đề", max_length=150)
+    noi_dung = models.TextField("Nội dung góp ý")
+    da_phan_hoi = models.BooleanField("Đã phản hồi", default=False)
+    created_at = models.DateTimeField("Thời gian tạo", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Góp ý khách hàng"
+        verbose_name_plural = "Góp ý khách hàng"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.ho_ten} - {self.chu_de}"
+
+
 class DonHang(models.Model):
     STATUS_CHOICES = (
         ("pending", "Chờ xử lý"),

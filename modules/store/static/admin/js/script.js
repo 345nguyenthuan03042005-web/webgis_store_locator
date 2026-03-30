@@ -203,8 +203,11 @@
         url.searchParams.set("center_lon", lonInput.value);
       }
 
-      // Keep opener so map tab can postMessage coordinates back immediately.
-      window.open(url.toString(), "_blank");
+      // Keep opener so the map tab can send coordinates back to this form.
+      const mapWindow = window.open(url.toString(), "_blank");
+      if (!mapWindow) {
+        window.alert("Trình duyệt đang chặn mở tab bản đồ. Hãy cho phép pop-up rồi thử lại.");
+      }
     });
   }
 });
