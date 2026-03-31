@@ -3,34 +3,47 @@
 {% block page_title %}{{ t.notification_title|default:"Thông báo hệ thống" }}{% endblock %}
 {% block content %}
   <section class="panel card table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Level</th>
-          <th>Title</th>
-          <th>Path</th>
-          <th>Status</th>
-          <th>Time</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for n in page_obj %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="delete_selected">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+        <button class="btn btn-danger" type="submit">Xóa đã chọn</button>
+      </div>
+      <table class="table table-striped table-hover">
+        <thead>
           <tr>
-            <td>{{ n.id }}</td>
-            <td>{{ n.level }}</td>
-            <td>{{ n.title }}</td>
-            <td>{{ n.path }}</td>
-            <td>{{ n.status_code }}</td>
-            <td>{{ n.created_at|date:"Y-m-d H:i" }}</td>
+            <th style="width:36px;">
+              <input type="checkbox" data-select-all data-select-target="notif">
+            </th>
+            <th>ID</th>
+            <th>Level</th>
+            <th>Title</th>
+            <th>Path</th>
+            <th>Status</th>
+            <th>Time</th>
           </tr>
-        {% empty %}
-          <tr>
-            <td colspan="99">{{ t.notification_empty|default:"Chưa có thông báo." }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for n in page_obj %}
+            <tr>
+              <td>
+                <input type="checkbox" name="selected_ids" value="{{ n.id }}" data-select-item="notif">
+              </td>
+              <td>{{ n.id }}</td>
+              <td>{{ n.level }}</td>
+              <td>{{ n.title }}</td>
+              <td>{{ n.path }}</td>
+              <td>{{ n.status_code }}</td>
+              <td>{{ n.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="99">{{ t.notification_empty|default:"Chưa có thông báo." }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </form>
   </section>
 
   {% if paginator.num_pages > 1 %}

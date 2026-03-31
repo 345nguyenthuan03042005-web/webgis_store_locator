@@ -21,7 +21,7 @@
 
       {% for order in orders %}
         <article class="panel card" style="margin-top:14px;">
-          <div><strong>{{ t.order_code|default:"Mã đơn" }}:</strong> #{{ order.pk }}</div>
+          <div><strong>{{ t.order_code|default:"Mã đơn" }}:</strong> {{ order.pk }}</div>
           <div class="top-sub">{{ t.order_status|default:"Trạng thái đơn" }}: {{ order.get_trang_thai_display }} | {{ t.order_time|default:"Thời gian đặt" }}: {{ order.created_at|date:"d/m/Y H:i" }}</div>
           <div class="top-sub">{{ t.total_amount|default:"Tổng tiền" }}: {{ order.display_total_amount }}</div>
           {% for item in order.items.all %}

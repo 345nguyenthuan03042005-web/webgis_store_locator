@@ -78,7 +78,7 @@ DATABASES = {
         'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
         'NAME': os.getenv('DB_NAME', 'webgis_db'),
         'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', '123456'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'tTT@492005'),
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '5432'),
     }
@@ -107,26 +107,34 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+STATICFILES_DIRS = []
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'sandbox.smtp.mailtrap.io')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '2525'))
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '0ed35b2f76c426')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'e9befc1657b8d8')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes', 'on')
 EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'false').lower() in ('1', 'true', 'yes', 'on')
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '15'))
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Circle K & GS25 <no-reply@circlek-gs25.local>')
-FEEDBACK_NOTIFICATION_EMAIL = os.getenv('FEEDBACK_NOTIFICATION_EMAIL', EMAIL_HOST_USER or 'support@circlek-gs25.local')
+FEEDBACK_NOTIFICATION_EMAIL = os.getenv('FEEDBACK_NOTIFICATION_EMAIL', EMAIL_HOST_USER or 'tranthithanhthao625@gmail.com')
 EMAIL_BACKEND = os.getenv(
     'EMAIL_BACKEND',
     'django.core.mail.backends.smtp.EmailBackend'
     if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD
     else 'django.core.mail.backends.console.EmailBackend',
 )
+
+# Optional: separate SMTP credentials for customer order emails.
+ORDER_EMAIL_HOST = os.getenv('ORDER_EMAIL_HOST', 'sandbox.smtp.mailtrap.io')
+ORDER_EMAIL_PORT = int(os.getenv('ORDER_EMAIL_PORT', str(2525)))
+ORDER_EMAIL_HOST_USER = os.getenv('ORDER_EMAIL_HOST_USER', '53078e17970686')
+ORDER_EMAIL_HOST_PASSWORD = os.getenv('ORDER_EMAIL_HOST_PASSWORD', '10527cfabd3968')
+ORDER_EMAIL_USE_TLS = os.getenv('ORDER_EMAIL_USE_TLS', str(EMAIL_USE_TLS)).lower() in ('1', 'true', 'yes', 'on')
+ORDER_EMAIL_USE_SSL = os.getenv('ORDER_EMAIL_USE_SSL', str(EMAIL_USE_SSL)).lower() in ('1', 'true', 'yes', 'on')
 
 # Security defaults:
 # - relaxed for local DEBUG
@@ -137,6 +145,7 @@ CSRF_COOKIE_SECURE = os.getenv('DJANGO_CSRF_COOKIE_SECURE', str(not DEBUG)).lowe
 SECURE_HSTS_SECONDS = int(os.getenv('DJANGO_SECURE_HSTS_SECONDS', '0' if DEBUG else '31536000'))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS', str(not DEBUG)).lower() in ('1', 'true', 'yes', 'on')
 SECURE_HSTS_PRELOAD = os.getenv('DJANGO_SECURE_HSTS_PRELOAD', str(not DEBUG)).lower() in ('1', 'true', 'yes', 'on')
+SECURE_REFERRER_POLICY = os.getenv('DJANGO_SECURE_REFERRER_POLICY', 'strict-origin-when-cross-origin')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

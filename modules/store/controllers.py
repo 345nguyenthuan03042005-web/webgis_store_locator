@@ -455,25 +455,34 @@ def news_detail(request, slug):
 
 
 # CMS Section
+import json
 import os
 import re
+from urllib.parse import urlencode
+from datetime import timedelta
 from decimal import Decimal
 
+from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login, logout, update_session_auth_hash
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, SetPasswordForm, UserCreationForm
 from django.contrib.auth.models import Group
 from django.contrib.auth.views import LoginView
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import send_mail, get_connection
 from django.core.paginator import Paginator
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db import models as dj_models
 from django.db.models import Q
 from django.forms import modelform_factory
+from django.forms.models import model_to_dict
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 
 from .models import (
     ChiTietDonHang,
@@ -481,6 +490,7 @@ from .models import (
     GopYKhachHang,
     HoSoKhachHang,
     Notification,
+    TrashRecord,
     ChuoiCuaHang,
     CuaHang,
     KhuyenMai,
@@ -557,7 +567,7 @@ CMS_TRANSLATIONS = {
         "save_settings": "Lưu cài đặt",
         "settings_saved": "Đã lưu cài đặt hệ thống.",
         "logged_in_as": "Đăng nhập bởi",
-        "internal_cms": "CMS nội bộ",
+        "internal_cms": "Hệ thống nội bộ",
         "custom_internal_management": "Hệ thống quản trị nội bộ tự tạo",
         "manage": "Quản lý",
         "confirm_delete": "Xác nhận xóa",
@@ -576,7 +586,7 @@ CMS_TRANSLATIONS = {
         "file_current": "Tệp hiện tại",
         "saved_successfully": "Lưu thành công.",
         "deleted_successfully": "Xóa thành công.",
-        "no_access": "Tài khoản không có quyền truy cập CMS.",
+        "no_access": "Tài khoản không có quyền truy cập trang quản trị.",
         "store_front": "Cửa hàng",
         "notifications": "Thông báo",
         "user_management": "Quản lý người dùng",
@@ -595,7 +605,7 @@ CMS_TRANSLATIONS = {
         "user_intro": "Trang dành cho tài khoản người dùng đã đăng nhập.",
         "access_admin": "Vào trang quản trị",
         "user_login_title": "Đăng nhập người dùng",
-        "user_login_hint": "Tài khoản người dùng sẽ vào trang người dùng. Tài khoản admin sẽ được chuyển sang CMS.",
+        "user_login_hint": "Tài khoản người dùng sẽ vào trang người dùng. Tài khoản admin sẽ được chuyển sang trang quản trị.",
         "user_created": "Đã tạo tài khoản mới.",
         "user_updated": "Đã cập nhật quyền người dùng.",
         "register": "Đăng ký",
@@ -629,6 +639,12 @@ CMS_TRANSLATIONS = {
         "complete_order": "Hoàn tất đơn",
         "cancel_order": "Hủy đơn",
         "order_status_updated": "Đã cập nhật trạng thái đơn hàng.",
+        "trash": "Thùng rác",
+        "restore": "Khôi phục",
+        "delete_permanently": "Xóa hẳn",
+        "deleted_at": "Thời gian xóa",
+        "expires_at": "Tự xóa sau",
+        "trash_empty": "Thùng rác đang trống.",
         "unit_price": "Đơn giá",
         "line_total": "Thành tiền",
         "total_amount": "Tổng tiền",
@@ -649,7 +665,7 @@ CMS_TRANSLATIONS = {
         "notification_empty": "Chưa có thông báo.",
         "support_request": "Yêu cầu hỗ trợ",
         "retry_request": "Yêu cầu thử lại",
-        "login_title": "Đăng nhập CMS",
+        "login_title": "Đăng nhập quản trị",
         "login_only_staff": "Chỉ tài khoản Admin mới được phép truy cập.",
         "username": "Tài khoản",
         "password": "Mật khẩu",
@@ -686,7 +702,7 @@ CMS_TRANSLATIONS = {
         "save_settings": "Save Settings",
         "settings_saved": "System settings saved.",
         "logged_in_as": "Logged in as",
-        "internal_cms": "Internal CMS",
+        "internal_cms": "Internal System",
         "custom_internal_management": "Custom internal management system",
         "manage": "Manage",
         "confirm_delete": "Confirm Deletion",
@@ -721,7 +737,7 @@ CMS_TRANSLATIONS = {
         "user_intro": "This page is for authenticated user accounts.",
         "access_admin": "Open Admin",
         "user_login_title": "User Login",
-        "user_login_hint": "Regular users enter the user area. Admin accounts are redirected to the CMS.",
+        "user_login_hint": "Regular users enter the user area. Admin accounts are redirected to the admin panel.",
         "user_created": "New user created.",
         "user_updated": "User role updated.",
         "register": "Register",
@@ -755,6 +771,12 @@ CMS_TRANSLATIONS = {
         "complete_order": "Complete Order",
         "cancel_order": "Cancel Order",
         "order_status_updated": "Order status updated.",
+        "trash": "Trash",
+        "restore": "Restore",
+        "delete_permanently": "Delete permanently",
+        "deleted_at": "Deleted at",
+        "expires_at": "Expires at",
+        "trash_empty": "Trash is empty.",
         "unit_price": "Unit Price",
         "line_total": "Line Total",
         "total_amount": "Total Amount",
@@ -896,6 +918,46 @@ def _get_customer_profile(user):
     return profile
 
 
+def _purge_expired_trash():
+    TrashRecord.objects.filter(expires_at__lt=timezone.now()).delete()
+
+
+def _move_to_trash(obj):
+    data = model_to_dict(obj)
+    # Ensure file fields are stored as plain paths
+    for field in obj._meta.fields:
+        if field.get_internal_type() in {"ImageField", "FileField"}:
+            value = getattr(obj, field.name)
+            data[field.name] = str(value) if value else ""
+    data = json.loads(json.dumps(data, cls=DjangoJSONEncoder))
+    data.pop("id", None)
+    TrashRecord.objects.create(
+        model_label=obj._meta.label_lower,
+        object_id=str(obj.pk),
+        data=data,
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+
+
+def _model_slug_from_label(label: str) -> str:
+    try:
+        model = apps.get_model(label)
+    except Exception:
+        return label.split(".")[-1]
+    for slug, registered in MODEL_REGISTRY.items():
+        if registered is model:
+            return slug
+    return model._meta.model_name
+
+
+def _trash_display_name(data: dict) -> str:
+    for key in ("ten", "ho_ten", "ho_ten_nguoi_nhan", "username", "email"):
+        value = data.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
 def _send_feedback_emails(feedback):
     user_subject = "Circle K & GS25 đã nhận góp ý của bạn"
     user_message = (
@@ -929,6 +991,58 @@ def _send_feedback_emails(feedback):
         [settings.FEEDBACK_NOTIFICATION_EMAIL],
         fail_silently=False,
     )
+
+
+def _send_order_confirmation(order, items):
+    customer_email = (order.khach_hang.email or "").strip()
+    if not customer_email:
+        return False
+    created_at = order.created_at or timezone.now()
+    created_text = created_at.strftime("%d/%m/%Y %H:%M")
+    item_lines = []
+    for item in items:
+        line_total = item.get("line_total")
+        if line_total is None:
+            line_total = (item.get("unit_price") or Decimal("0")) * (item.get("quantity") or 0)
+        item_lines.append(
+            f"- {item['product'].ten} x {item['quantity']} = {_format_currency(line_total)}"
+        )
+    items_text = "\n".join(item_lines) if item_lines else "-"
+    subject = f"Xác nhận đơn hàng {order.pk} - Circle K & GS25"
+    message = (
+        f"Xin chào {order.ho_ten_nguoi_nhan},\n\n"
+        "Cảm ơn bạn đã đặt hàng tại Circle K & GS25.\n"
+        f"Mã đơn: {order.pk}\n"
+        f"Thời gian đặt: {created_text}\n"
+        f"Người nhận: {order.ho_ten_nguoi_nhan}\n"
+        f"Số điện thoại: {order.so_dien_thoai}\n"
+        f"Địa chỉ giao hàng: {order.dia_chi_giao_hang}\n"
+        f"Ghi chú: {order.ghi_chu or '-'}\n\n"
+        "Chi tiết đơn hàng:\n"
+        f"{items_text}\n\n"
+        f"Tổng số lượng: {order.tong_so_luong}\n"
+        f"Tổng tiền: {_format_currency(order.tong_tien)}\n\n"
+        "Chúng tôi sẽ liên hệ với bạn để xác nhận và giao hàng sớm nhất.\n"
+        "Trân trọng."
+    )
+    customer_conn = get_connection(
+        host=settings.ORDER_EMAIL_HOST,
+        port=settings.ORDER_EMAIL_PORT,
+        username=settings.ORDER_EMAIL_HOST_USER,
+        password=settings.ORDER_EMAIL_HOST_PASSWORD,
+        use_tls=settings.ORDER_EMAIL_USE_TLS,
+        use_ssl=settings.ORDER_EMAIL_USE_SSL,
+        timeout=settings.EMAIL_TIMEOUT,
+    )
+    send_mail(
+        subject,
+        message,
+        settings.DEFAULT_FROM_EMAIL,
+        [customer_email],
+        fail_silently=False,
+        connection=customer_conn,
+    )
+    return True
 
 
 def _cart_items(request):
@@ -1410,6 +1524,7 @@ def admin_user_management(request):
     create_user_is_active = True
     create_user_password_strength = ""
     query = request.GET.get("q", "").strip()
+    filter_field = request.GET.get("f", "").strip()
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -1445,8 +1560,13 @@ def admin_user_management(request):
             if email_error:
                 messages.error(request, f"{user.username}: {email_error}")
                 redirect_url = reverse("store:admin_user_management")
+                query_params = []
                 if query:
-                    redirect_url = f"{redirect_url}?q={query}"
+                    query_params.append(f"q={query}")
+                if filter_field:
+                    query_params.append(f"f={filter_field}")
+                if query_params:
+                    redirect_url = f"{redirect_url}?{'&'.join(query_params)}"
                 return redirect(redirect_url)
 
             if full_name:
@@ -1465,18 +1585,48 @@ def admin_user_management(request):
             _sync_user_role(user, request.POST.get("role", ROLE_USER))
             messages.success(request, pref["t"]["user_updated"])
             redirect_url = reverse("store:admin_user_management")
+            query_params = []
             if query:
-                redirect_url = f"{redirect_url}?q={query}"
+                query_params.append(f"q={query}")
+            if filter_field:
+                query_params.append(f"f={filter_field}")
+            if query_params:
+                redirect_url = f"{redirect_url}?{'&'.join(query_params)}"
             return redirect(redirect_url)
 
     user_qs = User.objects.order_by("username")
     if query:
-        user_qs = user_qs.filter(
-            Q(username__icontains=query)
-            | Q(email__icontains=query)
-            | Q(first_name__icontains=query)
-            | Q(last_name__icontains=query)
-        )
+        filter_field = filter_field or ""
+        if filter_field == "username":
+            user_qs = user_qs.filter(username__icontains=query)
+        elif filter_field == "email":
+            user_qs = user_qs.filter(email__icontains=query)
+        elif filter_field == "full_name":
+            user_qs = user_qs.filter(Q(first_name__icontains=query) | Q(last_name__icontains=query))
+        elif filter_field == "role":
+            role_value = query.strip().lower()
+            if role_value in {"admin", "administrator"}:
+                role_value = ROLE_ADMIN
+            elif role_value in {"user", "khach", "khách"}:
+                role_value = ROLE_USER
+            user_qs = user_qs.filter(groups__name=role_value)
+        elif filter_field == "status":
+            q_lower = query.strip().lower()
+            truthy = {"1", "true", "yes", "on", "hoat dong", "hoạt động", "active"}
+            falsy = {"0", "false", "no", "off", "ngung", "ngừng", "inactive"}
+            if q_lower in truthy:
+                user_qs = user_qs.filter(is_active=True)
+            elif q_lower in falsy:
+                user_qs = user_qs.filter(is_active=False)
+            else:
+                user_qs = user_qs.none()
+        else:
+            user_qs = user_qs.filter(
+                Q(username__icontains=query)
+                | Q(email__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(last_name__icontains=query)
+            )
 
     paginator = Paginator(user_qs, 15)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -1506,6 +1656,7 @@ def admin_user_management(request):
             "page_obj": page_obj,
             "paginator": paginator,
             "query": query,
+            "filter_field": filter_field,
             "role_choices": ROLE_CHOICES,
             **pref,
         },
@@ -1533,40 +1684,288 @@ def admin_settings(request):
     return render(request, "admin/settings.html", {"modules": _menu_context(pref["admin_lang"]), **pref})
 
 
+def _infer_product_ai_category(product) -> str:
+    group_name = ""
+    try:
+        group_name = (product.nhom_san_pham.ten if product.nhom_san_pham else "") or ""
+    except Exception:
+        group_name = ""
+    text = f"{product.ten} {group_name}".lower()
+    if any(k in text for k in ["nước", "cà phê", "trà", "sữa", "drink", "sting", "aquafina", "coca", "pepsi"]):
+        return "Đồ uống"
+    if any(k in text for k in ["mì", "xôi", "bánh mì", "tokbokki", "sandwich", "cơm", "cháo", "lẩu"]):
+        return "Đồ ăn nhanh"
+    if any(k in text for k in ["snack", "bắp rang", "kẹo", "chip", "ostar"]):
+        return "Ăn vặt"
+    return "Khác"
+
+
+def _strip_parenthetical_text(value):
+    text = "" if value is None else str(value)
+    text = re.sub(r"\s*\([^)]*\)", "", text)
+    return re.sub(r"\s{2,}", " ", text).strip()
+
+
+def _extract_district_from_address(address):
+    text = "" if address is None else str(address).strip()
+    if not text:
+        return ""
+    for chunk in [c.strip() for c in text.split(",") if c.strip()]:
+        low = chunk.lower()
+        if "quận" in low or "huyện" in low or "thủ đức" in low:
+            return chunk
+    return ""
+
+
+def _facet_specs_for_model(model_slug):
+    return {
+        "thuong-hieu": [
+            {"param": "brand", "label": "Thương hiệu", "expr": "ten"},
+        ],
+        "nha-cung-cap": [
+            {"param": "supplier", "label": "Nhà cung cấp", "expr": "ten"},
+        ],
+        "nhom-san-pham": [
+            {"param": "group", "label": "Nhóm sản phẩm", "expr": "ten"},
+        ],
+        "san-pham": [
+            {"param": "group", "label": "Nhóm sản phẩm", "expr": "nhom_san_pham__ten"},
+            {"param": "supplier", "label": "Nhà cung cấp", "expr": "nha_cung_cap__ten"},
+            {"param": "brand", "label": "Thương hiệu", "expr": "thuong_hieu__ten"},
+        ],
+        "chuoi-cua-hang": [
+            {"param": "chain", "label": "Chuỗi cửa hàng", "expr": "ten"},
+        ],
+        "cua-hang": [
+            {"param": "chain", "label": "Chuỗi cửa hàng", "expr": "chuoi__ten"},
+            {"param": "district", "label": "Quận/Huyện", "expr": "quan_huyen"},
+            {"param": "open24", "label": "Hoạt động", "bool_expr": "hoat_dong_24h"},
+        ],
+        "nhan-vien": [
+            {"param": "role", "label": "Chức vụ", "expr": "chuc_vu"},
+            {"param": "store", "label": "Cửa hàng", "expr": "cua_hang__ten"},
+        ],
+        "khuyen-mai": [
+            {"param": "promo", "label": "Khuyến mãi", "expr": "ten"},
+        ],
+        "gop-y-khach-hang": [
+            {"param": "topic", "label": "Chủ đề", "expr": "chu_de"},
+            {"param": "responded", "label": "Đã phản hồi", "bool_expr": "da_phan_hoi"},
+        ],
+        "ho-so-khach-hang": [
+            {"param": "user", "label": "Tài khoản", "expr": "user__username"},
+            {"param": "district", "label": "Quận/Huyện", "custom": "district_from_address", "address_expr": "dia_chi"},
+        ],
+        "don-hang": [],
+        "chi-tiet-don-hang": [
+            {"param": "order", "label": "Đơn hàng", "expr": "don_hang__id"},
+            {"param": "group", "label": "Nhóm sản phẩm", "expr": "san_pham__nhom_san_pham__ten"},
+        ],
+    }.get(model_slug, [])
+
+
+def _build_and_apply_facets(request, model_slug, qs, model):
+    facet_filters = []
+    specs = _facet_specs_for_model(model_slug)
+    if not specs:
+        return qs, facet_filters
+
+    for spec in specs:
+        param = spec["param"]
+        selected = [v for v in request.GET.getlist(param) if str(v).strip()]
+
+        if spec.get("bool_expr"):
+            expr = spec["bool_expr"]
+            options = [
+                {"value": "1", "label": "Có", "selected": "1" in selected},
+                {"value": "0", "label": "Không", "selected": "0" in selected},
+            ]
+            if selected:
+                bool_values = []
+                if "1" in selected:
+                    bool_values.append(True)
+                if "0" in selected:
+                    bool_values.append(False)
+                if bool_values:
+                    qs = qs.filter(**{f"{expr}__in": bool_values})
+            facet_filters.append(
+                {
+                    "param": param,
+                    "label": spec["label"],
+                    "options": options,
+                    "selected_count": len([x for x in selected if x in {"1", "0"}]),
+                }
+            )
+            continue
+
+        if spec.get("custom") == "ai_product_category":
+            all_products = list(model.objects.select_related("nhom_san_pham").all())
+            categories = []
+            by_id = {}
+            for product in all_products:
+                cat = _infer_product_ai_category(product)
+                by_id[product.pk] = cat
+                categories.append(cat)
+            unique_cats = sorted(set(categories))
+            options = [{"value": cat, "label": cat, "selected": cat in selected} for cat in unique_cats]
+            if selected:
+                allowed_ids = [pk for pk, cat in by_id.items() if cat in selected]
+                qs = qs.filter(pk__in=allowed_ids)
+            facet_filters.append(
+                {
+                    "param": param,
+                    "label": spec["label"],
+                    "options": options,
+                    "selected_count": len(selected),
+                }
+            )
+            continue
+
+        if spec.get("custom") == "district_from_address":
+            address_field = spec.get("address_expr")
+            all_rows = list(model.objects.all().only("pk", address_field))
+            district_by_id = {}
+            districts = []
+            for row in all_rows:
+                district = _extract_district_from_address(getattr(row, address_field, ""))
+                district_by_id[row.pk] = district
+                if district:
+                    districts.append(district)
+            unique_districts = sorted(set(districts))
+            options = [{"value": d, "label": d, "selected": d in selected} for d in unique_districts]
+            if selected:
+                allowed_ids = [pk for pk, district in district_by_id.items() if district in selected]
+                qs = qs.filter(pk__in=allowed_ids)
+            facet_filters.append(
+                {
+                    "param": param,
+                    "label": spec["label"],
+                    "options": options,
+                    "selected_count": len(selected),
+                }
+            )
+            continue
+
+        expr = spec["expr"]
+        values = list(
+            model.objects.order_by(expr).values_list(expr, flat=True).distinct()
+        )
+        values = [str(v) for v in values if v not in (None, "")]
+        options = [{"value": v, "label": _strip_parenthetical_text(v), "selected": v in selected} for v in values[:120]]
+        if selected:
+            qs = qs.filter(**{f"{expr}__in": selected})
+        facet_filters.append(
+            {
+                "param": param,
+                "label": spec["label"],
+                "options": options,
+                "selected_count": len(selected),
+            }
+        )
+
+    return qs, facet_filters
+
+
 def admin_list(request, model_slug):
     unauthorized = _require_admin_user(request)
     if unauthorized:
         return unauthorized
+
+    _purge_expired_trash()
 
     pref = _admin_pref_context(request)
     lang = pref["admin_lang"]
 
     model = _resolve_model(model_slug)
     query = request.GET.get("q", "").strip()
+    filter_field = request.GET.get("f", "").strip()
     status_filter = request.GET.get("status", "").strip()
     qs = model.objects.all().order_by("-pk")
+    qs, facet_filters = _build_and_apply_facets(request, model_slug, qs, model)
     if model_slug == "don-hang" and status_filter in {"pending", "confirmed", "shipping", "delivered", "done", "cancelled"}:
         if status_filter == "done":
             qs = qs.filter(trang_thai__in=["done", "delivered"])
         else:
             qs = qs.filter(trang_thai=status_filter)
     if query:
-        text_fields = [f.name for f in model._meta.fields if f.get_internal_type() in {"CharField", "TextField"}]
-        if text_fields:
-            from django.db.models import Q
+        valid_fields = {
+            f.name
+            for f in model._meta.fields
+            if f.name != "id" and f.get_internal_type() not in {"ImageField", "FileField"}
+        }
+        if filter_field and filter_field not in valid_fields:
+            filter_field = ""
+        if filter_field:
+            field_obj = model._meta.get_field(filter_field)
+            field_type = field_obj.get_internal_type()
+            if field_type in {"CharField", "TextField", "EmailField", "SlugField"}:
+                qs = qs.filter(**{f"{filter_field}__icontains": query})
+            elif field_type in {
+                "IntegerField",
+                "PositiveIntegerField",
+                "BigIntegerField",
+                "AutoField",
+                "BigAutoField",
+                "SmallIntegerField",
+                "PositiveSmallIntegerField",
+            }:
+                try:
+                    qs = qs.filter(**{filter_field: int(query)})
+                except Exception:
+                    qs = qs.none()
+            elif field_type in {"DecimalField", "FloatField"}:
+                try:
+                    qs = qs.filter(**{filter_field: Decimal(query)})
+                except Exception:
+                    qs = qs.none()
+            elif field_type == "BooleanField":
+                truthy = {"1", "true", "yes", "on", "có", "co"}
+                falsy = {"0", "false", "no", "off", "không", "khong"}
+                q_lower = query.lower()
+                if q_lower in truthy:
+                    qs = qs.filter(**{filter_field: True})
+                elif q_lower in falsy:
+                    qs = qs.filter(**{filter_field: False})
+                else:
+                    qs = qs.none()
+            elif field_type in {"DateField", "DateTimeField"}:
+                dt_value = parse_datetime(query) or parse_date(query)
+                if dt_value:
+                    qs = qs.filter(**{filter_field: dt_value})
+                else:
+                    qs = qs.none()
+            else:
+                qs = qs.none()
+        else:
+            text_fields = [f.name for f in model._meta.fields if f.get_internal_type() in {"CharField", "TextField"}]
+            if text_fields:
+                from django.db.models import Q
 
-            conditions = Q()
-            for field_name in text_fields:
-                conditions |= Q(**{f"{field_name}__icontains": query})
-            qs = qs.filter(conditions)
+                conditions = Q()
+                for field_name in text_fields:
+                    conditions |= Q(**{f"{field_name}__icontains": query})
+                qs = qs.filter(conditions)
 
     fields = [
-        {"name": f.name, "verbose_name": _field_label(f, lang)}
+        {"name": f.name, "verbose_name": _field_label(f, lang), "type": f.get_internal_type()}
         for f in model._meta.fields
         if f.name != "id"
     ]
+    filter_fields = [
+        {"name": f["name"], "verbose_name": f["verbose_name"]}
+        for f in fields
+        if f["type"] not in {"ImageField", "FileField"}
+    ]
     paginator = Paginator(qs, 15)
     page_obj = paginator.get_page(request.GET.get("page"))
+    persisted_params = []
+    for key in request.GET.keys():
+        if key == "page":
+            continue
+        for value in request.GET.getlist(key):
+            if value != "":
+                persisted_params.append((key, value))
+    persisted_query = urlencode(persisted_params, doseq=True)
 
     rows = []
     for item in page_obj.object_list:
@@ -1595,7 +1994,7 @@ def admin_list(request, model_slug):
             elif field["name"] in {"gia_ban", "tong_tien", "don_gia"}:
                 values.append({"type": "money", "text": _format_currency(raw_value)})
             else:
-                values.append({"type": "text", "text": "" if raw_value is None else str(raw_value)})
+                values.append({"type": "text", "text": _strip_parenthetical_text(raw_value)})
         row = {"object": item, "values": values}
         if model_slug == "don-hang":
             status_actions = []
@@ -1619,11 +2018,15 @@ def admin_list(request, model_slug):
             "model_slug": model_slug,
             "model_name": _model_label(model_slug, lang, plural=True),
             "fields": fields,
+            "filter_fields": filter_fields,
             "rows": rows,
             "query": query,
+            "filter_field": filter_field,
             "status_filter": status_filter,
             "page_obj": page_obj,
             "paginator": paginator,
+            "facet_filters": facet_filters,
+            "persisted_query": persisted_query,
             **pref,
         },
     )
@@ -1711,12 +2114,15 @@ def admin_delete(request, model_slug, pk):
     if unauthorized:
         return unauthorized
 
+    _purge_expired_trash()
+
     pref = _admin_pref_context(request)
     lang = pref["admin_lang"]
 
     model = _resolve_model(model_slug)
     obj = get_object_or_404(model, pk=pk)
     if request.method == "POST":
+        _move_to_trash(obj)
         obj.delete()
         messages.success(request, pref["t"]["deleted_successfully"])
         return redirect("store:admin_list", model_slug=model_slug)
@@ -1734,6 +2140,185 @@ def admin_delete(request, model_slug, pk):
     )
 
 
+def admin_trash_list(request):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    _purge_expired_trash()
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    query = request.GET.get("q", "").strip()
+    filter_field = request.GET.get("f", "").strip()
+
+    all_rows = []
+    for item in TrashRecord.objects.all():
+        model_slug = _model_slug_from_label(item.model_label)
+        all_rows.append(
+            {
+                "id": item.pk,
+                "object_id": str(item.object_id),
+                "model_name": _model_label(model_slug, lang, plural=False),
+                "display_name": _trash_display_name(item.data or {}) or "-",
+                "deleted_at": item.deleted_at,
+                "expires_at": item.expires_at,
+            }
+        )
+
+    fields = [
+        {"name": "model_name", "verbose_name": "Module"},
+        {"name": "display_name", "verbose_name": "Tên"},
+        {"name": "deleted_at", "verbose_name": pref["t"]["deleted_at"]},
+        {"name": "expires_at", "verbose_name": pref["t"]["expires_at"]},
+    ]
+
+    valid_fields = {f["name"] for f in fields}
+    if filter_field not in valid_fields:
+        filter_field = ""
+
+    if query and filter_field:
+        q_lower = query.lower()
+        all_rows = [
+            row
+            for row in all_rows
+            if q_lower in str(row.get(filter_field, "")).lower()
+        ]
+    elif query:
+        q_lower = query.lower()
+        all_rows = [
+            row
+            for row in all_rows
+            if any(q_lower in str(row.get(name, "")).lower() for name in valid_fields)
+        ]
+
+    paginator = Paginator(all_rows, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    rows = []
+    for item in page_obj.object_list:
+        values = [
+            {"type": "text", "text": item["model_name"]},
+            {"type": "text", "text": item["display_name"]},
+            {"type": "text", "text": item["deleted_at"].strftime("%d/%m/%Y %H:%M")},
+            {"type": "text", "text": item["expires_at"].strftime("%d/%m/%Y %H:%M")},
+        ]
+        rows.append(
+            {
+                "object": {"pk": item["object_id"]},
+                "values": values,
+                "restore_url": reverse("store:admin_trash_restore", args=[item["id"]]),
+                "delete_url": reverse("store:admin_trash_delete", args=[item["id"]]),
+            }
+        )
+
+    return render(
+        request,
+        "admin/change_list.html",
+        {
+            "modules": _menu_context(lang),
+            "model_slug": "trash",
+            "model_name": pref["t"]["trash"],
+            "fields": fields,
+            "rows": rows,
+            "query": "",
+            "query": query,
+            "filter_field": filter_field,
+            "status_filter": "",
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "show_create": False,
+            **pref,
+        },
+    )
+
+
+def admin_trash_restore(request, pk):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    _purge_expired_trash()
+    pref = _admin_pref_context(request)
+    trash = get_object_or_404(TrashRecord, pk=pk)
+    try:
+        model = apps.get_model(trash.model_label)
+        payload = dict(trash.data or {})
+        normalized = {}
+        for field in model._meta.fields:
+            name = field.name
+            if name not in payload:
+                continue
+            value = payload.get(name)
+            if isinstance(field, dj_models.ForeignKey):
+                if value in ("", None):
+                    if field.null:
+                        normalized[field.attname] = None
+                        continue
+                    raise ValueError("missing_fk")
+                if not field.remote_field.model.objects.filter(pk=value).exists():
+                    if field.null:
+                        normalized[field.attname] = None
+                        continue
+                    raise ValueError("fk_not_found")
+                normalized[field.attname] = value
+                continue
+            field_type = field.get_internal_type()
+            if field_type in {"DateTimeField"} and isinstance(value, str):
+                normalized[name] = parse_datetime(value) or value
+            elif field_type in {"DateField"} and isinstance(value, str):
+                normalized[name] = parse_date(value) or value
+            elif field_type in {"DecimalField"} and value not in (None, ""):
+                normalized[name] = Decimal(str(value))
+            elif field_type in {
+                "IntegerField",
+                "PositiveIntegerField",
+                "BigIntegerField",
+                "AutoField",
+                "BigAutoField",
+                "SmallIntegerField",
+                "PositiveSmallIntegerField",
+            } and value not in (None, ""):
+                normalized[name] = int(value)
+            elif field_type == "BooleanField":
+                if isinstance(value, str):
+                    normalized[name] = value.lower() in {"1", "true", "yes", "on", "có", "co"}
+                else:
+                    normalized[name] = bool(value)
+            else:
+                normalized[name] = value
+
+        pk_value = trash.object_id
+        if pk_value:
+            pk_field = model._meta.pk
+            if pk_field.get_internal_type() in {"AutoField", "BigAutoField", "IntegerField", "PositiveIntegerField"}:
+                try:
+                    pk_value = int(pk_value)
+                except Exception:
+                    pass
+        instance = model(**normalized)
+        if pk_value and not model.objects.filter(pk=pk_value).exists():
+            instance.pk = pk_value
+        instance.save()
+        trash.delete()
+        messages.success(request, pref["t"]["saved_successfully"])
+    except Exception:
+        messages.error(request, "Không thể khôi phục bản ghi. Vui lòng kiểm tra dữ liệu.")
+    return redirect("store:admin_trash")
+
+
+def admin_trash_delete(request, pk):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    _purge_expired_trash()
+    pref = _admin_pref_context(request)
+    trash = get_object_or_404(TrashRecord, pk=pk)
+    trash.delete()
+    messages.success(request, pref["t"]["deleted_successfully"])
+    return redirect("store:admin_trash")
+
+
 def admin_notifications(request):
     unauthorized = _require_admin_user(request)
     if unauthorized:
@@ -1741,6 +2326,16 @@ def admin_notifications(request):
 
     pref = _admin_pref_context(request)
     lang = pref["admin_lang"]
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "delete_selected":
+            ids = [int(i) for i in request.POST.getlist("selected_ids") if str(i).isdigit()]
+            if ids:
+                Notification.objects.filter(pk__in=ids).delete()
+                messages.success(request, pref["t"]["deleted_successfully"])
+            else:
+                messages.warning(request, "Vui lòng chọn ít nhất một thông báo.")
+            return redirect("store:admin_notifications")
     # mark all as seen when opening notifications
     Notification.objects.filter(resolved=False).update(resolved=True)
     qs = Notification.objects.all()
@@ -2075,6 +2670,17 @@ def checkout_view(request):
             request.session["cart"] = {}
             request.session.modified = True
             messages.success(request, pref["t"]["order_success"])
+            try:
+                if not _send_order_confirmation(order, items):
+                    messages.warning(
+                        request,
+                        "Đã tạo đơn hàng nhưng khách hàng chưa có email để gửi xác nhận.",
+                    )
+            except Exception:
+                messages.warning(
+                    request,
+                    "Đã tạo đơn hàng nhưng chưa gửi được email. Hãy kiểm tra lại cấu hình Mailtrap trong .env.",
+                )
             return redirect("store:my_orders")
         messages.error(request, "Vui lòng điền đầy đủ thông tin nhận hàng.")
     return render(

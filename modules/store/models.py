@@ -1,5 +1,6 @@
 ﻿from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class ThuongHieu(models.Model):
@@ -220,6 +221,26 @@ class Notification(models.Model):
         return f"{self.title} ({self.status_code or '-'})"
 
 
+def _trash_expiry():
+    return timezone.now() + timezone.timedelta(days=30)
+
+
+class TrashRecord(models.Model):
+    model_label = models.CharField("Model", max_length=100)
+    object_id = models.CharField("ID", max_length=64)
+    data = models.JSONField("Dữ liệu")
+    deleted_at = models.DateTimeField("Thời gian xóa", auto_now_add=True)
+    expires_at = models.DateTimeField("Hết hạn", default=_trash_expiry)
+
+    class Meta:
+        verbose_name = "Thùng rác"
+        verbose_name_plural = "Thùng rác"
+        ordering = ["-deleted_at"]
+
+    def __str__(self) -> str:
+        return f"{self.model_label} {self.object_id}"
+
+
 class HoSoKhachHang(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -286,7 +307,7 @@ class DonHang(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"Đơn hàng #{self.pk} - {self.khach_hang.username}"
+        return f"Đơn hàng {self.pk} - {self.khach_hang.username}"
 
 
 class ChiTietDonHang(models.Model):

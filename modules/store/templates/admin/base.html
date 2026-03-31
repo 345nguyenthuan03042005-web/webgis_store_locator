@@ -4,13 +4,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}CMS{% endblock %}</title>
+  <title>{% block title %}SmartGIS{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'admin/css/style.css' %}">
 </head>
 <body data-theme="{{ admin_theme|default:'light' }}">
   <div class="cms-layout">
     <aside class="sidebar">
-      <a class="brand" href="{% url 'store:admin_dashboard' %}">SmartGIS CMS</a>
+      <a class="brand" href="{% url 'store:admin_dashboard' %}">SmartGIS</a>
       <div class="brand-sub">{{ t.custom_internal_management|default:"Hệ thống quản trị nội bộ tự tạo" }}</div>
 
       <div class="menu">
@@ -40,11 +40,16 @@
       <div class="topbar">
         <div>
           <h1 class="top-title">{% block page_title %}{{ t.dashboard|default:"Tổng quan" }}{% endblock %}</h1>
-          <div class="top-sub">{{ t.logged_in_as|default:"Đăng nhập bởi" }} {{ request.user.username }} | {{ t.internal_cms|default:"CMS nội bộ" }}</div>
+          <div class="top-sub">{{ t.logged_in_as|default:"Đăng nhập bởi" }} {{ request.user.username }} | {{ t.internal_cms|default:"Hệ thống nội bộ" }}</div>
         </div>
         <div class="top-actions">
           <a class="icon-btn" href="{% url 'store:admin_logout' %}" title="{{ t.logout|default:'Đăng xuất' }}" aria-label="{{ t.logout|default:'Đăng xuất' }}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l1.41-1.41L8.83 13H19v-2H8.83l2.58-2.59L10 7l-5 5 5 5Zm-6 4h6v-2H4V5h6V3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z"/></svg>
+          </a>
+          <a class="icon-btn" href="{% url 'store:admin_trash' %}" title="{{ t.trash|default:'Thùng rác' }}" aria-label="{{ t.trash|default:'Thùng rác' }}">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 7h2v8h-2v-8Zm4 0h2v8h-2v-8ZM7 10h2v8H7v-8ZM6 21h12a2 2 0 0 0 2-2V9H4v10a2 2 0 0 0 2 2Z"/>
+            </svg>
           </a>
           <a class="icon-btn" href="{% url 'store:home' %}" title="{{ t.store_front|default:'Cửa hàng' }}" aria-label="{{ t.store_front|default:'Cửa hàng' }}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.69 17 10v8h-3v-5H10v5H7v-8l5-4.31ZM12 3 2 11h3v9h6v-5h2v5h6v-9h3L12 3Z"/></svg>
@@ -75,7 +80,12 @@
     </main>
   </div>
 
+  <div id="global-xbar" class="global-xbar" hidden>
+    <div class="global-xbar-inner"></div>
+  </div>
+
   <script src="{% static 'admin/js/script.js' %}"></script>
+  <script src="{% static 'shared/js/form-validation.js' %}"></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>
