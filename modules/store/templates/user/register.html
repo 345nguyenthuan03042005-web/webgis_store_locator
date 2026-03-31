@@ -11,6 +11,7 @@
   <div class="login-shell">
     <form class="login-box fade-up" method="post" data-password-meter>
       {% csrf_token %}
+      <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;padding:7px 12px;border-radius:999px;background:rgba(20,184,166,.1);border:1px solid rgba(15,118,110,.16);color:var(--primary);font-size:13px;font-weight:700;">SmartGIS User</div>
       <h1 class="login-title">{{ t.register|default:"Đăng ký" }}</h1>
       <p class="login-sub">{{ t.product_catalog_intro|default:"Khách có thể xem hàng tự do, nhưng cần tài khoản để thêm giỏ và đặt mua." }}</p>
       {% if form.non_field_errors %}
@@ -47,7 +48,10 @@
         {{ form.password2.errors }}
       </div>
       <button class="btn btn-primary" type="submit" style="width:100%;">{{ t.register|default:"Đăng ký" }}</button>
-      <div class="top-sub" style="margin-top:12px;"><a href="{% url 'store:user_login' %}">{{ t.login|default:"Đăng nhập" }}</a></div>
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;">
+        <div class="top-sub"><a href="{% url 'store:user_login' %}">{{ t.login|default:"Đăng nhập" }}</a></div>
+        <div class="top-sub"><a href="{% url 'store:home' %}">{{ t.store_front|default:"Cửa hàng" }}</a></div>
+      </div>
     </form>
   </div>
   <script src="{% static 'admin/js/script.js' %}"></script>

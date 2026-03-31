@@ -148,4 +148,3 @@ SECURE_HSTS_PRELOAD = os.getenv('DJANGO_SECURE_HSTS_PRELOAD', str(not DEBUG)).lo
 SECURE_REFERRER_POLICY = os.getenv('DJANGO_SECURE_REFERRER_POLICY', 'strict-origin-when-cross-origin')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-

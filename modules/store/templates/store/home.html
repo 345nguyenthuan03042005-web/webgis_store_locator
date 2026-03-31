@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="referrer" content="strict-origin-when-cross-origin"/>
   <title>Circle K & GS25 – Tìm cửa hàng gần bạn</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- ================= LEAFLET & PLUGINS ================= -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -20,17 +23,17 @@
   <!-- ================= STYLE ================= -->
   <style>
     :root {
-      --bg: #f8f9ff;
+      --bg: #f6f7fb;
       --card: #ffffff;
-      --border: #e0e7ff;
-      --ink: #0f172a;
-      --muted: #64748b;
-      --shadow: 0 10px 30px rgba(0,0,0,.08);
+      --border: rgba(15, 23, 42, 0.09);
+      --ink: #1f2937;
+      --muted: #5b6472;
+      --shadow: 0 16px 40px rgba(17, 24, 39, 0.12);
 
-      --red: #e31c23;
-      --red2: #c3141a;
-      --yellow: #ffd100;
-      --blue: #2563eb;
+      --red: #0f766e;
+      --red2: #14b8a6;
+      --yellow: #f59e0b;
+      --blue: #123545;
       --green: #16a34a;
 
       --container: 1320px;
@@ -39,8 +42,11 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background: linear-gradient(180deg, #f8f9ff 0%, #eef2ff 100%);
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1200px 500px at 12% -12%, #c5f5ea 5%, transparent 60%),
+        radial-gradient(950px 420px at 95% 0%, #ffe8d5 8%, transparent 62%),
+        linear-gradient(160deg, #f6f7fb, #ebf4f2);
       color: var(--ink);
       line-height: 1.6;
     }
@@ -52,7 +58,7 @@
       position: sticky;
       top: 0;
       z-index: 5000;
-      box-shadow: 0 6px 20px rgba(227,28,35,.25);
+      box-shadow: 0 10px 28px rgba(8, 47, 44, 0.18);
     }
     header .wrap {
       max-width: var(--container);
@@ -69,8 +75,9 @@
       font-weight: 900;
       letter-spacing: 1.5px;
       color: white;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
     }
-    .logo span { color: var(--yellow); }
+    .logo span { color: #ffd7a8; }
     nav {
       display: flex;
       gap: 32px;
@@ -82,21 +89,21 @@
       transition: all 0.2s;
     }
     nav a:hover {
-      color: var(--yellow);
+      color: #fff4df;
       transform: translateY(-1px);
     }
     .btnFind {
       background: var(--yellow);
-      color: #111;
+      color: #1f2937;
       padding: 0;
       border-radius: 999px;
       font-weight: 800;
-      box-shadow: 0 4px 16px rgba(255,209,0,.4);
+      box-shadow: 0 10px 24px rgba(245, 158, 11, 0.28);
       transition: all 0.25s;
     }
     .btnFind:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(255,209,0,.5);
+      box-shadow: 0 14px 30px rgba(245, 158, 11, 0.34);
     }
     .header-actions {
       display: flex;
@@ -119,16 +126,16 @@
       letter-spacing: 0;
     }
     .header-actions .btnFind {
-      background: #ffd100;
-      color: #111;
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff;
       border: 1px solid transparent;
-      box-shadow: 0 4px 16px rgba(255, 209, 0, .4);
+      box-shadow: 0 10px 24px rgba(249, 115, 22, .28);
     }
     .header-actions .btnWhite {
       width: 112px;
-      background: #fff;
-      color: #111827;
-      border: 1px solid #e0e7ff;
+      background: rgba(255,255,255,.92);
+      color: #123545;
+      border: 1px solid rgba(255,255,255,.45);
       box-shadow: none;
     }
     .header-actions .btnFind:hover,
@@ -137,14 +144,14 @@
     .header-actions .btnWhite:focus-visible {
       transform: none;
     }
-    .header-actions .btnFind:hover { box-shadow: 0 8px 24px rgba(255, 209, 0, .5); }
+    .header-actions .btnFind:hover { box-shadow: 0 14px 30px rgba(249, 115, 22, .34); }
 
     /* ================= HERO ================= */
 .hero {
   height: calc(100vh - 80px); /* trừ chiều cao header */
   min-height: 600px;
   background:
-    linear-gradient(rgba(75, 67, 67, 0.45), rgba(89, 84, 84, 0.45)),
+    linear-gradient(rgba(11, 23, 42, 0.48), rgba(18, 53, 69, 0.38)),
     url("https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=2000&q=80")
     center / cover no-repeat;
 
@@ -164,26 +171,30 @@
       font-weight: 900;
       margin: 0 0 20px;
       letter-spacing: -1px;
-      text-shadow: 0 6px 20px rgba(226, 209, 209, 0.5);
+      color: #f8fafc;
+      font-family: "Fraunces", Georgia, serif;
+      font-feature-settings: "liga" 0, "calt" 0;
+      font-variant-ligatures: none;
+      text-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
     }
    .hero p {
-  color: #f1f5f9;                  /* trắng xám nhẹ */
+  color: #e2e8f0;
   font-size: 22px;
-  text-shadow: 0 4px 18px rgba(239, 230, 230, 0.45);
+  text-shadow: 0 4px 18px rgba(15, 23, 42, 0.35);
 }
     .hero .btn {
-      background: var(--yellow);
-      color: #111827;
+      background: linear-gradient(135deg, #0f766e, #14b8a6);
+      color: #fff;
       padding: 18px 48px;
       border-radius: 999px;
       font-size: 20px;
       font-weight: 800;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      box-shadow: 0 16px 32px rgba(20,184,166,0.28);
       transition: all 0.3s;
     }
     .hero .btn:hover {
       transform: translateY(-4px) scale(1.05);
-      box-shadow: 0 16px 40px rgba(255,209,0,0.6);
+      box-shadow: 0 20px 40px rgba(20,184,166,0.34);
     }
 
     /* ================= SECTION ================= */
@@ -195,6 +206,7 @@
       font-weight: 900;
       margin: 0 0 50px;
       color: var(--ink);
+      font-family: "Fraunces", Georgia, serif;
     }
 
     /* ================= ABOUT ================= */
@@ -218,7 +230,7 @@
 
     /* ================= PRODUCTS ================= */
     .products {
-      background: linear-gradient(180deg, #f0f5ff 0%, #e5edff 100%);
+      background: linear-gradient(180deg, rgba(235,244,242,.85) 0%, rgba(255,255,255,.92) 100%);
     }
     .product-grid {
       max-width: 1200px;
@@ -339,7 +351,7 @@
     }
     .tab.active {
       background: #fff;
-      color: var(--red);
+      color: var(--blue);
       border-color: transparent;
     }
 
@@ -411,7 +423,7 @@
       user-select: none;
     }
     .btn:active { transform: translateY(1px); }
-    .btnPrimary { background: linear-gradient(180deg, #ffd100, #ffc400); color: #111827; }
+    .btnPrimary { background: linear-gradient(135deg, #0f766e, #14b8a6); color: #fff; box-shadow: 0 10px 24px rgba(20,184,166,0.24); }
     .btnWhite { background: #fff; color: #111827; border: 1px solid var(--border); }
     .btnBlue { background: linear-gradient(180deg, #3b82f6, #2563eb); color: #fff; }
 
@@ -565,8 +577,8 @@
       border: none;
       border-radius: 999px;
       padding: 12px 18px;
-      background: var(--yellow);
-      color: #111827;
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff;
       font-weight: 900;
       cursor: pointer;
     }
@@ -695,13 +707,15 @@
   <div class="product-grid">
     {% for product in featured_products %}
       <div class="product-card">
-        {% if product.hinh_anh %}
-          <img src="{{ product.hinh_anh.url }}" alt="{{ product.ten }}">
-        {% else %}
-          <img src="https://www.circlek.com/sites/default/files/2024-03/our_products_920x575.jpg" alt="{{ product.ten }}">
-        {% endif %}
+        <a href="{% url 'store:product_detail' product.pk %}" style="display:block;">
+          {% if product.hinh_anh %}
+            <img src="{{ product.hinh_anh.url }}" alt="{{ product.ten }}">
+          {% else %}
+            <img src="https://www.circlek.com/sites/default/files/2024-03/our_products_920x575.jpg" alt="{{ product.ten }}">
+          {% endif %}
+        </a>
         <div class="product-info">
-          <h3>{{ product.ten }}</h3>
+          <h3><a href="{% url 'store:product_detail' product.pk %}" style="text-decoration:none;color:inherit;">{{ product.ten }}</a></h3>
           <p>{{ product.nhom_san_pham|default:"Sản phẩm tiện lợi" }} | {{ product.thuong_hieu|default:"Chuỗi cửa hàng" }}</p>
           <p style="font-weight:900;color:#0f766e;">{{ product.display_price }}</p>
           <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">

@@ -45,6 +45,7 @@ class SanPham(models.Model):
         decimal_places=0,
         default=0,
     )
+    ton_kho = models.PositiveIntegerField("Tồn kho", default=0)
 
     nhom_san_pham = models.ForeignKey(
         "NhomSanPham",
@@ -83,6 +84,31 @@ class SanPham(models.Model):
 
     def __str__(self) -> str:
         return self.ten
+
+
+class HinhAnhSanPham(models.Model):
+    san_pham = models.ForeignKey(
+        "SanPham",
+        on_delete=models.CASCADE,
+        related_name="hinh_anh_phu",
+        verbose_name="Sản phẩm",
+    )
+    hinh_anh = models.ImageField(
+        "Ảnh sản phẩm",
+        upload_to="images/",
+        null=True,
+        blank=True,
+    )
+    chu_thich = models.CharField("Chú thích", max_length=150, blank=True)
+    thu_tu = models.PositiveIntegerField("Thứ tự", default=0)
+
+    class Meta:
+        verbose_name = "Hình ảnh sản phẩm"
+        verbose_name_plural = "Hình ảnh sản phẩm"
+        ordering = ["thu_tu", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.san_pham.ten} - ảnh {self.pk}"
 
 
 class ChuoiCuaHang(models.Model):
@@ -257,6 +283,53 @@ class HoSoKhachHang(models.Model):
 
     def __str__(self) -> str:
         return f"Hồ sơ {self.user.username}"
+
+
+class DiaChiKhachHang(models.Model):
+    LOAI_DIA_CHI_CHOICES = (
+        ("home", "Nhà riêng"),
+        ("office", "Văn phòng"),
+        ("other", "Khác"),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="dia_chi_khach_hang",
+        verbose_name="Tài khoản",
+    )
+    ho_ten_nguoi_nhan = models.CharField("Họ tên người nhận", max_length=120)
+    so_dien_thoai = models.CharField("Số điện thoại", max_length=20)
+    tinh_thanh = models.CharField("Tỉnh/Thành phố", max_length=120, blank=True)
+    quan_huyen = models.CharField("Quận/Huyện", max_length=120, blank=True)
+    phuong_xa = models.CharField("Phường/Xã", max_length=120, blank=True)
+    dia_chi_cu_the = models.CharField("Địa chỉ cụ thể", max_length=255)
+    loai_dia_chi = models.CharField(
+        "Loại địa chỉ",
+        max_length=20,
+        choices=LOAI_DIA_CHI_CHOICES,
+        default="home",
+    )
+    mac_dinh = models.BooleanField("Địa chỉ mặc định", default=False)
+    created_at = models.DateTimeField("Thời gian tạo", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Địa chỉ khách hàng"
+        verbose_name_plural = "Địa chỉ khách hàng"
+        ordering = ["-mac_dinh", "-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"{self.user.username} - {self.ho_ten_nguoi_nhan}"
+
+    @property
+    def dia_chi_day_du(self) -> str:
+        parts = [
+            (self.dia_chi_cu_the or "").strip(),
+            (self.phuong_xa or "").strip(),
+            (self.quan_huyen or "").strip(),
+            (self.tinh_thanh or "").strip(),
+        ]
+        return ", ".join(part for part in parts if part)
 
 
 class GopYKhachHang(models.Model):

@@ -8,6 +8,7 @@ app_name = "store"
 urlpatterns = [
     path("", controllers.home, name="home"),
     path("products/", controllers.product_catalog, name="product_catalog"),
+    path("products/<int:pk>/", controllers.product_detail, name="product_detail"),
     path("cart/", controllers.cart_view, name="cart"),
     path("cart/add/<int:pk>/", controllers.cart_add, name="cart_add"),
     path("cart/update/", controllers.cart_update, name="cart_update"),
@@ -43,6 +44,7 @@ urlpatterns = [
     path("user/logout/", controllers.user_logout, name="user_logout"),
     path("user/", controllers.user_dashboard, name="user_dashboard"),
     path("user/profile/", controllers.user_profile, name="user_profile"),
+    path("user/address/", controllers.user_address, name="user_address"),
     path("user/password/", controllers.user_password_change, name="user_password_change"),
 
     # Legacy URLs: /cms/... -> /admin/...

@@ -15,11 +15,13 @@ from .models import (
     NhaCungCap,
     NhomSanPham,
     SanPham,
+    HinhAnhSanPham,
     ChuoiCuaHang,
     CuaHang,
     NhanVien,
     KhuyenMai,
     HoSoKhachHang,
+    DiaChiKhachHang,
     DonHang,
     ChiTietDonHang,
 )
@@ -193,7 +195,7 @@ class NhomSanPhamAdmin(admin.ModelAdmin):
 
 @admin.register(SanPham)
 class SanPhamAdmin(admin.ModelAdmin):
-    list_display = ("id", "thumb", "ten", "nhom_san_pham", "thuong_hieu", "nha_cung_cap")
+    list_display = ("id", "thumb", "ten", "gia_ban", "ton_kho", "nhom_san_pham", "thuong_hieu", "nha_cung_cap")
     list_display_links = ("id", "ten")
     list_filter = ("nhom_san_pham", "thuong_hieu", "nha_cung_cap")
     search_fields = ("ten", "nhom_san_pham__ten", "thuong_hieu__ten", "nha_cung_cap__ten")
@@ -201,6 +203,25 @@ class SanPhamAdmin(admin.ModelAdmin):
     ordering = ("ten",)
     list_per_page = 25
     autocomplete_fields = ("nhom_san_pham", "thuong_hieu", "nha_cung_cap")
+
+    @admin.display(description="Ảnh")
+    def thumb(self, obj):
+        return _img(obj.hinh_anh, size=44)
+
+    class Media:
+        js = ("assets/js/image_preview.js",)
+
+
+@admin.register(HinhAnhSanPham)
+class HinhAnhSanPhamAdmin(admin.ModelAdmin):
+    list_display = ("id", "thumb", "san_pham", "chu_thich", "thu_tu")
+    list_display_links = ("id", "san_pham")
+    list_filter = ("san_pham__nhom_san_pham", "san_pham__thuong_hieu")
+    search_fields = ("san_pham__ten", "chu_thich")
+    list_select_related = ("san_pham", "san_pham__nhom_san_pham", "san_pham__thuong_hieu")
+    ordering = ("san_pham__ten", "thu_tu", "id")
+    autocomplete_fields = ("san_pham",)
+    list_per_page = 25
 
     @admin.display(description="Ảnh")
     def thumb(self, obj):
@@ -315,6 +336,37 @@ class HoSoKhachHangAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "so_dien_thoai", "dia_chi")
     search_fields = ("user__username", "user__email", "so_dien_thoai", "dia_chi")
     list_select_related = ("user",)
+
+
+@admin.register(DiaChiKhachHang)
+class DiaChiKhachHangAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "user",
+        "ho_ten_nguoi_nhan",
+        "so_dien_thoai",
+        "dia_chi_day_du_short",
+        "loai_dia_chi",
+        "mac_dinh",
+    )
+    list_filter = ("loai_dia_chi", "mac_dinh", "tinh_thanh")
+    search_fields = (
+        "user__username",
+        "user__email",
+        "ho_ten_nguoi_nhan",
+        "so_dien_thoai",
+        "dia_chi_cu_the",
+        "phuong_xa",
+        "quan_huyen",
+        "tinh_thanh",
+    )
+    list_select_related = ("user",)
+    ordering = ("user__username", "-mac_dinh", "-id")
+
+    @admin.display(description="Địa chỉ")
+    def dia_chi_day_du_short(self, obj):
+        text = obj.dia_chi_day_du
+        return (text[:80] + "...") if len(text) > 80 else text
 
 
 @admin.register(DonHang)

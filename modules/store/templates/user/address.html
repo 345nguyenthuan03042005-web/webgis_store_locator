@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ t.customer_profile|default:"Hồ sơ khách hàng" }}</title>
+  <title>Sổ địa chỉ của tôi</title>
   <link rel="stylesheet" href="{% static 'admin/css/style.css' %}">
   <style>
     body {
@@ -75,9 +75,7 @@
       color: #123545;
       border: 1px solid rgba(255,255,255,.45);
     }
-    .account-menu {
-      position: relative;
-    }
+    .account-menu { position: relative; }
     .account-menu summary {
       list-style: none;
       cursor: pointer;
@@ -96,9 +94,7 @@
       transform: rotate(45deg) translateY(-1px);
       opacity: .7;
     }
-    .account-menu[open] summary::after {
-      transform: rotate(-135deg) translateY(-1px);
-    }
+    .account-menu[open] summary::after { transform: rotate(-135deg) translateY(-1px); }
     .account-menu-panel {
       position: absolute;
       top: calc(100% + 10px);
@@ -147,14 +143,8 @@
       box-shadow: 0 24px 54px rgba(15,23,42,.08);
       backdrop-filter: blur(12px);
     }
-    .profile-aside {
-      padding: 24px;
-      position: sticky;
-      top: 108px;
-    }
-    .profile-main {
-      padding: 34px 38px;
-    }
+    .profile-aside { padding: 24px; position: sticky; top: 108px; }
+    .profile-main { padding: 34px 38px; }
     .aside-top {
       display: flex;
       gap: 16px;
@@ -173,11 +163,7 @@
       color: #94a3b8;
       background: linear-gradient(180deg, #fff, #f8fafc);
     }
-    .avatar-ring svg {
-      width: 34px;
-      height: 34px;
-      stroke: currentColor;
-    }
+    .avatar-ring svg { width: 34px; height: 34px; stroke: currentColor; }
     .aside-name {
       margin: 0;
       color: #1f2937;
@@ -225,12 +211,7 @@
       color: #0f766e;
       transform: translateX(1px);
     }
-    .menu-link svg {
-      width: 18px;
-      height: 18px;
-      stroke: currentColor;
-      flex: 0 0 auto;
-    }
+    .menu-link svg { width: 18px; height: 18px; stroke: currentColor; flex: 0 0 auto; }
     .main-header {
       display: flex;
       justify-content: space-between;
@@ -261,108 +242,237 @@
       color: #667085;
       font-size: 16px;
       line-height: 1.7;
-      max-width: 620px;
+      max-width: 700px;
     }
-    .account-chip {
+    .header-actions-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .ghost-btn,
+    .cta-btn,
+    .mini-btn {
       display: inline-flex;
       align-items: center;
-      min-height: 46px;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 16px;
+      border: 1px solid rgba(148,163,184,.22);
+      text-decoration: none;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .ghost-btn {
+      min-height: 48px;
       padding: 0 18px;
-      border-radius: 999px;
-      background: rgba(20,184,166,.1);
-      color: #0f766e;
-      border: 1px solid rgba(20,184,166,.18);
-      font-weight: 900;
+      background: #fff;
+      color: #123545;
     }
-    .profile-content {
+    .cta-btn {
+      min-height: 52px;
+      padding: 0 20px;
+      background: linear-gradient(135deg, #f97316, #ef4444);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 14px 30px rgba(249, 115, 22, .22);
+    }
+    .cta-btn svg,
+    .ghost-btn svg { width: 18px; height: 18px; stroke: currentColor; }
+    .address-form-card {
+      margin-bottom: 22px;
+      padding: 24px;
+      border-radius: 24px;
+      border: 1px solid rgba(148,163,184,.16);
+      background: linear-gradient(180deg, #fff, #f8fafc);
+    }
+    .section-heading {
+      margin: 0 0 18px;
+      color: #1f2937;
+      font-size: 24px;
+      font-family: "Fraunces", Georgia, serif;
+    }
+    .address-form-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 260px;
-      gap: 28px;
-      align-items: start;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
     }
-    .field-grid {
-      display: grid;
-      gap: 16px;
+    .field-block { display: grid; gap: 8px; }
+    .field-block.full { grid-column: 1 / -1; }
+    .field-block label {
+      color: #475467;
+      font-size: 14px;
+      font-weight: 800;
     }
-    .field-row {
-      display: grid;
-      grid-template-columns: 160px minmax(0, 1fr);
-      gap: 18px;
-      align-items: center;
-    }
-    .field-label {
-      color: #64748b;
-      font-size: 16px;
-    }
-    .field-control input {
+    .field-block input,
+    .field-block select,
+    .field-block textarea {
       width: 100%;
       min-height: 52px;
       padding: 0 16px;
       border-radius: 16px;
-      border: 1px solid rgba(148,163,184,.28);
+      border: 1px solid rgba(148,163,184,.24);
       background: #fff;
       color: #0f172a;
-      font-size: 16px;
+      font-size: 15px;
       box-sizing: border-box;
+      font-family: inherit;
     }
-    .field-control.readonly input {
-      background: #f8fafc;
-      color: #64748b;
-      cursor: not-allowed;
+    .field-block textarea {
+      min-height: 110px;
+      padding: 14px 16px;
+      resize: vertical;
     }
-    .field-note {
-      margin-top: 8px;
-      color: #94a3b8;
-      font-size: 13px;
-      line-height: 1.5;
-    }
-    .profile-actions {
+    .choice-row {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
-      margin-top: 8px;
-      padding-left: 178px;
     }
-    .avatar-panel {
-      min-height: 100%;
-      border-left: 1px solid rgba(148,163,184,.14);
-      padding-left: 28px;
-      display: grid;
-      justify-items: center;
-      gap: 18px;
-      text-align: center;
+    .type-pill {
+      position: relative;
     }
-    .avatar-preview {
-      width: 128px;
-      height: 128px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      background: linear-gradient(180deg, #f8fafc, #eef2f7);
-      color: #cbd5e1;
+    .type-pill input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
     }
-    .avatar-preview svg {
-      width: 58px;
-      height: 58px;
-      stroke: currentColor;
-    }
-    .avatar-btn {
+    .type-pill span {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      min-width: 132px;
-      min-height: 48px;
-      padding: 0 18px;
+      min-height: 44px;
+      padding: 0 16px;
       border-radius: 14px;
-      background: #fff;
       border: 1px solid rgba(148,163,184,.22);
+      background: #fff;
       color: #334155;
       font-weight: 800;
     }
-    .avatar-note {
-      color: #94a3b8;
-      font-size: 14px;
-      line-height: 1.6;
+    .type-pill input:checked + span {
+      border-color: rgba(20,184,166,.22);
+      background: rgba(20,184,166,.1);
+      color: #0f766e;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #475467;
+      font-weight: 700;
+    }
+    .checkbox-row input { width: 18px; height: 18px; }
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+    .address-list {
+      display: grid;
+      gap: 16px;
+    }
+    .address-item {
+      padding: 22px 24px;
+      border-radius: 24px;
+      border: 1px solid rgba(148,163,184,.16);
+      background: linear-gradient(180deg, #fff, #f8fafc);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 22px;
+      align-items: start;
+    }
+    .address-top {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .address-name {
+      margin: 0;
+      color: #0f172a;
+      font-size: 26px;
+      font-family: "Fraunces", Georgia, serif;
+      line-height: 1.1;
+    }
+    .address-phone {
+      color: #667085;
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .default-badge,
+    .type-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .default-badge {
+      color: #dc2626;
+      border: 1px solid rgba(248, 113, 113, .35);
+      background: rgba(254, 226, 226, .9);
+    }
+    .type-badge {
+      color: #0f766e;
+      border: 1px solid rgba(20,184,166,.22);
+      background: rgba(204, 251, 241, .7);
+    }
+    .address-body {
+      color: #475467;
+      font-size: 18px;
+      line-height: 1.75;
+      white-space: pre-line;
+    }
+    .address-tools {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+      min-width: 180px;
+    }
+    .tool-links {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .tool-links a,
+    .tool-links button {
+      border: none;
+      background: none;
+      padding: 0;
+      color: #2563eb;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+      font-family: inherit;
+    }
+    .tool-links button.delete-link { color: #dc2626; }
+    .mini-btn {
+      min-height: 42px;
+      padding: 0 14px;
+      background: #fff;
+      color: #334155;
+    }
+    .mini-btn.is-default {
+      background: rgba(20,184,166,.1);
+      color: #0f766e;
+      border-color: rgba(20,184,166,.22);
+    }
+    .empty-state {
+      padding: 28px;
+      border-radius: 24px;
+      border: 1px dashed rgba(148,163,184,.36);
+      background: rgba(255,255,255,.55);
+      text-align: center;
+      color: #667085;
+      font-size: 17px;
+      line-height: 1.8;
     }
     .site-footer {
       margin-top: 20px;
@@ -417,18 +527,13 @@
     @media (max-width: 1080px) {
       .profile-layout { grid-template-columns: 1fr; }
       .profile-aside { position: static; }
-      .profile-content { grid-template-columns: 1fr; }
-      .avatar-panel {
-        border-left: none;
-        border-top: 1px solid rgba(148,163,184,.14);
-        padding-left: 0;
-        padding-top: 22px;
-      }
+      .address-item { grid-template-columns: 1fr; }
+      .address-tools { min-width: 0; align-items: flex-start; }
+      .tool-links { justify-content: flex-start; }
     }
-    @media (max-width: 720px) {
+    @media (max-width: 780px) {
       .main-title { font-size: 34px; }
-      .field-row { grid-template-columns: 1fr; gap: 8px; }
-      .profile-actions { padding-left: 0; }
+      .address-form-grid { grid-template-columns: 1fr; }
       .footer-grid { grid-template-columns: 1fr; }
       .site-nav { gap: 16px; }
     }
@@ -485,14 +590,14 @@
 
           <div class="menu-group">
             <p class="menu-title">Tài khoản của tôi</p>
-            <a class="menu-link is-active" href="{% url 'store:user_profile' %}">
+            <a class="menu-link" href="{% url 'store:user_profile' %}">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M20 21a8 8 0 0 0-16 0"/>
                 <circle cx="12" cy="8" r="4"/>
               </svg>
               Hồ sơ
             </a>
-            <a class="menu-link" href="{% url 'store:user_address' %}">
+            <a class="menu-link is-active" href="{% url 'store:user_address' %}">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 21s7-5.33 7-11a7 7 0 1 0-14 0c0 5.67 7 11 7 11Z"/>
                 <circle cx="12" cy="10" r="2.5"/>
@@ -525,61 +630,132 @@
         <section class="profile-main">
           <div class="main-header">
             <div>
-              <p class="main-kicker">Hồ sơ của tôi</p>
-              <h1 class="main-title">Quản lý hồ sơ tài khoản</h1>
-              <p class="main-subtitle">Quản lý thông tin hồ sơ để bảo mật tài khoản. Phần địa chỉ giao hàng đã được tách sang mục Địa chỉ riêng.</p>
+              <p class="main-kicker">Địa chỉ của tôi</p>
+              <h1 class="main-title">Sổ địa chỉ giao hàng</h1>
+              <p class="main-subtitle">Lưu nhiều địa chỉ khác nhau, chọn một địa chỉ mặc định và quản lý danh sách giao hàng theo từng nhu cầu mua sắm.</p>
             </div>
-            <div class="account-chip">Tên đăng nhập: {{ request.user.username }}</div>
+            <div class="header-actions-bar">
+              {% if show_form %}
+                <a class="ghost-btn" href="{% url 'store:user_address' %}">Thu gọn</a>
+              {% else %}
+                <a class="cta-btn" href="{% url 'store:user_address' %}?new=1">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 5v14"/>
+                    <path d="M5 12h14"/>
+                  </svg>
+                  Thêm địa chỉ mới
+                </a>
+              {% endif %}
+            </div>
           </div>
 
-          <form method="post">
-            {% csrf_token %}
-            <div class="profile-content">
-              <div class="field-grid">
-                <div class="field-row">
-                  <div class="field-label">Họ tên</div>
-                  <div class="field-control readonly">
-                    <input type="text" value="{{ display_name }}" readonly>
-                    <div class="field-note">Thông tin tài khoản được giữ cố định và không sửa tại đây.</div>
+          {% if show_form %}
+            <section class="address-form-card">
+              <h2 class="section-heading">{% if editing_address %}Cập nhật địa chỉ{% else %}Địa chỉ mới{% endif %}</h2>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="{% if editing_address %}update{% else %}create{% endif %}">
+                <input type="hidden" name="address_id" value="{{ form_state.pk }}">
+                <div class="address-form-grid">
+                  <div class="field-block">
+                    <label for="id_receiver">Họ và tên</label>
+                    <input id="id_receiver" type="text" name="ho_ten_nguoi_nhan" value="{{ form_state.ho_ten_nguoi_nhan }}">
+                  </div>
+                  <div class="field-block">
+                    <label for="id_phone">Số điện thoại</label>
+                    <input id="id_phone" type="text" name="so_dien_thoai" value="{{ form_state.so_dien_thoai }}">
+                  </div>
+                  <div class="field-block">
+                    <label for="id_province">Tỉnh / Thành phố</label>
+                    <input id="id_province" type="text" name="tinh_thanh" value="{{ form_state.tinh_thanh }}" placeholder="Ví dụ: TP.HCM">
+                  </div>
+                  <div class="field-block">
+                    <label for="id_district">Quận / Huyện</label>
+                    <input id="id_district" type="text" name="quan_huyen" value="{{ form_state.quan_huyen }}" placeholder="Ví dụ: Tân Phú">
+                  </div>
+                  <div class="field-block">
+                    <label for="id_ward">Phường / Xã</label>
+                    <input id="id_ward" type="text" name="phuong_xa" value="{{ form_state.phuong_xa }}" placeholder="Ví dụ: Tây Thạnh">
+                  </div>
+                  <div class="field-block">
+                    <label>Loại địa chỉ</label>
+                    <div class="choice-row">
+                      <label class="type-pill">
+                        <input type="radio" name="loai_dia_chi" value="home" {% if form_state.loai_dia_chi == 'home' %}checked{% endif %}>
+                        <span>Nhà riêng</span>
+                      </label>
+                      <label class="type-pill">
+                        <input type="radio" name="loai_dia_chi" value="office" {% if form_state.loai_dia_chi == 'office' %}checked{% endif %}>
+                        <span>Văn phòng</span>
+                      </label>
+                      <label class="type-pill">
+                        <input type="radio" name="loai_dia_chi" value="other" {% if form_state.loai_dia_chi == 'other' %}checked{% endif %}>
+                        <span>Khác</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="field-block full">
+                    <label for="id_address_detail">Địa chỉ cụ thể</label>
+                    <textarea id="id_address_detail" name="dia_chi_cu_the" placeholder="Số nhà, tên đường, ghi chú điểm giao hàng...">{{ form_state.dia_chi_cu_the }}</textarea>
                   </div>
                 </div>
+                <div class="form-actions">
+                  <label class="checkbox-row">
+                    <input type="checkbox" name="mac_dinh" {% if form_state.mac_dinh %}checked{% endif %}>
+                    Đặt làm địa chỉ mặc định
+                  </label>
+                </div>
+                <div class="form-actions">
+                  <button class="cta-btn" type="submit">{% if editing_address %}Lưu cập nhật{% else %}Hoàn thành{% endif %}</button>
+                  <a class="ghost-btn" href="{% url 'store:user_address' %}">Trở lại</a>
+                </div>
+              </form>
+            </section>
+          {% endif %}
 
-                <div class="field-row">
-                  <div class="field-label">Email</div>
-                  <div class="field-control">
-                    <input type="email" name="email" value="{{ request.user.email|default:'' }}">
+          <section class="address-list">
+            {% for address in addresses %}
+              <article class="address-item">
+                <div>
+                  <div class="address-top">
+                    <h2 class="address-name">{{ address.ho_ten_nguoi_nhan }}</h2>
+                    <span class="address-phone">{{ address.so_dien_thoai }}</span>
+                    {% if address.mac_dinh %}<span class="default-badge">Mặc định</span>{% endif %}
+                    <span class="type-badge">{{ address.loai_dia_chi_hien_thi }}</span>
                   </div>
+                  <div class="address-body">{{ address.dia_chi_day_du }}</div>
                 </div>
-
-                <div class="field-row">
-                  <div class="field-label">Số điện thoại</div>
-                  <div class="field-control readonly">
-                    <input type="text" value="{{ profile.so_dien_thoai|default:'' }}" readonly>
-                    <div class="field-note">Số điện thoại tài khoản đang được khóa để tránh thay đổi nhầm.</div>
+                <div class="address-tools">
+                  <div class="tool-links">
+                    <a href="{% url 'store:user_address' %}?edit={{ address.pk }}">Cập nhật</a>
+                    {% if not address.mac_dinh %}
+                      <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="address_id" value="{{ address.pk }}">
+                        <button class="delete-link" type="submit">Xóa</button>
+                      </form>
+                    {% endif %}
                   </div>
+                  {% if address.mac_dinh %}
+                    <span class="mini-btn is-default">Đang là mặc định</span>
+                  {% else %}
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="set_default">
+                      <input type="hidden" name="address_id" value="{{ address.pk }}">
+                      <button class="mini-btn" type="submit">Thiết lập mặc định</button>
+                    </form>
+                  {% endif %}
                 </div>
-
-                <div class="profile-actions">
-                  <button class="btn btn-primary" type="submit">{{ t.update_profile|default:"Cập nhật hồ sơ" }}</button>
-                  <a class="btn btn-light" href="{% url 'store:user_profile' %}">{{ t.cancel|default:"Hủy" }}</a>
-                </div>
+              </article>
+            {% empty %}
+              <div class="empty-state">
+                Bạn chưa có địa chỉ giao hàng nào.<br>
+                Thêm địa chỉ đầu tiên để dùng nhanh hơn khi thanh toán.
               </div>
-
-              <div class="avatar-panel">
-                <div class="avatar-preview" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 21a8 8 0 0 0-16 0"/>
-                    <circle cx="12" cy="8" r="4"/>
-                  </svg>
-                </div>
-                <div class="avatar-btn">Chọn ảnh</div>
-                <div class="avatar-note">
-                  Dung lượng file tối đa 1 MB<br>
-                  Định dạng: JPEG, PNG
-                </div>
-              </div>
-            </div>
-          </form>
+            {% endfor %}
+          </section>
         </section>
       </div>
     </main>

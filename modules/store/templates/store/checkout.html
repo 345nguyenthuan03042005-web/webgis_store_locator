@@ -6,35 +6,234 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ t.checkout|default:"Thanh toán" }}</title>
   <link rel="stylesheet" href="{% static 'admin/css/style.css' %}">
+  <style>
+    body {
+      margin: 0;
+      background:
+        radial-gradient(1200px 500px at 12% -12%, #c5f5ea 5%, transparent 60%),
+        radial-gradient(950px 420px at 95% 0%, #ffe8d5 8%, transparent 62%),
+        linear-gradient(160deg, #f6f7fb, #ebf4f2);
+    }
+    .site-shell { min-height: 100vh; }
+    .site-header {
+      background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 10px 28px rgba(8, 47, 44, 0.18);
+    }
+    .site-header .wrap {
+      max-width: 1320px;
+      margin: auto;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .logo {
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: #fff;
+      font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+      text-transform: uppercase;
+      text-decoration: none;
+    }
+    .logo span { color: #ffd7a8; }
+    .site-nav { display: flex; gap: 28px; }
+    .site-nav a {
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .btnFind, .btnWhite {
+      width: 140px;
+      height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 900;
+      text-decoration: none;
+    }
+    .btnFind {
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(249, 115, 22, .28);
+    }
+    .btnWhite {
+      width: 112px;
+      background: rgba(255,255,255,.92);
+      color: #123545;
+      border: 1px solid rgba(255,255,255,.45);
+    }
+    .page-wrap {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 28px 18px 56px;
+    }
+    .site-footer {
+      margin-top: 20px;
+      background: #0f172a;
+      color: #cbd5f5;
+    }
+    .site-footer .container {
+      width: min(100%, 1320px);
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    .newsletter-section {
+      background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+      padding: 24px 0;
+    }
+    .newsletter-content {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .newsletter-content h3 { margin: 0; color: #fff; font-size: 20px; font-weight: 900; line-height: 1.35; }
+    .newsletter-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .newsletter-form input {
+      min-width: 280px;
+      border: none;
+      border-radius: 999px;
+      padding: 12px 16px;
+      background: #fff;
+      color: #0f172a;
+      font-weight: 700;
+    }
+    .newsletter-form button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 18px;
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .footer-info { padding: 34px 0; }
+    .footer-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 24px; }
+    .footer-col h4 { margin: 0 0 12px; font-size: 16px; color: #fff; font-weight: 900; }
+    .footer-col p, .footer-col li, .footer-col a { color: #cbd5f5; font-size: 14px; line-height: 1.6; }
+    .footer-col ul { margin: 0; padding: 0; list-style: none; }
+    .footer-col li + li { margin-top: 8px; }
+    .footer-col a:hover { color: #fff; }
+    .footer-bottom { border-top: 1px solid rgba(203, 213, 245, 0.2); padding: 14px 0; text-align: center; }
+    .footer-bottom p { margin: 0; }
+    @media (max-width: 900px) {
+      .footer-grid { grid-template-columns: 1fr; }
+      .site-nav { gap: 16px; }
+    }
+  </style>
 </head>
 <body data-theme="light">
-  <main class="content" style="max-width:1000px;margin:0 auto;padding:28px 18px;">
-    {% if messages %}{% for message in messages %}<div class="msg">{{ message }}</div>{% endfor %}{% endif %}
-    <section class="grid" style="grid-template-columns:1.2fr .8fr;">
-      <section class="panel card">
-        <h1 style="margin-top:0;">{{ t.checkout|default:"Thanh toán" }}</h1>
-        <form method="post">
-          {% csrf_token %}
-          <div class="form-group"><label>{{ t.receiver_name|default:"Người nhận" }}</label><input type="text" name="receiver_name" value="{{ initial_name }}"></div>
-          <div class="form-group"><label>Email</label><input type="email" value="{{ initial_email }}" disabled></div>
-          <div class="form-group"><label>Số điện thoại</label><input type="text" name="phone" value="{{ initial_phone }}"></div>
-          <div class="form-group"><label>{{ t.delivery_address|default:"Địa chỉ giao hàng" }}</label><input type="text" name="address" value="{{ initial_address }}"></div>
-          <div class="form-group"><label>Ghi chú</label><textarea name="note"></textarea></div>
-          <button class="btn btn-primary" type="submit">{{ t.place_order|default:"Đặt hàng" }}</button>
-        </form>
+  <div class="site-shell">
+    <header class="site-header">
+      <div class="wrap">
+        <a class="logo" href="{% url 'store:home' %}">CIRCLE <span>K &amp; GS25</span></a>
+        <nav class="site-nav">
+          <a href="{% url 'store:home' %}#about">Giới thiệu</a>
+          <a href="{% url 'store:home' %}#products">Sản phẩm</a>
+          <a href="{% url 'store:map_page' %}">Cửa hàng</a>
+        </nav>
+        <div class="header-actions">
+          <a href="{% url 'store:map_page' %}" class="btnFind">Tìm cửa hàng</a>
+          <a href="{% url 'store:cart' %}" class="btnWhite">{{ t.cart|default:"Giỏ hàng" }}{% if cart_total_quantity %} ({{ cart_total_quantity }}){% endif %}</a>
+          {% if request.user.is_authenticated %}
+            {% if show_admin_link %}
+              <a href="{% url 'store:admin_dashboard' %}" class="btnWhite">Admin</a>
+            {% else %}
+              <a href="{% url 'store:user_dashboard' %}" class="btnWhite">Tài khoản</a>
+            {% endif %}
+          {% else %}
+            <a href="{% url 'store:user_login' %}" class="btnWhite">{{ t.login|default:"Đăng nhập" }}</a>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+
+    <main class="page-wrap">
+      {% if messages %}{% for message in messages %}<div class="msg">{{ message }}</div>{% endfor %}{% endif %}
+      <section class="grid" style="grid-template-columns:1.2fr .8fr;">
+        <section class="panel card">
+          <h1 style="margin-top:0;">{{ t.checkout|default:"Thanh toán" }}</h1>
+          <form method="post">
+            {% csrf_token %}
+            {% if saved_addresses %}
+              <div class="form-group">
+                <label>Địa chỉ đã lưu</label>
+                <select id="saved-address-select">
+                  <option value="">Chọn nhanh từ sổ địa chỉ</option>
+                  {% for address in saved_addresses %}
+                    <option
+                      value="{{ address.pk }}"
+                      data-name="{{ address.ho_ten_nguoi_nhan }}"
+                      data-phone="{{ address.so_dien_thoai }}"
+                      data-address="{{ address.dia_chi_day_du }}"
+                      {% if forloop.first and address.mac_dinh %}selected{% endif %}
+                    >
+                      {{ address.ho_ten_nguoi_nhan }} - {{ address.dia_chi_day_du }}{% if address.mac_dinh %} (Mặc định){% endif %}
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="top-sub" style="margin-top:8px;">
+                  Có thể quản lý thêm địa chỉ tại <a href="{% url 'store:user_address' %}">Sổ địa chỉ</a>.
+                </div>
+              </div>
+            {% endif %}
+            <div class="form-group"><label>{{ t.receiver_name|default:"Người nhận" }}</label><input type="text" name="receiver_name" value="{{ initial_name }}"></div>
+            <div class="form-group"><label>Email</label><input type="email" value="{{ initial_email }}" disabled></div>
+            <div class="form-group"><label>Số điện thoại</label><input type="text" name="phone" value="{{ initial_phone }}"></div>
+            <div class="form-group"><label>{{ t.delivery_address|default:"Địa chỉ giao hàng" }}</label><input type="text" name="address" value="{{ initial_address }}"></div>
+            <div class="form-group"><label>Ghi chú</label><textarea name="note"></textarea></div>
+            <button class="btn btn-primary" type="submit">{{ t.place_order|default:"Đặt hàng" }}</button>
+          </form>
+        </section>
+        <section class="panel card">
+          <h3 style="margin-top:0;">{{ t.cart|default:"Giỏ hàng" }}</h3>
+          {% for item in cart_items %}
+            <div style="padding:10px 0;border-bottom:1px solid #e5e7eb;">
+              <strong>{{ item.product.ten }}</strong>
+              <div class="top-sub">{{ item.display_unit_price }} x {{ item.quantity }} = {{ item.display_line_total }}</div>
+            </div>
+          {% endfor %}
+          <div style="margin-top:12px;font-weight:700;">{{ t.quantity|default:"Số lượng" }}: {{ cart_total_quantity }}</div>
+          <div style="margin-top:8px;font-weight:800;font-size:18px;">{{ t.total_amount|default:"Tổng tiền" }}: {{ display_cart_total_amount }}</div>
+        </section>
       </section>
-      <section class="panel card">
-        <h3 style="margin-top:0;">{{ t.cart|default:"Giỏ hàng" }}</h3>
-        {% for item in cart_items %}
-          <div style="padding:10px 0;border-bottom:1px solid #e5e7eb;">
-            <strong>{{ item.product.ten }}</strong>
-            <div class="top-sub">{{ item.display_unit_price }} x {{ item.quantity }} = {{ item.display_line_total }}</div>
-          </div>
-        {% endfor %}
-        <div style="margin-top:12px;font-weight:700;">{{ t.quantity|default:"Số lượng" }}: {{ cart_total_quantity }}</div>
-        <div style="margin-top:8px;font-weight:800;font-size:18px;">{{ t.total_amount|default:"Tổng tiền" }}: {{ display_cart_total_amount }}</div>
-      </section>
-    </section>
-  </main>
+    </main>
+
+    {% include 'shared/footer.html' %}
+  </div>
+  {% if saved_addresses %}
+    <script>
+      (function () {
+        const select = document.getElementById("saved-address-select");
+        if (!select) return;
+        const receiver = document.querySelector('input[name="receiver_name"]');
+        const phone = document.querySelector('input[name="phone"]');
+        const address = document.querySelector('input[name="address"]');
+        const applySavedAddress = () => {
+          const option = select.options[select.selectedIndex];
+          if (!option || !option.value) return;
+          if (receiver && option.dataset.name) receiver.value = option.dataset.name;
+          if (phone && option.dataset.phone) phone.value = option.dataset.phone;
+          if (address && option.dataset.address) address.value = option.dataset.address;
+        };
+        select.addEventListener("change", applySavedAddress);
+        if (select.value) applySavedAddress();
+      })();
+    </script>
+  {% endif %}
 </body>
 </html>
