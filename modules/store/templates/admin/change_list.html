@@ -3,8 +3,61 @@
 {% block page_title %}{{ t.manage|default:"Quản lý" }} {{ model_name }}{% endblock %}
 {% block content %}
   <section class="panel card toolbar-card" style="margin-bottom:14px; display:flex; gap:10px; flex-wrap:nowrap; align-items:center; justify-content:flex-start;">
-    <form method="get" class="search-box" style="flex:1; min-width:220px; margin:0; display:flex; gap:10px; flex-wrap:nowrap; align-items:center;">
+    <form method="get" class="search-box" id="admin-list-filter-form" style="flex:1; min-width:220px; margin:0; display:flex; gap:10px; flex-wrap:nowrap; align-items:center;">
       <input type="text" name="q" value="{{ query }}" placeholder="{{ t.search_placeholder|default:'Tìm theo nội dung...' }}" style="flex:1; min-width:220px; height:44px;">
+
+      {% if model_slug == 'don-hang' %}
+        <div class="dd dd-filter" data-filter-dropdown style="width:260px;">
+          <button class="dd-trigger" type="button">
+            {% if status_filters %}
+              {{ t.order_status|default:"Trạng thái đơn" }}
+              <span class="dd-count">{{ status_filters|length }}</span>
+            {% else %}
+              {{ t.order_status|default:"Trạng thái đơn" }}
+            {% endif %}
+          </button>
+          <div class="dd-menu">
+            <div class="dd-search">
+              <input type="text" placeholder="Tìm trong danh sách..." data-dd-search>
+            </div>
+            <div class="dd-list" data-dd-list>
+              <label class="dd-option">
+                <input type="checkbox" data-clear-status {% if not status_filters %}checked{% endif %}>
+                <span>{{ t.all_statuses|default:"Tất cả trạng thái" }}</span>
+              </label>
+              <label class="dd-option">
+                <input type="checkbox" name="status" value="pending" {% if 'pending' in status_filters %}checked{% endif %}>
+                <span>Chờ xử lý</span>
+              </label>
+              <label class="dd-option">
+                <input type="checkbox" name="status" value="confirmed" {% if 'confirmed' in status_filters %}checked{% endif %}>
+                <span>Đã xác nhận</span>
+              </label>
+              <label class="dd-option">
+                <input type="checkbox" name="status" value="shipping" {% if 'shipping' in status_filters %}checked{% endif %}>
+                <span>Đang giao</span>
+              </label>
+              <label class="dd-option">
+                <input type="checkbox" name="status" value="delivered" {% if 'delivered' in status_filters %}checked{% endif %}>
+                <span>Đã giao</span>
+              </label>
+              <label class="dd-option">
+                <input type="checkbox" name="status" value="done" {% if 'done' in status_filters %}checked{% endif %}>
+                <span>Hoàn tất</span>
+              </label>
+              <label class="dd-option">
+                <input type="checkbox" name="status" value="cancelled" {% if 'cancelled' in status_filters %}checked{% endif %}>
+                <span>Đã hủy</span>
+              </label>
+            </div>
+            <div class="dd-actions">
+              <button type="submit" class="btn btn-primary">Áp dụng</button>
+              <a class="btn btn-light" href="{% url 'store:admin_list' model_slug %}{% if query %}?q={{ query|urlencode }}{% endif %}">Xóa lọc</a>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
       <button class="btn btn-light" type="submit" style="height:44px;">Lọc</button>
 
       {% for facet in facet_filters %}
@@ -33,7 +86,7 @@
         </div>
       {% endfor %}
 
-      {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+      {% if model_slug != 'don-hang' and status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
     </form>
     {% if show_create|default:True %}
       <a class="btn btn-primary" href="{% url 'store:admin_create' model_slug %}">{{ t.add_new|default:"Thêm mới" }}</a>
@@ -124,5 +177,42 @@
       <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ page_obj.next_page_number }}{% else %}#{% endif %}" aria-label="Next">›</a>
       <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ paginator.num_pages }}{% else %}#{% endif %}" aria-label="Last">»</a>
     </section>
+  {% endif %}
+{% endblock %}
+{% block extra_js %}
+  {{ block.super }}
+  {% if model_slug == 'don-hang' %}
+    <script>
+      (function () {
+        const form = document.getElementById("admin-list-filter-form");
+        if (!form) return;
+        const clearStatus = form.querySelector("[data-clear-status]");
+        const statusInputs = Array.from(form.querySelectorAll('input[name="status"]'));
+        if (!clearStatus || !statusInputs.length) return;
+
+        const syncClearStatus = function () {
+          clearStatus.checked = !statusInputs.some((input) => input.checked);
+        };
+
+        clearStatus.addEventListener("change", function () {
+          if (!clearStatus.checked) return;
+          statusInputs.forEach((input) => {
+            input.checked = false;
+          });
+        });
+
+        statusInputs.forEach((input) => {
+          input.addEventListener("change", function () {
+            if (input.checked) {
+              clearStatus.checked = false;
+            } else {
+              syncClearStatus();
+            }
+          });
+        });
+
+        syncClearStatus();
+      })();
+    </script>
   {% endif %}
 {% endblock %}

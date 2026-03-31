@@ -16,6 +16,8 @@ urlpatterns = [
     path("cart/clear/", controllers.cart_clear, name="cart_clear"),
     path("checkout/", controllers.checkout_view, name="checkout"),
     path("orders/", controllers.my_orders, name="my_orders"),
+    path("orders/<int:pk>/", controllers.order_detail, name="order_detail"),
+    path("notifications/", controllers.user_notifications, name="user_notifications"),
     path("feedback/", controllers.feedback_view, name="feedback"),
     path("stores/", controllers.store_list_page, name="stores_page"),
     path("map/", controllers.map_page, name="map_page"),
@@ -66,4 +68,3 @@ urlpatterns = [
     path("cms/<slug:model_slug>/", RedirectView.as_view(url="/admin/%(model_slug)s/", permanent=False)),
     path("cms/", RedirectView.as_view(url="/admin/", permanent=False)),
 ]
-

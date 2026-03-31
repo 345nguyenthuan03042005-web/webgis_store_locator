@@ -48,12 +48,8 @@
 
   {% if paginator.num_pages > 1 %}
     <section class="panel card pagination">
-      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page=1{% else %}#{% endif %}" aria-label="First">
-        «
-      </a>
-      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page={{ page_obj.previous_page_number }}{% else %}#{% endif %}" aria-label="Previous">
-        ‹
-      </a>
+      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page=1{% else %}#{% endif %}" aria-label="First">«</a>
+      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page={{ page_obj.previous_page_number }}{% else %}#{% endif %}" aria-label="Previous">‹</a>
 
       {% for p in paginator.page_range %}
         {% if p == 1 or p == paginator.num_pages %}
@@ -63,12 +59,8 @@
         {% endif %}
       {% endfor %}
 
-      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ page_obj.next_page_number }}{% else %}#{% endif %}" aria-label="Next">
-        ›
-      </a>
-      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ paginator.num_pages }}{% else %}#{% endif %}" aria-label="Last">
-        »
-      </a>
+      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ page_obj.next_page_number }}{% else %}#{% endif %}" aria-label="Next">›</a>
+      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ paginator.num_pages }}{% else %}#{% endif %}" aria-label="Last">»</a>
     </section>
   {% endif %}
 {% endblock %}

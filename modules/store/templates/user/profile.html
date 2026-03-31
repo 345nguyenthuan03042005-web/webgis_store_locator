@@ -10,9 +10,9 @@
     body {
       margin: 0;
       background:
-        radial-gradient(1200px 500px at 12% -12%, #c5f5ea 5%, transparent 60%),
-        radial-gradient(950px 420px at 95% 0%, #ffe8d5 8%, transparent 62%),
-        linear-gradient(160deg, #f6f7fb, #ebf4f2);
+        radial-gradient(1100px 420px at 10% -10%, rgba(197, 245, 234, .42) 0%, transparent 55%),
+        radial-gradient(900px 340px at 92% 0%, rgba(255, 232, 213, .36) 0%, transparent 58%),
+        linear-gradient(160deg, #f8fafb, #f1f6f4);
     }
     .site-shell { min-height: 100vh; }
     .site-header {
@@ -75,6 +75,163 @@
       color: #123545;
       border: 1px solid rgba(255,255,255,.45);
     }
+    .icon-pill {
+      width: 52px;
+      min-width: 52px;
+      padding: 0;
+      position: relative;
+      background: transparent;
+      border: none;
+      color: #f8fafc;
+      box-shadow: none;
+    }
+    .icon-pill svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .icon-pill:hover {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+    .cart-count {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 16px rgba(249, 115, 22, .28);
+    }
+    .notify-menu {
+      position: relative;
+    }
+    .notify-menu summary {
+      width: 52px;
+      min-width: 52px;
+      padding: 0;
+      position: relative;
+      background: transparent;
+      border: none;
+      color: #f8fafc;
+      box-shadow: none;
+    }
+    .notify-menu summary::after { display: none; }
+    .notify-menu summary:hover {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+    .notify-icon {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .notify-count {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #ef4444, #f97316);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 16px rgba(239, 68, 68, .32);
+    }
+    .notify-panel {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      width: min(360px, calc(100vw - 32px));
+      padding: 0;
+      overflow: hidden;
+      border-radius: 22px;
+      background: rgba(255,255,255,.98);
+      border: 1px solid rgba(148,163,184,.18);
+      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+      z-index: 6;
+    }
+    .notify-header {
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #ef4444, #f97316);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 900;
+    }
+    .notify-list {
+      max-height: 360px;
+      overflow: auto;
+      background: #fff7f1;
+    }
+    .notify-item {
+      display: block;
+      padding: 14px 18px;
+      color: #1f2937;
+      text-decoration: none;
+      border-top: 1px solid rgba(148,163,184,.14);
+    }
+    .notify-item:first-child { border-top: none; }
+    .notify-item:hover { background: rgba(255,255,255,.78); }
+    .notify-item-title {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 15px;
+      font-weight: 800;
+      color: #1f2937;
+    }
+    .notify-item-body {
+      color: #64748b;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .notify-item-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(239,68,68,.12);
+      color: #dc2626;
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .notify-footer {
+      display: block;
+      padding: 12px 18px;
+      text-align: center;
+      color: #0f766e;
+      font-weight: 800;
+      text-decoration: none;
+      background: #fff;
+      border-top: 1px solid rgba(148,163,184,.14);
+    }
+    .notify-footer:hover { background: #f8fafc; }
     .account-menu {
       position: relative;
     }
@@ -83,10 +240,50 @@
       cursor: pointer;
       width: auto;
       min-width: 150px;
-      padding: 0 16px;
+      padding: 0 14px 0 10px;
       gap: 10px;
+      justify-content: flex-start;
+      background: transparent;
+      border: none;
+      color: #f8fafc;
+      box-shadow: none;
     }
     .account-menu summary::-webkit-details-marker { display: none; }
+    .account-menu summary:hover {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+    .account-summary-avatar {
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+      border-radius: 50%;
+      overflow: hidden;
+      display: inline-grid;
+      place-items: center;
+      background: rgba(255,255,255,.18);
+      color: #e2e8f0;
+    }
+    .account-summary-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+      border-radius: 999px;
+    }
+    .account-summary-avatar svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+    }
+    .account-summary-name {
+      max-width: 92px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .account-menu summary::after {
       content: "";
       width: 8px;
@@ -164,18 +361,30 @@
       margin-bottom: 22px;
     }
     .avatar-ring {
-      width: 74px;
-      height: 74px;
+      width: 34px;
+      height: 34px;
+      aspect-ratio: 1 / 1;
       border-radius: 50%;
-      border: 1px solid rgba(148,163,184,.24);
+      overflow: hidden;
+      flex: 0 0 34px;
       display: grid;
       place-items: center;
       color: #94a3b8;
-      background: linear-gradient(180deg, #fff, #f8fafc);
+      background: transparent;
+    }
+    .avatar-photo,
+    .avatar-ring img {
+      width: 100%;
+      height: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+      border-radius: 999px;
     }
     .avatar-ring svg {
-      width: 34px;
-      height: 34px;
+      width: 18px;
+      height: 18px;
       stroke: currentColor;
     }
     .aside-name {
@@ -333,17 +542,28 @@
       text-align: center;
     }
     .avatar-preview {
-      width: 128px;
-      height: 128px;
+      width: 76px;
+      height: 76px;
+      aspect-ratio: 1 / 1;
       border-radius: 50%;
+      overflow: hidden;
       display: grid;
       place-items: center;
-      background: linear-gradient(180deg, #f8fafc, #eef2f7);
+      background: transparent;
       color: #cbd5e1;
     }
+    .avatar-preview img {
+      width: 100%;
+      height: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+      border-radius: 999px;
+    }
     .avatar-preview svg {
-      width: 58px;
-      height: 58px;
+      width: 32px;
+      height: 32px;
       stroke: currentColor;
     }
     .avatar-btn {
@@ -358,6 +578,24 @@
       border: 1px solid rgba(148,163,184,.22);
       color: #334155;
       font-weight: 800;
+      cursor: pointer;
+    }
+    .avatar-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .avatar-file-name {
+      min-height: 20px;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 700;
     }
     .avatar-note {
       color: #94a3b8;
@@ -436,29 +674,7 @@
 </head>
 <body data-theme="light">
   <div class="site-shell">
-    <header class="site-header">
-      <div class="wrap">
-        <a class="logo" href="{% url 'store:home' %}">CIRCLE <span>K &amp; GS25</span></a>
-        <nav class="site-nav">
-          <a href="{% url 'store:home' %}#about">Giới thiệu</a>
-          <a href="{% url 'store:home' %}#products">Sản phẩm</a>
-          <a href="{% url 'store:map_page' %}">Cửa hàng</a>
-        </nav>
-        <div class="header-actions">
-          <a href="{% url 'store:map_page' %}" class="btnFind">Tìm cửa hàng</a>
-          <a href="{% url 'store:cart' %}" class="btnWhite">{{ t.cart|default:"Giỏ hàng" }}{% if cart_total_quantity %} ({{ cart_total_quantity }}){% endif %}</a>
-          <details class="account-menu">
-            <summary class="btnWhite">{{ request.user.username }}</summary>
-            <div class="account-menu-panel">
-              <div class="account-menu-label">Tài khoản của tôi</div>
-              <a class="account-menu-link" href="{% url 'store:user_profile' %}">Tài Khoản Của Tôi</a>
-              <a class="account-menu-link" href="{% url 'store:my_orders' %}">Đơn Mua</a>
-              <a class="account-menu-link logout" href="{% url 'store:user_logout' %}">Đăng Xuất</a>
-            </div>
-          </details>
-        </div>
-      </div>
-    </header>
+    {% include 'shared/navbar.html' %}
 
     <main class="page-wrap">
       {% if messages %}
@@ -471,10 +687,14 @@
         <aside class="profile-aside">
           <div class="aside-top">
             <div class="avatar-ring" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21a8 8 0 0 0-16 0"/>
-                <circle cx="12" cy="8" r="4"/>
-              </svg>
+              {% if profile.avatar %}
+                <img class="avatar-photo" src="{{ profile.avatar.url }}" alt="Ảnh đại diện {{ display_name }}">
+              {% else %}
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21a8 8 0 0 0-16 0"/>
+                  <circle cx="12" cy="8" r="4"/>
+                </svg>
+              {% endif %}
             </div>
             <div>
               <p class="aside-name">{{ display_name }}</p>
@@ -532,7 +752,7 @@
             <div class="account-chip">Tên đăng nhập: {{ request.user.username }}</div>
           </div>
 
-          <form method="post">
+          <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
             <div class="profile-content">
               <div class="field-grid">
@@ -567,12 +787,25 @@
 
               <div class="avatar-panel">
                 <div class="avatar-preview" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 21a8 8 0 0 0-16 0"/>
-                    <circle cx="12" cy="8" r="4"/>
-                  </svg>
+                  {% if profile.avatar %}
+                    <img id="avatarPreviewImage" src="{{ profile.avatar.url }}" alt="Ảnh đại diện {{ display_name }}">
+                  {% else %}
+                    <img id="avatarPreviewImage" alt="Ảnh đại diện xem trước" style="display:none;">
+                    <svg id="avatarPreviewPlaceholder" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 21a8 8 0 0 0-16 0"/>
+                      <circle cx="12" cy="8" r="4"/>
+                    </svg>
+                  {% endif %}
+                  {% if profile.avatar %}
+                    <svg id="avatarPreviewPlaceholder" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                      <path d="M20 21a8 8 0 0 0-16 0"/>
+                      <circle cx="12" cy="8" r="4"/>
+                    </svg>
+                  {% endif %}
                 </div>
-                <div class="avatar-btn">Chọn ảnh</div>
+                <input id="avatarInput" class="avatar-input" type="file" name="avatar" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+                <label class="avatar-btn" for="avatarInput">Chọn ảnh</label>
+                <div class="avatar-file-name" id="avatarFileName"></div>
                 <div class="avatar-note">
                   Dung lượng file tối đa 1 MB<br>
                   Định dạng: JPEG, PNG
@@ -586,5 +819,70 @@
 
     {% include 'shared/footer.html' %}
   </div>
+  <script>
+    (function () {
+      const input = document.getElementById("avatarInput");
+      const fileName = document.getElementById("avatarFileName");
+      const previewImage = document.getElementById("avatarPreviewImage");
+      const placeholder = document.getElementById("avatarPreviewPlaceholder");
+      if (!input || !fileName || !previewImage || !placeholder) return;
+
+      input.addEventListener("change", function () {
+        const file = input.files && input.files[0];
+        if (!file) {
+          fileName.textContent = "";
+          if (!previewImage.getAttribute("src")) {
+            previewImage.style.display = "none";
+            placeholder.style.display = "";
+          }
+          return;
+        }
+
+        fileName.textContent = file.name;
+        const objectUrl = URL.createObjectURL(file);
+        previewImage.src = objectUrl;
+        previewImage.style.display = "block";
+        placeholder.style.display = "none";
+      });
+    })();
+
+    (function () {
+      const hoverMenus = document.querySelectorAll(".notify-menu, .account-menu");
+      hoverMenus.forEach((menu) => {
+        let closeTimer = null;
+
+        const openMenu = () => {
+          if (closeTimer) {
+            clearTimeout(closeTimer);
+            closeTimer = null;
+          }
+          menu.setAttribute("open", "");
+        };
+
+        const closeMenu = () => {
+          closeTimer = window.setTimeout(() => {
+            menu.removeAttribute("open");
+          }, 120);
+        };
+
+        menu.addEventListener("mouseenter", openMenu);
+        menu.addEventListener("mouseleave", closeMenu);
+        menu.addEventListener("focusin", openMenu);
+        menu.addEventListener("focusout", () => {
+          if (!menu.contains(document.activeElement)) {
+            closeMenu();
+          }
+        });
+
+        const summary = menu.querySelector("summary");
+        if (summary) {
+          summary.addEventListener("click", (event) => {
+            event.preventDefault();
+          });
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
+

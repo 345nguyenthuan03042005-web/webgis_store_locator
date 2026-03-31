@@ -275,17 +275,7 @@
   </style>
 </head>
 <body>
-  <header>
-    <div class="header-wrap">
-      <a class="logo" href="{% url 'store:home' %}">CIRCLE <span>K & GS25</span></a>
-      <nav>
-        <a href="{% url 'store:home' %}" class="pill pill-white">Trang chủ</a>
-        <a href="{% url 'store:product_catalog' %}" class="pill pill-white">Sản phẩm</a>
-        <a href="{% url 'store:map_page' %}" class="pill pill-primary">Tìm cửa hàng</a>
-        <a href="{% url 'store:cart' %}" class="pill pill-white">Giỏ hàng{% if cart_total_quantity %} ({{ cart_total_quantity }}){% endif %}</a>
-      </nav>
-    </div>
-  </header>
+  {% include 'shared/navbar.html' %}
 
   <main>
     <section class="hero">

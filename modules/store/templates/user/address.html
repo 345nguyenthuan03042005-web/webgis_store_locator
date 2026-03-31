@@ -6,13 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sổ địa chỉ của tôi</title>
   <link rel="stylesheet" href="{% static 'admin/css/style.css' %}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body {
       margin: 0;
       background:
-        radial-gradient(1200px 500px at 12% -12%, #c5f5ea 5%, transparent 60%),
-        radial-gradient(950px 420px at 95% 0%, #ffe8d5 8%, transparent 62%),
-        linear-gradient(160deg, #f6f7fb, #ebf4f2);
+        radial-gradient(1100px 420px at 10% -10%, rgba(197, 245, 234, .42) 0%, transparent 55%),
+        radial-gradient(900px 340px at 92% 0%, rgba(255, 232, 213, .36) 0%, transparent 58%),
+        linear-gradient(160deg, #f8fafb, #f1f6f4);
     }
     .site-shell { min-height: 100vh; }
     .site-header {
@@ -75,6 +76,111 @@
       color: #123545;
       border: 1px solid rgba(255,255,255,.45);
     }
+    .notify-menu { position: relative; }
+    .notify-menu summary {
+      width: 52px;
+      min-width: 52px;
+      padding: 0;
+      position: relative;
+    }
+    .notify-menu summary::after { display: none; }
+    .notify-icon {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .notify-count {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #ef4444, #f97316);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 16px rgba(239, 68, 68, .32);
+    }
+    .notify-panel {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      width: min(360px, calc(100vw - 32px));
+      padding: 0;
+      overflow: hidden;
+      border-radius: 22px;
+      background: rgba(255,255,255,.98);
+      border: 1px solid rgba(148,163,184,.18);
+      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+      z-index: 6;
+    }
+    .notify-header {
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #ef4444, #f97316);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 900;
+    }
+    .notify-list {
+      max-height: 360px;
+      overflow: auto;
+      background: #fff7f1;
+    }
+    .notify-item {
+      display: block;
+      padding: 14px 18px;
+      color: #1f2937;
+      text-decoration: none;
+      border-top: 1px solid rgba(148,163,184,.14);
+    }
+    .notify-item:first-child { border-top: none; }
+    .notify-item:hover { background: rgba(255,255,255,.78); }
+    .notify-item-title {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 15px;
+      font-weight: 800;
+      color: #1f2937;
+    }
+    .notify-item-body {
+      color: #64748b;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .notify-item-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(239,68,68,.12);
+      color: #dc2626;
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .notify-footer {
+      display: block;
+      padding: 12px 18px;
+      text-align: center;
+      color: #0f766e;
+      font-weight: 800;
+      text-decoration: none;
+      background: #fff;
+      border-top: 1px solid rgba(148,163,184,.14);
+    }
+    .notify-footer:hover { background: #f8fafc; }
     .account-menu { position: relative; }
     .account-menu summary {
       list-style: none;
@@ -296,6 +402,101 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 14px;
+    }
+    .map-picker-card {
+      grid-column: 1 / -1;
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(148,163,184,.16);
+      background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,250,252,.92));
+    }
+    .map-picker-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .map-picker-title {
+      margin: 0;
+      color: #1f2937;
+      font-size: 18px;
+      font-weight: 900;
+    }
+    .map-picker-subtitle {
+      margin: 6px 0 0;
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.6;
+      max-width: 680px;
+    }
+    .map-picker-tools {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .map-search {
+      flex: 1 1 320px;
+      min-height: 48px;
+      padding: 0 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(148,163,184,.24);
+      background: #fff;
+      color: #0f172a;
+      font-size: 15px;
+      font-family: inherit;
+    }
+    .map-btn {
+      min-height: 48px;
+      padding: 0 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(148,163,184,.22);
+      background: #fff;
+      color: #123545;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .map-btn.primary {
+      border-color: transparent;
+      background: linear-gradient(135deg, #0f766e, #14b8a6);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(20,184,166,.18);
+    }
+    .map-picker-status {
+      min-height: 22px;
+      margin: 0 0 10px;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .map-picker-status.is-error {
+      color: #dc2626;
+    }
+    .map-picker-status.is-success {
+      color: #0f766e;
+    }
+    .address-map {
+      height: 320px;
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid rgba(148,163,184,.18);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
+    }
+    .coord-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 36px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: rgba(20,184,166,.1);
+      color: #0f766e;
+      font-size: 13px;
+      font-weight: 800;
     }
     .field-block { display: grid; gap: 8px; }
     .field-block.full { grid-column: 1 / -1; }
@@ -541,29 +742,7 @@
 </head>
 <body data-theme="light">
   <div class="site-shell">
-    <header class="site-header">
-      <div class="wrap">
-        <a class="logo" href="{% url 'store:home' %}">CIRCLE <span>K &amp; GS25</span></a>
-        <nav class="site-nav">
-          <a href="{% url 'store:home' %}#about">Giới thiệu</a>
-          <a href="{% url 'store:home' %}#products">Sản phẩm</a>
-          <a href="{% url 'store:map_page' %}">Cửa hàng</a>
-        </nav>
-        <div class="header-actions">
-          <a href="{% url 'store:map_page' %}" class="btnFind">Tìm cửa hàng</a>
-          <a href="{% url 'store:cart' %}" class="btnWhite">{{ t.cart|default:"Giỏ hàng" }}{% if cart_total_quantity %} ({{ cart_total_quantity }}){% endif %}</a>
-          <details class="account-menu">
-            <summary class="btnWhite">{{ request.user.username }}</summary>
-            <div class="account-menu-panel">
-              <div class="account-menu-label">Tài khoản của tôi</div>
-              <a class="account-menu-link" href="{% url 'store:user_profile' %}">Tài Khoản Của Tôi</a>
-              <a class="account-menu-link" href="{% url 'store:my_orders' %}">Đơn Mua</a>
-              <a class="account-menu-link logout" href="{% url 'store:user_logout' %}">Đăng Xuất</a>
-            </div>
-          </details>
-        </div>
-      </div>
-    </header>
+    {% include 'shared/navbar.html' %}
 
     <main class="page-wrap">
       {% if messages %}
@@ -657,6 +836,22 @@
                 <input type="hidden" name="action" value="{% if editing_address %}update{% else %}create{% endif %}">
                 <input type="hidden" name="address_id" value="{{ form_state.pk }}">
                 <div class="address-form-grid">
+                  <div class="map-picker-card">
+                    <div class="map-picker-head">
+                      <div>
+                        <p class="map-picker-title">Chọn vị trí trên bản đồ</p>
+                        <p class="map-picker-subtitle">Bấm trực tiếp lên bản đồ, dùng GPS hoặc tìm địa chỉ để tự điền chính xác vào form bên dưới.</p>
+                      </div>
+                      <div class="coord-chip" id="addressCoordChip">Chưa chọn tọa độ</div>
+                    </div>
+                    <div class="map-picker-tools">
+                      <input id="addressMapSearch" class="map-search" type="text" placeholder="Tìm vị trí, ví dụ: 53 Đức Hiền, Tây Thạnh, Tân Phú">
+                      <button class="map-btn primary" type="button" id="addressMapSearchBtn">Tìm trên bản đồ</button>
+                      <button class="map-btn" type="button" id="addressMapLocateBtn">Dùng vị trí hiện tại</button>
+                    </div>
+                    <p class="map-picker-status" id="addressMapStatus">Chọn điểm trên bản đồ để tự điền địa chỉ.</p>
+                    <div id="addressPickerMap" class="address-map"></div>
+                  </div>
                   <div class="field-block">
                     <label for="id_receiver">Họ và tên</label>
                     <input id="id_receiver" type="text" name="ho_ten_nguoi_nhan" value="{{ form_state.ho_ten_nguoi_nhan }}">
@@ -762,5 +957,189 @@
 
     {% include 'shared/footer.html' %}
   </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    (function () {
+      const mapEl = document.getElementById("addressPickerMap");
+      if (!mapEl || typeof L === "undefined") return;
+
+      const provinceInput = document.getElementById("id_province");
+      const districtInput = document.getElementById("id_district");
+      const wardInput = document.getElementById("id_ward");
+      const detailInput = document.getElementById("id_address_detail");
+      const searchInput = document.getElementById("addressMapSearch");
+      const searchBtn = document.getElementById("addressMapSearchBtn");
+      const locateBtn = document.getElementById("addressMapLocateBtn");
+      const statusEl = document.getElementById("addressMapStatus");
+      const coordChip = document.getElementById("addressCoordChip");
+
+      const map = L.map("addressPickerMap").setView([10.7904, 106.6286], 14);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+
+      let marker = null;
+      let lastAutoDetail = "";
+
+      function setStatus(text, type) {
+        statusEl.textContent = text || "";
+        statusEl.classList.remove("is-error", "is-success");
+        if (type) statusEl.classList.add(type);
+      }
+
+      function setMarker(lat, lon, label) {
+        if (!marker) {
+          marker = L.marker([lat, lon]).addTo(map);
+        } else {
+          marker.setLatLng([lat, lon]);
+        }
+        if (label) marker.bindPopup(label).openPopup();
+        map.setView([lat, lon], 17);
+        coordChip.textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+      }
+
+      function pickValue(address, keys) {
+        for (const key of keys) {
+          if (address[key]) return address[key];
+        }
+        return "";
+      }
+
+      function applyAddress(raw, fallbackDisplay) {
+        const address = (raw && raw.address) || {};
+        const province = pickValue(address, ["state", "province", "city", "region"]);
+        const district = pickValue(address, ["city_district", "district", "county", "state_district", "town"]);
+        const ward = pickValue(address, ["suburb", "quarter", "neighbourhood", "village", "hamlet"]);
+        const house = pickValue(address, ["house_number"]);
+        const road = pickValue(address, ["road", "residential", "pedestrian", "street"]);
+        const detail = [house, road].filter(Boolean).join(" " ).trim() || (fallbackDisplay || "").split(",")[0].trim();
+
+        if (province) provinceInput.value = province;
+        if (district) districtInput.value = district;
+        if (ward) wardInput.value = ward;
+        if (detail && (!detailInput.value.trim() || detailInput.value.trim() === lastAutoDetail)) {
+          detailInput.value = detail;
+          lastAutoDetail = detail;
+        }
+      }
+
+      async function reverseFill(lat, lon) {
+        setStatus("Đang lấy thông tin địa chỉ...", "");
+        try {
+          const res = await fetch(`/tools/reverse-geo/?lat=${lat}&lon=${lon}`);
+          const payload = await res.json();
+          const data = payload.data || {};
+          if (!payload.ok) {
+            setStatus(payload.error || "Không lấy được địa chỉ từ tọa độ.", "is-error");
+            return;
+          }
+          const display = data.display_address || data.display || "Đã chọn vị trí";
+          setMarker(lat, lon, display);
+          applyAddress(data.raw || {}, display);
+          if (!searchInput.value.trim()) searchInput.value = display;
+          setStatus("Đã điền địa chỉ từ vị trí bạn chọn.", "is-success");
+        } catch (error) {
+          setStatus("Không kết nối được dịch vụ bản đồ.", "is-error");
+        }
+      }
+
+      async function geocodeSearch() {
+        const query = searchInput.value.trim() || [detailInput.value, wardInput.value, districtInput.value, provinceInput.value].filter(Boolean).join(", " );
+        if (query.length < 3) {
+          setStatus("Nhập địa chỉ hoặc khu vực trước khi tìm trên bản đồ.", "is-error");
+          return;
+        }
+        setStatus("Đang tìm vị trí trên bản đồ...", "");
+        try {
+          const res = await fetch(`/tools/geocode/?q=${encodeURIComponent(query)}`);
+          const payload = await res.json();
+          const data = payload.data || {};
+          let location = data.location || null;
+
+          if ((!payload.ok || !location) && query.length >= 3) {
+            const suggestRes = await fetch(`/tools/suggest/?q=${encodeURIComponent(query)}`);
+            const suggestPayload = await suggestRes.json();
+            const suggestData = suggestPayload.data || {};
+            const firstItem = Array.isArray(suggestData.items) ? suggestData.items[0] : null;
+            if (firstItem && firstItem.lat && firstItem.lon) {
+              location = {
+                lat: firstItem.lat,
+                lon: firstItem.lon,
+                display: firstItem.display || query,
+              };
+            }
+          }
+
+          if (!location && query.length >= 3) {
+            const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=vn&q=${encodeURIComponent(query)}`);
+            const osmItems = await osmRes.json();
+            const firstOsm = Array.isArray(osmItems) ? osmItems[0] : null;
+            if (firstOsm && firstOsm.lat && firstOsm.lon) {
+              location = {
+                lat: firstOsm.lat,
+                lon: firstOsm.lon,
+                display: firstOsm.display_name || query,
+              };
+            }
+          }
+
+          if (!location) {
+            setStatus("Không tìm thấy vị trí phù hợp. Hãy thử nhập chi tiết hơn.", "is-error");
+            return;
+          }
+
+          const lat = Number(location.lat);
+          const lon = Number(location.lon);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            setStatus("Không tìm thấy tọa độ hợp lệ.", "is-error");
+            return;
+          }
+
+          setMarker(lat, lon, location.display || query);
+          await reverseFill(lat, lon);
+        } catch (error) {
+          setStatus("Không thể tìm vị trí lúc này.", "is-error");
+        }
+      }
+
+      searchBtn.addEventListener("click", geocodeSearch);
+      searchInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          geocodeSearch();
+        }
+      });
+
+      locateBtn.addEventListener("click", () => {
+        if (!navigator.geolocation) {
+          setStatus("Trình duyệt không hỗ trợ định vị GPS.", "is-error");
+          return;
+        }
+        setStatus("Đang lấy vị trí hiện tại...", "");
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            setMarker(lat, lon, "Vị trí hiện tại");
+            await reverseFill(lat, lon);
+          },
+          () => setStatus("Không thể lấy vị trí hiện tại. Hãy kiểm tra quyền GPS.", "is-error"),
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        );
+      });
+
+      map.on("click", async (event) => {
+        const lat = event.latlng.lat;
+        const lon = event.latlng.lng;
+        setMarker(lat, lon, "Đang lấy địa chỉ...");
+        await reverseFill(lat, lon);
+      });
+
+      const initialQuery = [detailInput.value, wardInput.value, districtInput.value, provinceInput.value].filter(Boolean).join(", " );
+      if (initialQuery.length >= 3) {
+        searchInput.value = initialQuery;
+        geocodeSearch();
+      }
+    })();
+  </script>
 </body>
 </html>
+

@@ -1,10 +1,14 @@
 ﻿from django.shortcuts import render
+from django.views.decorators.cache import never_cache
 
 
 def home(request):
-    featured_products = list(SanPham.objects.order_by("ten")[:8])
+    featured_products = list(
+        SanPham.objects.prefetch_related("hinh_anh_phu").order_by("ten")[:8]
+    )
     for product in featured_products:
         product.display_price = _format_currency(product.gia_ban)
+        product.card_gallery = _build_product_card_gallery(product)
     return render(
         request,
         "store/home.html",
@@ -34,6 +38,7 @@ def store_list_page(request):
     )
 
 
+@never_cache
 def map_page(request):
     return render(
         request,
@@ -473,7 +478,9 @@ from django.core.mail import send_mail, get_connection
 from django.core.paginator import Paginator
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
+from django.core.files.images import get_image_dimensions
 from django.core.serializers.json import DjangoJSONEncoder
+from django import forms
 from django.db import models as dj_models
 from django.db.models import Q
 from django.forms import modelform_factory
@@ -509,7 +516,6 @@ MODEL_REGISTRY = {
     "nha-cung-cap": NhaCungCap,
     "nhom-san-pham": NhomSanPham,
     "san-pham": SanPham,
-    "hinh-anh-san-pham": HinhAnhSanPham,
     "chuoi-cua-hang": ChuoiCuaHang,
     "cua-hang": CuaHang,
     "nhan-vien": NhanVien,
@@ -610,8 +616,8 @@ CMS_TRANSLATIONS = {
         "welcome_user": "Xin chào",
         "user_intro": "Trang dành cho tài khoản người dùng đã đăng nhập.",
         "access_admin": "Vào trang quản trị",
-        "user_login_title": "Đăng nhập người dùng",
-        "user_login_hint": "Tài khoản người dùng sẽ vào trang người dùng. Tài khoản admin sẽ được chuyển sang trang quản trị.",
+        "user_login_title": "Đăng nhập tài khoản của bạn",
+        "user_login_hint": "",
         "user_created": "Đã tạo tài khoản mới.",
         "user_updated": "Đã cập nhật quyền người dùng.",
         "register": "Đăng ký",
@@ -862,6 +868,16 @@ FIELD_LABELS = {
         "created_at": "Created At",
     }
 }
+
+
+class SanPhamAdminForm(forms.ModelForm):
+    image_1 = forms.ImageField(label="Ảnh 1", required=False)
+    image_2 = forms.ImageField(label="Ảnh 2", required=False)
+    image_3 = forms.ImageField(label="Ảnh 3", required=False)
+
+    class Meta:
+        model = SanPham
+        exclude = ("hinh_anh",)
 
 
 def _is_admin_user(user):
@@ -1233,6 +1249,151 @@ def _user_display_name(user):
     return user.get_full_name().strip() or user.username
 
 
+def _user_header_notifications(user):
+    notifications = _user_all_notifications(user, limit=4)
+
+    if not notifications:
+        notifications.append(
+            {
+                "title": "Chưa có thông báo mới",
+                "body": "Khi có đơn hàng hoặc cập nhật mới, bạn sẽ thấy tại đây.",
+                "href": reverse("store:user_profile"),
+                "is_new": False,
+            }
+        )
+
+    return notifications
+
+
+def _admin_header_notifications(limit=4):
+    notifications = []
+    for notice in Notification.objects.filter(resolved=False).order_by("-created_at")[:limit]:
+        notifications.append(
+            {
+                "title": notice.title,
+                "body": notice.message or "Có cập nhật mới trong hệ thống quản trị.",
+                "href": reverse("store:admin_notifications"),
+                "is_new": True,
+                "timestamp": notice.created_at,
+            }
+        )
+    return notifications
+
+
+def _create_admin_notification(title, message, *, level="info", path="", method="", status_code=None):
+    Notification.objects.create(
+        level=(level or "info")[:20],
+        title=(title or "Thông báo hệ thống")[:200],
+        message=message or "",
+        path=(path or "")[:255],
+        method=(method or "")[:10],
+        status_code=status_code,
+    )
+
+
+def _user_all_notifications(user, limit=None):
+    notifications = []
+    orders_qs = (
+        DonHang.objects.filter(khach_hang=user)
+        .prefetch_related("items__san_pham__hinh_anh_phu")
+        .order_by("-created_at")
+    )
+    if limit is not None:
+        orders_qs = orders_qs[:limit]
+
+    for order in orders_qs:
+        first_item = order.items.all().first()
+        item_name = first_item.san_pham.ten if first_item and first_item.san_pham_id else "đơn hàng của bạn"
+        thumb_url = ""
+        if first_item and first_item.san_pham_id:
+            product = first_item.san_pham
+            if product.hinh_anh:
+                thumb_url = product.hinh_anh.url
+            else:
+                extra_image = product.hinh_anh_phu.all().first()
+                thumb_url = extra_image.hinh_anh.url if extra_image and extra_image.hinh_anh else ""
+
+        status_label = order.get_trang_thai_display()
+        action_label = "Xem chi tiết"
+        accent = "warm"
+        if order.trang_thai == "done":
+            action_label = "Mua lại"
+            accent = "success"
+        elif order.trang_thai == "cancelled":
+            action_label = "Xem chi tiết"
+            accent = "muted"
+
+        notifications.append(
+            {
+                "title": f"Đơn #{order.pk} đang {status_label.lower()}",
+                "body": f"{item_name} • {order.created_at.strftime('%d/%m/%Y %H:%M')}",
+                "message": f"Đơn hàng #{order.pk} với sản phẩm {item_name} hiện ở trạng thái {status_label.lower()}.",
+                "href": reverse("store:order_detail", args=[order.pk]),
+                "is_new": order.created_at >= timezone.now() - timedelta(days=2),
+                "created_at": order.created_at,
+                "created_text": order.created_at.strftime("%H:%M %d/%m/%Y"),
+                "thumbnail_url": thumb_url,
+                "status_label": status_label,
+                "action_label": action_label,
+                "accent": accent,
+                "order_code": f"#{order.pk}",
+            }
+        )
+
+    return notifications
+
+
+def _order_status_timeline(order):
+    created_at = order.created_at or timezone.now()
+    raw_steps = [
+        ("pending", "Đơn hàng đã đặt", created_at),
+        ("confirmed", "Đã xác nhận", created_at + timedelta(hours=2)),
+        ("shipping", "Đang giao", created_at + timedelta(hours=8)),
+        ("delivered", "Đã giao hàng", created_at + timedelta(days=1)),
+        ("done", "Hoàn tất", created_at + timedelta(days=2)),
+    ]
+    order_statuses = [item[0] for item in raw_steps]
+    active_index = order_statuses.index(order.trang_thai) if order.trang_thai in order_statuses else -1
+
+    timeline = []
+    if order.trang_thai == "cancelled":
+        for code, label, moment in raw_steps:
+            timeline.append(
+                {
+                    "code": code,
+                    "label": label,
+                    "time": moment,
+                    "state": "done" if code == "pending" else "pending",
+                }
+            )
+        timeline.append(
+            {
+                "code": "cancelled",
+                "label": "Đã hủy",
+                "time": created_at + timedelta(hours=4),
+                "state": "active",
+            }
+        )
+        return timeline
+
+    for index, (code, label, moment) in enumerate(raw_steps):
+        if index < active_index:
+            state = "done"
+        elif index == active_index:
+            state = "active"
+        else:
+            state = "pending"
+        timeline.append(
+            {
+                "code": code,
+                "label": label,
+                "time": moment if state in {"done", "active"} else None,
+                "state": state,
+            }
+        )
+    return timeline
+
+
 def _password_strength(password: str):
     password = password or ""
     score = 0
@@ -1352,6 +1513,79 @@ def _build_file_preview_context(model, obj=None):
     return previews
 
 
+def _build_product_image_preview_context(obj=None):
+    previews = {
+        "image_1": {"url": "", "is_image": True},
+        "image_2": {"url": "", "is_image": True},
+        "image_3": {"url": "", "is_image": True},
+    }
+    if obj is None:
+        return previews
+
+    try:
+        if obj.hinh_anh:
+            previews["image_1"]["url"] = obj.hinh_anh.url
+    except Exception:
+        pass
+
+    related_images = list(obj.hinh_anh_phu.all().order_by("thu_tu", "id")[:2])
+    for index, image in enumerate(related_images, start=2):
+        try:
+            if image and image.hinh_anh:
+                previews[f"image_{index}"]["url"] = image.hinh_anh.url
+        except Exception:
+            continue
+
+    return previews
+
+
+def _save_product_gallery(product, files):
+    uploaded_main = files.get("image_1")
+    if uploaded_main:
+        product.hinh_anh = uploaded_main
+        product.save(update_fields=["hinh_anh"])
+
+    related_images = list(product.hinh_anh_phu.all().order_by("thu_tu", "id"))
+    while len(related_images) < 2:
+        related = HinhAnhSanPham.objects.create(
+            san_pham=product,
+            thu_tu=len(related_images) + 1,
+            chu_thich=f"Ảnh phụ {len(related_images) + 1}",
+        )
+        related_images.append(related)
+
+    for index, field_name in enumerate(("image_2", "image_3")):
+        uploaded = files.get(field_name)
+        if not uploaded:
+            continue
+        image_obj = related_images[index]
+        image_obj.hinh_anh = uploaded
+        image_obj.thu_tu = index + 1
+        if not image_obj.chu_thich:
+            image_obj.chu_thich = f"Ảnh phụ {index + 1}"
+        image_obj.save()
+
+
+def _build_product_card_gallery(product):
+    images = []
+    if product.hinh_anh:
+        try:
+            images.append(product.hinh_anh.url)
+        except Exception:
+            pass
+
+    for image in product.hinh_anh_phu.all()[:2]:
+        try:
+            if image.hinh_anh:
+                images.append(image.hinh_anh.url)
+        except Exception:
+            continue
+
+    if not images:
+        images.append("https://www.circlek.com/sites/default/files/2024-03/our_products_920x575.jpg")
+    return images[:3]
+
+
 def _sanitize_admin_form(form):
     # Remove Django's default "---------" empty option labels for select fields.
     for field in form.fields.values():
@@ -1394,21 +1628,33 @@ def _validate_coord_from_map(request, form, instance=None):
 
 
 class AdminLoginView(LoginView):
-    template_name = "admin/login.html"
+    template_name = "user/login.html"
     authentication_form = AuthenticationForm
     redirect_authenticated_user = False
 
     def dispatch(self, request, *args, **kwargs):
         if _is_admin_user(request.user):
             return redirect("store:admin_dashboard")
+        if _is_regular_user(request.user):
+            next_url = request.GET.get("next")
+            if next_url:
+                return redirect(next_url)
+            return redirect("store:user_dashboard")
         if request.user.is_authenticated:
-            # Avoid redirect loop: authenticated but not CMS-authorized users
-            # must be signed out before showing CMS login form.
             logout(request)
         return super().dispatch(request, *args, **kwargs)
 
     def get_success_url(self):
-        return reverse("store:admin_dashboard")
+        user = self.request.user
+        if _is_admin_user(user):
+            return reverse("store:admin_dashboard")
+        resumed_url = _resume_post_login_cart_action(self.request)
+        if resumed_url:
+            return resumed_url
+        next_url = self.request.POST.get("next") or self.request.GET.get("next")
+        if next_url:
+            return next_url
+        return reverse("store:user_dashboard")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1417,11 +1663,9 @@ class AdminLoginView(LoginView):
         return context
 
     def form_valid(self, form):
-        if not _is_admin_user(form.get_user()):
-            pref = _admin_pref_context(self.request)
-            messages.error(self.request, pref["t"]["no_access"])
-            return self.form_invalid(form)
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        _ensure_user_role(self.request.user)
+        return response
 
 
 class UserLoginView(LoginView):
@@ -1597,6 +1841,17 @@ def admin_order_status_action(request, pk, status):
 
     order.trang_thai = status
     order.save(update_fields=["trang_thai"])
+    _create_admin_notification(
+        f"Cập nhật đơn hàng #{order.pk}",
+        (
+            f"Đơn #{order.pk} của khách hàng {order.khach_hang.username} "
+            f"đã được chuyển sang trạng thái {order.get_trang_thai_display().lower()}."
+        ),
+        level="info",
+        path=reverse("store:admin_list", kwargs={"model_slug": "don-hang"}),
+        method="PATCH",
+        status_code=200,
+    )
     messages.success(request, _admin_pref_context(request)["t"]["order_status_updated"])
 
     redirect_url = reverse("store:admin_list", kwargs={"model_slug": "don-hang"})
@@ -1972,14 +2227,23 @@ def admin_list(request, model_slug):
     model = _resolve_model(model_slug)
     query = request.GET.get("q", "").strip()
     filter_field = request.GET.get("f", "").strip()
-    status_filter = request.GET.get("status", "").strip()
+    status_filters = [
+        value
+        for value in request.GET.getlist("status")
+        if value in {"pending", "confirmed", "shipping", "delivered", "done", "cancelled"}
+    ]
+    status_filter = status_filters[0] if len(status_filters) == 1 else ""
     qs = model.objects.all().order_by("-pk")
     qs, facet_filters = _build_and_apply_facets(request, model_slug, qs, model)
-    if model_slug == "don-hang" and status_filter in {"pending", "confirmed", "shipping", "delivered", "done", "cancelled"}:
-        if status_filter == "done":
-            qs = qs.filter(trang_thai__in=["done", "delivered"])
-        else:
-            qs = qs.filter(trang_thai=status_filter)
+    if model_slug == "don-hang" and status_filters:
+        selected_statuses = set(status_filters)
+        final_statuses = set()
+        if "done" in selected_statuses:
+            final_statuses.update({"done", "delivered"})
+        if "delivered" in selected_statuses:
+            final_statuses.add("delivered")
+        final_statuses.update(selected_statuses - {"done", "delivered"})
+        qs = qs.filter(trang_thai__in=sorted(final_statuses))
     if query:
         valid_fields = {
             f.name
@@ -2116,6 +2380,7 @@ def admin_list(request, model_slug):
             "query": query,
             "filter_field": filter_field,
             "status_filter": status_filter,
+            "status_filters": status_filters,
             "page_obj": page_obj,
             "paginator": paginator,
             "facet_filters": facet_filters,
@@ -2134,13 +2399,15 @@ def admin_create(request, model_slug):
     lang = pref["admin_lang"]
 
     model = _resolve_model(model_slug)
-    form_cls = modelform_factory(model, fields="__all__")
+    form_cls = SanPhamAdminForm if model_slug == "san-pham" else modelform_factory(model, fields="__all__")
     coord_picker_enabled = model_slug == "cua-hang"
     if request.method == "POST":
         form = _sanitize_admin_form(form_cls(request.POST, request.FILES))
         valid = _validate_coord_from_map(request, form) if coord_picker_enabled else form.is_valid()
         if valid:
-            form.save()
+            obj = form.save()
+            if model_slug == "san-pham":
+                _save_product_gallery(obj, request.FILES)
             messages.success(request, pref["t"]["saved_successfully"])
             return redirect("store:admin_list", model_slug=model_slug)
     else:
@@ -2155,7 +2422,7 @@ def admin_create(request, model_slug):
             "model_slug": model_slug,
             "model_name": _model_label(model_slug, lang, plural=False),
             "mode": "create",
-            "file_previews": _build_file_preview_context(model),
+            "file_previews": _build_product_image_preview_context() if model_slug == "san-pham" else _build_file_preview_context(model),
             "coord_picker_enabled": coord_picker_enabled,
             **pref,
         },
@@ -2172,14 +2439,16 @@ def admin_update(request, model_slug, pk):
 
     model = _resolve_model(model_slug)
     obj = get_object_or_404(model, pk=pk)
-    form_cls = modelform_factory(model, fields="__all__")
+    form_cls = SanPhamAdminForm if model_slug == "san-pham" else modelform_factory(model, fields="__all__")
     coord_picker_enabled = model_slug == "cua-hang"
 
     if request.method == "POST":
         form = _sanitize_admin_form(form_cls(request.POST, request.FILES, instance=obj))
         valid = _validate_coord_from_map(request, form, instance=obj) if coord_picker_enabled else form.is_valid()
         if valid:
-            form.save()
+            obj = form.save()
+            if model_slug == "san-pham":
+                _save_product_gallery(obj, request.FILES)
             messages.success(request, pref["t"]["saved_successfully"])
             return redirect("store:admin_list", model_slug=model_slug)
     else:
@@ -2195,7 +2464,7 @@ def admin_update(request, model_slug, pk):
             "model_name": _model_label(model_slug, lang, plural=False),
             "mode": "update",
             "object": obj,
-            "file_previews": _build_file_preview_context(model, obj),
+            "file_previews": _build_product_image_preview_context(obj) if model_slug == "san-pham" else _build_file_preview_context(model, obj),
             "coord_picker_enabled": coord_picker_enabled,
             **pref,
         },
@@ -2465,11 +2734,35 @@ def user_profile(request):
     if request.method == "POST":
         email_input = (request.POST.get("email") or "").strip()
         email, email_error = _clean_user_email(email_input, exclude_user_id=request.user.pk)
+        avatar_file = request.FILES.get("avatar")
+        avatar_error = None
+
+        if avatar_file:
+            allowed_types = {"image/jpeg", "image/png"}
+            if avatar_file.size > 1024 * 1024:
+                avatar_error = "Ảnh đại diện phải nhỏ hơn hoặc bằng 1 MB."
+            elif getattr(avatar_file, "content_type", "") not in allowed_types:
+                avatar_error = "Ảnh đại diện chỉ hỗ trợ định dạng JPEG hoặc PNG."
+            else:
+                try:
+                    get_image_dimensions(avatar_file)
+                    avatar_file.seek(0)
+                except Exception:
+                    avatar_error = "File tải lên không phải là ảnh hợp lệ."
+
         if email_error:
             messages.error(request, email_error)
+        elif avatar_error:
+            messages.error(request, avatar_error)
         else:
+            old_avatar = profile.avatar if avatar_file and profile.avatar else None
             request.user.email = email
             request.user.save(update_fields=["email"])
+            if avatar_file:
+                profile.avatar = avatar_file
+                profile.save(update_fields=["avatar"])
+                if old_avatar and old_avatar.name != profile.avatar.name:
+                    old_avatar.delete(save=False)
             messages.success(request, pref["t"]["profile_saved"])
             return redirect("store:user_profile")
 
@@ -2480,6 +2773,7 @@ def user_profile(request):
             "profile": profile,
             "display_name": _user_display_name(request.user),
             "cart_total_quantity": _cart_items(request)[1],
+            "user_notifications": _user_header_notifications(request.user),
             **pref,
         },
     )
@@ -2566,6 +2860,7 @@ def user_address(request):
                     "editing_address": editing_address,
                     "show_form": True,
                     "form_state": form_state,
+                    "user_notifications": _user_header_notifications(request.user),
                     **pref,
                 },
             )
@@ -2620,6 +2915,7 @@ def user_address(request):
             "form_state": form_state,
             "display_name": _user_display_name(request.user),
             "cart_total_quantity": _cart_items(request)[1],
+            "user_notifications": _user_header_notifications(request.user),
             **pref,
         },
     )
@@ -2651,6 +2947,7 @@ def user_password_change(request):
             "password_strength_value": password_strength,
             "display_name": _user_display_name(request.user),
             "cart_total_quantity": _cart_items(request)[1],
+            "user_notifications": _user_header_notifications(request.user),
             **pref,
         },
     )
@@ -2658,12 +2955,13 @@ def user_password_change(request):
 
 def product_catalog(request):
     pref = _admin_pref_context(request)
-    qs = SanPham.objects.select_related("nhom_san_pham", "thuong_hieu").order_by("ten")
+    qs = SanPham.objects.select_related("nhom_san_pham", "thuong_hieu").prefetch_related("hinh_anh_phu").order_by("ten")
     paginator = Paginator(qs, 9)
     page_obj = paginator.get_page(request.GET.get("page"))
     products = list(page_obj.object_list)
     for product in products:
         product.display_price = _format_currency(product.gia_ban)
+        product.card_gallery = _build_product_card_gallery(product)
     _, cart_total_quantity, _ = _cart_items(request)
     return render(
         request,
@@ -2694,7 +2992,7 @@ def product_detail(request, pk):
                 "caption": product.ten,
             }
         )
-    for image in product.hinh_anh_phu.all():
+    for image in product.hinh_anh_phu.all()[:2]:
         if not image.hinh_anh:
             continue
         gallery_images.append(
@@ -2947,6 +3245,17 @@ def checkout_view(request):
                 tong_so_luong=total_quantity,
                 tong_tien=total_amount,
             )
+            _create_admin_notification(
+                f"Đơn hàng mới #{order.pk}",
+                (
+                    f"Khách hàng {request.user.username} vừa đặt đơn #{order.pk} "
+                    f"gồm {total_quantity} sản phẩm, tổng tiền {_format_currency(total_amount)}."
+                ),
+                level="info",
+                path=f"{reverse('store:admin_list', kwargs={'model_slug': 'don-hang'})}?status=pending",
+                method="ORDER",
+                status_code=201,
+            )
             for item in items:
                 ChiTietDonHang.objects.create(
                     don_hang=order,
@@ -3022,6 +3331,63 @@ def my_orders(request):
             "page_obj": page_obj,
             "paginator": paginator,
             "cart_total_quantity": cart_total_quantity,
+            "user_notifications": _user_header_notifications(request.user),
+            **_admin_pref_context(request),
+        },
+    )
+
+
+def user_notifications(request):
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        return unauthorized
+
+    all_notifications = _user_all_notifications(request.user)
+    paginator = Paginator(all_notifications, 8)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    notifications = list(page_obj.object_list)
+    _, cart_total_quantity, _ = _cart_items(request)
+
+    return render(
+        request,
+        "store/notifications.html",
+        {
+            "notifications": notifications,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "cart_total_quantity": cart_total_quantity,
+            "user_notifications": _user_header_notifications(request.user),
+            **_admin_pref_context(request),
+        },
+    )
+
+
+def order_detail(request, pk):
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        return unauthorized
+
+    order = get_object_or_404(
+        DonHang.objects.filter(khach_hang=request.user).prefetch_related("items__san_pham"),
+        pk=pk,
+    )
+    for item in order.items.all():
+        item.display_unit_price = _format_currency(item.don_gia)
+        item.display_line_total = _format_currency((item.don_gia or Decimal("0")) * item.so_luong)
+
+    timeline = _order_status_timeline(order)
+    order.display_total_amount = _format_currency(order.tong_tien)
+    order.created_text = order.created_at.strftime("%d/%m/%Y %H:%M")
+
+    _, cart_total_quantity, _ = _cart_items(request)
+    return render(
+        request,
+        "store/order_detail.html",
+        {
+            "order": order,
+            "timeline": timeline,
+            "cart_total_quantity": cart_total_quantity,
+            "user_notifications": _user_header_notifications(request.user),
             **_admin_pref_context(request),
         },
     )
@@ -3042,9 +3408,3 @@ def report_404_action(request, action):
     )
     # redirect back or home
     return redirect(request.GET.get("back") or "store:home")
-
-
-
-
-
-

@@ -10,9 +10,10 @@
     body {
       margin: 0;
       background:
-        radial-gradient(1200px 500px at 12% -12%, #c5f5ea 5%, transparent 60%),
-        radial-gradient(950px 420px at 95% 0%, #ffe8d5 8%, transparent 62%),
-        linear-gradient(160deg, #f6f7fb, #ebf4f2);
+        radial-gradient(1100px 420px at 10% -10%, rgba(197, 245, 234, .38) 0%, transparent 55%),
+        radial-gradient(900px 340px at 92% 0%, rgba(255, 232, 213, .34) 0%, transparent 58%),
+        linear-gradient(180deg, #f7fafc 0%, #edf7f5 52%, #e0f4ef 78%, #d7f0ea 100%);
+      background-attachment: fixed;
     }
     .site-shell { min-height: 100vh; }
     .site-header {
@@ -81,8 +82,9 @@
       padding: 28px 18px 56px;
     }
     .site-footer {
-      margin-top: 20px;
-      background: #0f172a;
+      margin-top: 0;
+      background:
+        linear-gradient(180deg, rgba(15,118,110,.12) 0%, rgba(13,91,86,.82) 16%, #0f172a 50%);
       color: #cbd5f5;
     }
     .site-footer .container {
@@ -91,8 +93,27 @@
       padding: 0 20px;
     }
     .newsletter-section {
-      background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
-      padding: 24px 0;
+      position: relative;
+      background: linear-gradient(135deg, rgba(13, 110, 104, .88) 0%, rgba(20, 160, 150, .9) 100%);
+      padding: 38px 0 24px;
+    }
+    .newsletter-section::before {
+      content: "";
+      position: absolute;
+      inset: -54px 0 auto;
+      height: 70px;
+      background: linear-gradient(180deg, transparent 0%, rgba(20,184,166,.08) 45%, rgba(13,110,104,.18) 100%);
+      pointer-events: none;
+    }
+    .newsletter-content h3 {
+      color: #f8fafc;
+      text-shadow: 0 2px 12px rgba(15, 23, 42, .12);
+    }
+    .newsletter-form input {
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .08);
+    }
+    .newsletter-form button {
+      box-shadow: 0 10px 22px rgba(249, 115, 22, .2);
     }
     .newsletter-content {
       display: flex;
@@ -134,33 +155,46 @@
       .footer-grid { grid-template-columns: 1fr; }
       .site-nav { gap: 16px; }
     }
+    .product-media {
+      position: relative;
+      width: 100%;
+      height: 190px;
+      overflow: hidden;
+      border-radius: 18px;
+      background: #f8fafc;
+    }
+    .product-media img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      transition: opacity .45s ease;
+    }
+    .product-media img.is-active { opacity: 1; }
+    .product-media-dots {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      z-index: 2;
+    }
+    .product-media-dots span {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.45);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, .18);
+    }
+    .product-media-dots span.is-active { background: #fff; }
   </style>
 </head>
 <body data-theme="light">
   <div class="site-shell">
-    <header class="site-header">
-      <div class="wrap">
-        <a class="logo" href="{% url 'store:home' %}">CIRCLE <span>K &amp; GS25</span></a>
-        <nav class="site-nav">
-          <a href="{% url 'store:home' %}#about">Giới thiệu</a>
-          <a href="{% url 'store:home' %}#products">Sản phẩm</a>
-          <a href="{% url 'store:map_page' %}">Cửa hàng</a>
-        </nav>
-        <div class="header-actions">
-          <a href="{% url 'store:map_page' %}" class="btnFind">Tìm cửa hàng</a>
-          <a href="{% url 'store:cart' %}" class="btnWhite">{{ t.cart|default:"Giỏ hàng" }} ({{ cart_total_quantity }})</a>
-          {% if request.user.is_authenticated %}
-            {% if show_admin_link %}
-              <a href="{% url 'store:admin_dashboard' %}" class="btnWhite">Admin</a>
-            {% else %}
-              <a href="{% url 'store:user_dashboard' %}" class="btnWhite">Tài khoản</a>
-            {% endif %}
-          {% else %}
-            <a href="{% url 'store:user_login' %}" class="btnWhite">{{ t.login|default:"Đăng nhập" }}</a>
-          {% endif %}
-        </div>
-      </div>
-    </header>
+    {% include 'shared/navbar.html' %}
 
     <main class="page-wrap">
       {% if messages %}{% for message in messages %}<div class="msg">{{ message }}</div>{% endfor %}{% endif %}
@@ -187,9 +221,23 @@
         {% for product in products %}
           <article class="panel card">
             <a href="{% url 'store:product_detail' product.pk %}" style="display:block;">
-              {% if product.hinh_anh %}
-                <img class="avatar" style="width:100%;height:190px;" src="{{ product.hinh_anh.url }}" alt="{{ product.ten }}">
-              {% endif %}
+              <div class="product-media" data-product-gallery>
+                {% for image_url in product.card_gallery %}
+                  <img
+                    src="{{ image_url }}"
+                    alt="{{ product.ten }}"
+                    class="{% if forloop.first %}is-active{% endif %}"
+                    loading="lazy"
+                  >
+                {% endfor %}
+                {% if product.card_gallery|length > 1 %}
+                  <div class="product-media-dots">
+                    {% for image_url in product.card_gallery %}
+                      <span class="{% if forloop.first %}is-active{% endif %}"></span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
             </a>
             <h3 style="margin:12px 0 6px;"><a href="{% url 'store:product_detail' product.pk %}" style="text-decoration:none;color:inherit;">{{ product.ten }}</a></h3>
             <div class="top-sub">{{ product.nhom_san_pham|default:"-" }} | {{ product.thuong_hieu|default:"-" }}</div>
@@ -234,5 +282,21 @@
 
     {% include 'shared/footer.html' %}
   </div>
+  <script>
+    document.querySelectorAll("[data-product-gallery]").forEach((gallery) => {
+      const images = Array.from(gallery.querySelectorAll("img"));
+      const dots = Array.from(gallery.querySelectorAll(".product-media-dots span"));
+      if (images.length < 2) return;
+      let index = 0;
+      window.setInterval(() => {
+        images[index].classList.remove("is-active");
+        if (dots[index]) dots[index].classList.remove("is-active");
+        index = (index + 1) % images.length;
+        images[index].classList.add("is-active");
+        if (dots[index]) dots[index].classList.add("is-active");
+      }, 1700);
+    });
+  </script>
 </body>
 </html>
+

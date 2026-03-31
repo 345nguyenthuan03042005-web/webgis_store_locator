@@ -10,9 +10,9 @@
     body {
       margin: 0;
       background:
-        radial-gradient(1200px 500px at 12% -12%, #c5f5ea 5%, transparent 60%),
-        radial-gradient(950px 420px at 95% 0%, #ffe8d5 8%, transparent 62%),
-        linear-gradient(160deg, #f6f7fb, #ebf4f2);
+        radial-gradient(1100px 420px at 10% -10%, rgba(197, 245, 234, .42) 0%, transparent 55%),
+        radial-gradient(900px 340px at 92% 0%, rgba(255, 232, 213, .36) 0%, transparent 58%),
+        linear-gradient(160deg, #f8fafb, #f1f6f4);
     }
     .site-shell { min-height: 100vh; }
     .site-header {
@@ -138,29 +138,7 @@
 </head>
 <body data-theme="light">
   <div class="site-shell">
-    <header class="site-header">
-      <div class="wrap">
-        <a class="logo" href="{% url 'store:home' %}">CIRCLE <span>K &amp; GS25</span></a>
-        <nav class="site-nav">
-          <a href="{% url 'store:home' %}#about">Giới thiệu</a>
-          <a href="{% url 'store:home' %}#products">Sản phẩm</a>
-          <a href="{% url 'store:map_page' %}">Cửa hàng</a>
-        </nav>
-        <div class="header-actions">
-          <a href="{% url 'store:map_page' %}" class="btnFind">Tìm cửa hàng</a>
-          <a href="{% url 'store:cart' %}" class="btnWhite">{{ t.cart|default:"Giỏ hàng" }}{% if cart_total_quantity %} ({{ cart_total_quantity }}){% endif %}</a>
-          {% if request.user.is_authenticated %}
-            {% if show_admin_link %}
-              <a href="{% url 'store:admin_dashboard' %}" class="btnWhite">Admin</a>
-            {% else %}
-              <a href="{% url 'store:user_dashboard' %}" class="btnWhite">Tài khoản</a>
-            {% endif %}
-          {% else %}
-            <a href="{% url 'store:user_login' %}" class="btnWhite">{{ t.login|default:"Đăng nhập" }}</a>
-          {% endif %}
-        </div>
-      </div>
-    </header>
+    {% include 'shared/navbar.html' %}
 
     <main class="page-wrap">
       {% if messages %}{% for message in messages %}<div class="msg">{{ message }}</div>{% endfor %}{% endif %}
@@ -237,3 +215,4 @@
   {% endif %}
 </body>
 </html>
+

@@ -274,6 +274,7 @@ class HoSoKhachHang(models.Model):
         related_name="ho_so_khach_hang",
         verbose_name="Tài khoản",
     )
+    avatar = models.ImageField("Ảnh đại diện", upload_to="avatar/customers/", blank=True, null=True)
     so_dien_thoai = models.CharField("Số điện thoại", max_length=20, blank=True)
     dia_chi = models.CharField("Địa chỉ", max_length=255, blank=True)
 

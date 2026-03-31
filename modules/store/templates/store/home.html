@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="vi">
 <head>
   <meta charset="utf-8"/>
@@ -44,9 +44,9 @@
       margin: 0;
       font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
       background:
-        radial-gradient(1200px 500px at 12% -12%, #c5f5ea 5%, transparent 60%),
-        radial-gradient(950px 420px at 95% 0%, #ffe8d5 8%, transparent 62%),
-        linear-gradient(160deg, #f6f7fb, #ebf4f2);
+        radial-gradient(1100px 420px at 10% -10%, rgba(197, 245, 234, .42) 0%, transparent 55%),
+        radial-gradient(900px 340px at 92% 0%, rgba(255, 232, 213, .36) 0%, transparent 58%),
+        linear-gradient(160deg, #f8fafb, #f1f6f4);
       color: var(--ink);
       line-height: 1.6;
     }
@@ -257,9 +257,40 @@
       object-fit: cover;
       transition: transform 0.4s;
     }
+    .product-media {
+      position: relative;
+      width: 100%;
+      height: 240px;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+    .product-media img {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity .45s ease, transform .4s ease;
+    }
+    .product-media img.is-active { opacity: 1; }
     .product-card:hover img {
       transform: scale(1.08);
     }
+    .product-media-dots {
+      position: absolute;
+      left: 50%;
+      bottom: 12px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      z-index: 2;
+    }
+    .product-media-dots span {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.45);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, .18);
+    }
+    .product-media-dots span.is-active { background: #fff; }
     .product-info {
       padding: 24px;
       text-align: center;
@@ -656,31 +687,7 @@
 <body>
 
 <!-- ================= HEADER ================= -->
-<header>
-  <div class="wrap">
-    <div class="logo">CIRCLE <span>K & GS25</span></div>
-
-    <nav>
-      <a href="#about">Giới thiệu</a>
-      <a href="#products">Sản phẩm</a>
-      <a href="{% url 'store:map_page' %}">Cửa hàng</a>
-    </nav>
-
-      <div class="header-actions">
-        <a href="{% url 'store:map_page' %}" class="btnFind">Tìm cửa hàng</a>
-        <a href="{% url 'store:cart' %}" class="btn btnWhite mini">{{ t.cart|default:"Giỏ hàng" }}{% if cart_total_quantity %} ({{ cart_total_quantity }}){% endif %}</a>
-        {% if request.user.is_authenticated %}
-          {% if show_admin_link %}
-            <a href="{% url 'store:admin_dashboard' %}" class="btn btnWhite mini">Admin</a>
-          {% else %}
-            <a href="{% url 'store:user_dashboard' %}" class="btn btnWhite mini">Tài khoản</a>
-          {% endif %}
-        {% else %}
-          <a href="{% url 'store:user_login' %}" class="btn btnWhite mini">{{ t.login|default:"Đăng nhập" }}</a>
-        {% endif %}
-      </div>
-  </div>
-</header>
+{% include 'shared/navbar.html' %}
 
 <!-- ================= HERO ================= -->
 <section class="hero">
@@ -708,11 +715,18 @@
     {% for product in featured_products %}
       <div class="product-card">
         <a href="{% url 'store:product_detail' product.pk %}" style="display:block;">
-          {% if product.hinh_anh %}
-            <img src="{{ product.hinh_anh.url }}" alt="{{ product.ten }}">
-          {% else %}
-            <img src="https://www.circlek.com/sites/default/files/2024-03/our_products_920x575.jpg" alt="{{ product.ten }}">
-          {% endif %}
+          <div class="product-media" data-product-gallery>
+            {% for image_url in product.card_gallery %}
+              <img src="{{ image_url }}" alt="{{ product.ten }}" class="{% if forloop.first %}is-active{% endif %}">
+            {% endfor %}
+            {% if product.card_gallery|length > 1 %}
+              <div class="product-media-dots">
+                {% for image_url in product.card_gallery %}
+                  <span class="{% if forloop.first %}is-active{% endif %}"></span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
         </a>
         <div class="product-info">
           <h3><a href="{% url 'store:product_detail' product.pk %}" style="text-decoration:none;color:inherit;">{{ product.ten }}</a></h3>
@@ -757,7 +771,7 @@
   <div style="max-width:980px;margin:0 auto;padding:0 20px;">
     <div class="panel" style="padding:32px; text-align:center; background:linear-gradient(135deg,#fff 0%,#fff8f8 100%);">
       <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(227,28,35,.08);color:#b91c1c;font-weight:900;">
-        🗺️ Trang tìm cửa hàng riêng
+        Trang tìm cửa hàng riêng
       </div>
       <h3 style="margin:18px 0 10px;font-size:32px;line-height:1.2;">Tìm cửa hàng gần bạn trên bản đồ tương tác</h3>
       <p style="max-width:760px;margin:0 auto 22px;color:#475569;font-size:17px;line-height:1.7;">
@@ -894,12 +908,12 @@ async function fetchJSON(url){
     if(!res.ok || data.ok === false){
       setStatus(data.error || `HTTP ${res.status}`, false);
     }else{
-      setStatus(data.message || "OK ✅", true);
+      setStatus(data.message || "OK", true);
     }
     return {res, data};
   }catch(e){
     showJSON({ok:false, error:String(e)});
-    setStatus("Lỗi mạng/Fetch ❌", false);
+    setStatus("Lỗi mạng/Fetch", false);
     return {res:null, data:null};
   }
 }
@@ -919,12 +933,12 @@ async function postJSON(url, body){
     if(!res.ok || data.ok === false){
       setStatus(data.error || `HTTP ${res.status}`, false);
     }else{
-      setStatus(data.message || "OK ✅", true);
+      setStatus(data.message || "OK", true);
     }
     return {res, data};
   }catch(e){
     showJSON({ok:false, error:String(e)});
-    setStatus("Lỗi mạng/Fetch ❌", false);
+    setStatus("Lỗi mạng/Fetch", false);
     return {res:null, data:null};
   }
 }
@@ -1020,8 +1034,8 @@ function openStorePopup(s){
     <small style="color:#2563eb">${esc(openStatusText(s))}</small><br/>
     <small style="color:#64748b">${esc(distanceText(s))}</small><br/>
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btnWhite mini" onclick="routeToStore(${s.lat},${s.lng},'${esc(s.name||"Store")}')">🧭 Chỉ đường</button>
-      <button class="btn btnWhite mini" onclick="toggleFav(${s.id})">⭐ Yêu thích</button>
+      <button class="btn btnWhite mini" onclick="routeToStore(${s.lat},${s.lng},'${esc(s.name||"Store")}')">Chỉ đường</button>
+      <button class="btn btnWhite mini" onclick="toggleFav(${s.id})">Yêu thích</button>
     </div>
   `;
   L.popup({maxWidth:360})
@@ -1063,7 +1077,7 @@ window.routeToStore = function(lat, lng, name){
               </div>`;
     }).join("");
 
-    showDirections(`${km} km • ${min} phút`, inst || `<div style="color:#64748b;font-weight:900">Không có hướng dẫn chi tiết.</div>`);
+    showDirections(`${km} km ? ${min} phút`, inst || `<div style="color:#64748b;font-weight:900">Không có hướng dẫn chi tiết.</div>`);
   });
 
   routingControl.on("routingerror", ()=>{
@@ -1084,7 +1098,7 @@ map.on("click", async (e)=>{
     setUser(lat, lng, data.display_address);
     qInput.value = data.display_address;
   }else{
-    setUser(lat, lng, "Không lấy được địa chỉ — dùng tọa độ");
+    setUser(lat, lng, "Không lấy được địa chỉ ? dùng tọa độ");
     qInput.value = `${lat},${lng}`;
   }
   if (PICK_MODE) {
@@ -1115,7 +1129,7 @@ window.toggleFav = function(id){
   const exists = favs.includes(id);
   const next = exists ? favs.filter(x=>x!==id) : [...favs, id];
   saveFavs(next);
-  setStatus(exists ? "Đã bỏ yêu thích." : "Đã thêm yêu thích ⭐", true);
+  setStatus(exists ? "Đã bỏ yêu thích." : "Đã thêm yêu thích.", true);
 };
 
 function addHistory(item){
@@ -1147,14 +1161,14 @@ function renderList(arr){
     const isFav = favs.includes(s.id);
 
     div.innerHTML = `
-      <b>${esc(s.name || "Store")} ${isFav ? "⭐" : ""}</b>
+      <b>${esc(s.name || "Store")} ${isFav ? "?" : ""}</b>
       <small>${esc(s.address_db || "")}</small>
-      <small>Quận: <b>${esc(s.district || "")}</b> • ${distTxt ? `<b>${esc(distTxt)}</b>` : ""}</small>
+      <small>Quận: <b>${esc(s.district || "")}</b> ? ${distTxt ? `<b>${esc(distTxt)}</b>` : ""}</small>
       <small><b>${esc(openStatusText(s))}</b></small>
       <div class="actions">
-        <button class="btn btnWhite mini" data-act="fly">📌 Xem</button>
-        <button class="btn btnWhite mini" data-act="route">🧭 Chỉ đường</button>
-        <button class="btn btnWhite mini" data-act="fav">⭐ Yêu thích</button>
+        <button class="btn btnWhite mini" data-act="fly">Xem</button>
+        <button class="btn btnWhite mini" data-act="route">Chỉ đường</button>
+        <button class="btn btnWhite mini" data-act="fav">Yêu thích</button>
       </div>
     `;
 
@@ -1226,7 +1240,7 @@ function sortByNearest(){
     return da - db;
   });
   renderList(STORES_VIEW);
-  setStatus("Đã sắp xếp gần nhất ✅", true);
+  setStatus("Đã sắp xếp gần nhất.", true);
 }
 
 async function enrichWithRoadMetrics(items){
@@ -1320,7 +1334,7 @@ async function loadInBounds(){
   await enrichWithRoadMetrics(STORES);
   lastNearbyItems = [];
   applyFilter();
-  setStatus(`Đã tải ${STORES.length} cửa hàng trong khung bản đồ ✅`, true);
+  setStatus(`Đã tải ${STORES.length} cửa hàng trong khung bản đồ.`, true);
 }
 
 async function searchStoreDBFirst(){
@@ -1355,7 +1369,7 @@ async function searchStoreDBFirst(){
   const bounds = L.latLngBounds(items.map(s=>[s.lat, s.lng]));
   map.fitBounds(bounds.pad(0.25));
 
-  setStatus(`Tìm DB: ${items.length} kết quả ✅`, true);
+  setStatus(`Tìm DB: ${items.length} kết quả.`, true);
   return true;
 }
 
@@ -1520,7 +1534,7 @@ document.getElementById("btnSearch").onclick = async ()=>{
 
 document.getElementById("btnMyLoc").onclick = ()=>{
   if(!navigator.geolocation){
-    setStatus("Trình duyệt không hỗ trợ Geolocation ❌", false);
+    setStatus("Trình duyệt không hỗ trợ Geolocation.", false);
     return;
   }
   setStatus("Đang truy cập vị trí...");
@@ -1546,7 +1560,7 @@ document.getElementById("btnMyLoc").onclick = ()=>{
       if(err.code === 1) msg = "Bạn đã từ chối quyền vị trí.";
       else if(err.code === 2) msg = "Không xác định được vị trí.";
       else if(err.code === 3) msg = "Lấy vị trí bị timeout.";
-      setStatus("❌ " + msg + " (Bạn có thể click bản đồ để chọn vị trí)", false);
+      setStatus(msg + " (Bạn có thể click bản đồ để chọn vị trí)", false);
     },
     {enableHighAccuracy:true, timeout:10000, maximumAge:0}
   );
@@ -1618,7 +1632,7 @@ document.getElementById("btnExport").onclick = ()=>{
   a.download = `export_${ACTIVE_BRAND.toLowerCase()}_${Date.now()}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
-  setStatus("Đã export CSV ✅", true);
+  setStatus("Đã export CSV.", true);
 };
 
 document.getElementById("btnFav").onclick = ()=>{
@@ -1635,7 +1649,7 @@ document.getElementById("btnFav").onclick = ()=>{
   STORES_VIEW = favList;
   renderList(STORES_VIEW);
   renderMarkers(STORES_VIEW);
-  setStatus(`Đang xem Favorites (${STORES_VIEW.length}) ⭐`, true);
+  setStatus(`Đang xem Favorites (${STORES_VIEW.length}).`, true);
 };
 
 document.getElementById("btnHistory").onclick = ()=>{
@@ -1698,7 +1712,26 @@ if (initialQuery) {
     }
   }, 100);
 }
+
+document.querySelectorAll("[data-product-gallery]").forEach((gallery) => {
+  const images = Array.from(gallery.querySelectorAll("img"));
+  const dots = Array.from(gallery.querySelectorAll(".product-media-dots span"));
+  if (images.length < 2) return;
+  let index = 0;
+  window.setInterval(() => {
+    images[index].classList.remove("is-active");
+    if (dots[index]) dots[index].classList.remove("is-active");
+    index = (index + 1) % images.length;
+    images[index].classList.add("is-active");
+    if (dots[index]) dots[index].classList.add("is-active");
+  }, 1700);
+});
+
+if (window.location.hash === "#products") {
+  window.location.replace("{% url 'store:product_catalog' %}");
 }
 </script>
 </body>
 </html>
+
+
