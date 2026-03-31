@@ -134,7 +134,7 @@ def _normalize_brand(raw: str) -> str:
     up = (raw or "").strip().upper()
     if up in ALIASES:
         return up
-    # contains alias anywhere (fix: "GS25 Nguyá»…n TrÃ£i" váº«n nháº­n ra GS25)
+    # Match alias xuất hiện ở bất kỳ vị trí nào (vd: "GS25 Nguyễn Trãi" vẫn nhận ra GS25).
     for key, arr in ALIASES.items():
         for a in arr:
             if a.upper() in up:
@@ -144,8 +144,8 @@ def _normalize_brand(raw: str) -> str:
 
 def _brand_q(brand_key: str):
     """
-    DB cá»§a báº¡n: CuaHang.chuoi (FK) -> ChuoiCuaHang.ten
-    Báº¡n Ä‘Ã£ chuáº©n hÃ³a: 'CIRCLEK', 'GS25'
+    DB của bạn: CuaHang.chuoi (FK) -> ChuoiCuaHang.ten
+    Bạn đã chuẩn hóa: 'CIRCLEK', 'GS25'
     """
     if not brand_key:
         return Q()

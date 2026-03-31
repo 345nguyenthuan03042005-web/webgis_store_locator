@@ -1,158 +1,128 @@
-﻿{% extends "admin/base_site.html" %}
-{% load i18n admin_urls admin_list %}
-
+{% extends "admin/base.html" %}
+{% block title %}{{ model_name }}{% endblock %}
+{% block page_title %}{{ t.manage|default:"Quản lý" }} {{ model_name }}{% endblock %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap:10px;">
-  <div>
-    <h4 class="mb-0">
-      {% if cl.opts.app_label == 'auth' and cl.opts.model_name == 'group' %}
-        Nhóm quyền
-      {% elif cl.opts.app_label == 'auth' and cl.opts.model_name == 'user' %}
-        Người dùng
-      {% else %}
-        {{ cl.opts.verbose_name_plural|capfirst }}
-      {% endif %}
-    </h4>
-    <small class="text-muted">{{ cl.result_count }} bản ghi</small>
-  </div>
+  <section class="panel card toolbar-card" style="margin-bottom:14px; display:flex; gap:10px; flex-wrap:nowrap; align-items:center; justify-content:flex-start;">
+    <form method="get" class="search-box" style="flex:1; min-width:220px; margin:0; display:flex; gap:10px; flex-wrap:nowrap; align-items:center;">
+      <input type="text" name="q" value="{{ query }}" placeholder="{{ t.search_placeholder|default:'Tìm theo nội dung...' }}" style="flex:1; min-width:220px; height:44px;">
+      <button class="btn btn-light" type="submit" style="height:44px;">Lọc</button>
 
-  <div class="d-flex align-items-center" style="gap:10px;">
-    <button type="button" id="btn-bulk-delete" class="btn btn-danger btn-sm text-white">
-      <i class="mdi mdi-delete"></i> Xóa đã chọn
-    </button>
-    {% if has_add_permission %}
-      <a class="btn btn-primary btn-sm text-white btn-add-new" href="{% url cl.opts|admin_urlname:'add' %}">
-        <i class="mdi mdi-plus"></i> Thêm mới
-      </a>
-    {% endif %}
-  </div>
-</div>
-
-{% if cl.search_fields %}
-<form method="get" class="mb-3">
-  <div class="input-group">
-    <input class="form-control" type="text" name="{{ search_var }}" value="{{ cl.query }}" placeholder="Tìm kiếm...">
-    <div class="input-group-append">
-      <button class="btn btn-outline-secondary" type="submit">
-        <i class="mdi mdi-magnify"></i>
-      </button>
-    </div>
-  </div>
-
-  {% for k, v in cl.params.items %}
-    {% if k != search_var %}
-      <input type="hidden" name="{{ k }}" value="{{ v }}">
-    {% endif %}
-  {% endfor %}
-</form>
-{% endif %}
-
-<div class="row">
-  {% if cl.has_filters %}
-  <div class="col-lg-3 mb-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Bộ lọc</h5>
-        {% for spec in cl.filter_specs %}
-          <div class="mb-3">
-            <div class="text-muted mb-1">{{ spec.title }}</div>
-            {% admin_list_filter cl spec %}
+      {% for facet in facet_filters %}
+        <div class="dd dd-filter" data-filter-dropdown style="width:260px;">
+          <button class="dd-trigger" type="button">
+            {{ facet.label }}
+            {% if facet.selected_count %}<span class="dd-count">{{ facet.selected_count }}</span>{% endif %}
+          </button>
+          <div class="dd-menu">
+            <div class="dd-search">
+              <input type="text" placeholder="Tìm trong danh sách..." data-dd-search>
+            </div>
+            <div class="dd-list" data-dd-list>
+              {% for option in facet.options %}
+                <label class="dd-option">
+                  <input type="checkbox" name="{{ facet.param }}" value="{{ option.value }}" {% if option.selected %}checked{% endif %}>
+                  <span>{{ option.label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+            <div class="dd-actions">
+              <button type="submit" class="btn btn-primary">Áp dụng</button>
+              <a class="btn btn-light" href="{% url 'store:admin_list' model_slug %}">Xóa lọc</a>
+            </div>
           </div>
+        </div>
+      {% endfor %}
+
+      {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+    </form>
+    {% if show_create|default:True %}
+      <a class="btn btn-primary" href="{% url 'store:admin_create' model_slug %}">{{ t.add_new|default:"Thêm mới" }}</a>
+    {% endif %}
+  </section>
+
+  <section class="panel card table-wrap {% if model_slug == 'don-hang' %}order-table-wrap{% endif %}">
+    <table class="table table-striped table-hover {% if model_slug == 'don-hang' %}order-table{% endif %}">
+      <thead>
+        <tr>
+          <th>ID</th>
+          {% for field in fields %}
+            <th>{{ field.verbose_name }}</th>
+          {% endfor %}
+          <th class="action-col-head"><span class="action-head-inner">{{ t.actions|default:"Thao tác" }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>{{ row.object.pk }}</td>
+            {% for value in row.values %}
+              <td class="{% if value.type == 'bool' %}bool-col{% endif %} {% if value.type == 'status' %}status-col{% endif %} {% if value.type == 'money' %}money-col{% endif %}">
+                {% if value.type == "image" %}
+                  <a href="{{ value.url }}" target="_blank" rel="noopener">
+                    <img class="avatar" src="{{ value.url }}" alt="{{ value.text }}">
+                  </a>
+                {% elif value.type == "bool" %}
+                  <span class="bool-cell">
+                    {% if value.value %}
+                      <span class="bool-badge is-true" title="Có">✓</span>
+                    {% else %}
+                      <span class="bool-badge is-false" title="Không">✗</span>
+                    {% endif %}
+                  </span>
+                {% elif value.type == "money" %}
+                  <strong>{{ value.text }}</strong>
+                {% elif value.type == "status" %}
+                  <span class="chip {% if value.value == 'pending' %}chip-warn{% elif value.value == 'confirmed' %}chip-info{% elif value.value == 'shipping' %}chip-info{% elif value.value == 'delivered' or value.value == 'done' %}chip-success{% elif value.value == 'cancelled' %}chip-danger{% endif %}">{{ value.text }}</span>
+                {% else %}
+                  {{ value.text|truncatechars:120 }}
+                {% endif %}
+              </td>
+            {% endfor %}
+            <td class="action-col">
+              <div class="action-buttons">
+                {% if model_slug == 'trash' %}
+                  <a class="btn btn-primary" href="{{ row.restore_url }}">{{ t.restore|default:"Khôi phục" }}</a>
+                  <a class="btn btn-danger" href="{{ row.delete_url }}">{{ t.delete_permanently|default:"Xóa hẳn" }}</a>
+                {% else %}
+                  {% if row.status_actions %}
+                    {% for action in row.status_actions %}
+                      <a class="btn btn-light" href="{% url 'store:admin_order_status_action' row.object.pk action.value %}?{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ page_obj.number }}">{{ action.label }}</a>
+                    {% endfor %}
+                  {% endif %}
+                  <a class="btn btn-ghost btn-icon" href="{% url 'store:admin_update' model_slug row.object.pk %}" title="{{ t.edit|default:'Sửa' }}" aria-label="{{ t.edit|default:'Sửa' }}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25Zm2.92 2.33H5v-.92l9.06-9.06.92.92L5.92 19.58ZM20.71 6.04a1 1 0 0 0 0-1.41L19.37 3.29a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75 1.13-1.13Z"/></svg>
+                  </a>
+                  <a class="btn btn-danger btn-icon" href="{% url 'store:admin_delete' model_slug row.object.pk %}" title="{{ t.delete|default:'Xóa' }}" aria-label="{{ t.delete|default:'Xóa' }}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z"/></svg>
+                  </a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="99">{{ t.no_data|default:"Chưa có dữ liệu." }}</td>
+          </tr>
         {% endfor %}
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-9">
-  {% else %}
-  <div class="col-12">
+      </tbody>
+    </table>
+  </section>
+
+  {% if paginator.num_pages > 1 %}
+    <section class="panel card pagination">
+      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?{% if persisted_query %}{{ persisted_query }}&{% endif %}page=1{% else %}#{% endif %}" aria-label="First">«</a>
+      <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ page_obj.previous_page_number }}{% else %}#{% endif %}" aria-label="Previous">‹</a>
+
+      {% for p in paginator.page_range %}
+        {% if p == 1 or p == paginator.num_pages %}
+          <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ p }}">{{ p }}</a>
+        {% elif p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
+          <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ p }}">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+
+      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ page_obj.next_page_number }}{% else %}#{% endif %}" aria-label="Next">›</a>
+      <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ paginator.num_pages }}{% else %}#{% endif %}" aria-label="Last">»</a>
+    </section>
   {% endif %}
-
-    <div class="table-responsive">
-      <form id="changelist-form" method="post" novalidate>
-        {% csrf_token %}
-        {% if cl.formset %}{{ cl.formset.management_form }}{% endif %}
-        {% result_list cl %}
-      </form>
-    </div>
-
-    <div class="mt-3">
-      {% pagination cl %}
-    </div>
-
-  </div>
-</div>
-
-<script>
-  (function () {
-    var deleteBtn = document.getElementById("btn-bulk-delete");
-    var form = document.getElementById("changelist-form");
-    if (!deleteBtn || !form) return;
-
-    var headerToggle =
-      form.querySelector('input#action-toggle') ||
-      form.querySelector('thead input[type="checkbox"]');
-
-    function rowCheckboxes() {
-      return form.querySelectorAll('input.action-select, input[name="_selected_action"]');
-    }
-
-    function syncHeaderState() {
-      if (!headerToggle) return;
-      var boxes = rowCheckboxes();
-      if (!boxes.length) {
-        headerToggle.checked = false;
-        headerToggle.indeterminate = false;
-        return;
-      }
-      var checked = 0;
-      boxes.forEach(function (cb) {
-        if (cb.checked) checked += 1;
-      });
-      headerToggle.checked = checked === boxes.length;
-      headerToggle.indeterminate = checked > 0 && checked < boxes.length;
-    }
-
-    if (headerToggle) {
-      headerToggle.addEventListener("change", function () {
-        var checked = !!headerToggle.checked;
-        rowCheckboxes().forEach(function (cb) {
-          cb.checked = checked;
-        });
-        syncHeaderState();
-      });
-    }
-
-    rowCheckboxes().forEach(function (cb) {
-      cb.addEventListener("change", syncHeaderState);
-    });
-    syncHeaderState();
-
-    function setHidden(name, value) {
-      var input = form.querySelector('input[name="' + name + '"]');
-      if (!input) {
-        input = document.createElement("input");
-        input.type = "hidden";
-        input.name = name;
-        form.appendChild(input);
-      }
-      input.value = value;
-    }
-
-    deleteBtn.addEventListener("click", function () {
-      var checked = form.querySelectorAll('input.action-select:checked, input[name="_selected_action"]:checked');
-      if (!checked.length) {
-        alert("Vui lòng chọn ít nhất 1 dòng để xóa.");
-        return;
-      }
-
-      if (!confirm("Bạn có chắc muốn xóa các dòng đã chọn?")) {
-        return;
-      }
-
-      setHidden("action", "delete_selected");
-      setHidden("select_across", "0");
-      form.submit();
-    });
-  })();
-</script>
 {% endblock %}

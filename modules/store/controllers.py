@@ -2,15 +2,47 @@
 
 
 def home(request):
-    return render(request, "store/home.html")
+    featured_products = list(SanPham.objects.order_by("ten")[:8])
+    for product in featured_products:
+        product.display_price = _format_currency(product.gia_ban)
+    return render(
+        request,
+        "store/home.html",
+        {
+            "featured_products": featured_products,
+            "cart_total_quantity": _cart_items(request)[1],
+            **_admin_pref_context(request),
+        },
+    )
 
 
 def store_list_page(request):
-    return render(request, "store/store_list.html")
+    pref = _admin_pref_context(request)
+    qs = CuaHang.objects.select_related("chuoi").order_by("ten")
+    paginator = Paginator(qs, 12)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    return render(
+        request,
+        "store/store_list.html",
+        {
+            "stores": page_obj.object_list,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "cart_total_quantity": _cart_items(request)[1],
+            **pref,
+        },
+    )
 
 
 def map_page(request):
-    return render(request, "store/map.html")
+    return render(
+        request,
+        "store/map.html",
+        {
+            "cart_total_quantity": _cart_items(request)[1],
+            **_admin_pref_context(request),
+        },
+    )
 
 
 INFO_PAGES = {
@@ -333,6 +365,7 @@ def _news_entries():
 
 
 def info_page(request, slug):
+    pref = _admin_pref_context(request)
     page = INFO_PAGES.get(slug)
     if not page:
         return render(
@@ -346,6 +379,7 @@ def info_page(request, slug):
                 "sections": [],
                 "hero_image": "https://images.unsplash.com/photo-1585238342024-78d387f4a707?auto=format&fit=crop&w=1400&q=80",
                 "is_not_found": True,
+                **pref,
             },
         )
 
@@ -370,10 +404,12 @@ def info_page(request, slug):
         featured_news, news_items = _news_entries()
         context["featured_news"] = featured_news
         context["news_items"] = news_items
+    context.update(pref)
     return render(request, "store/info_page.html", context=context)
 
 
 def news_detail(request, slug):
+    pref = _admin_pref_context(request)
     featured_news, news_items = _news_entries()
     all_news = [featured_news] + news_items
     article = next((n for n in all_news if n.get("slug") == slug), None)
@@ -388,6 +424,7 @@ def news_detail(request, slug):
                 "article": None,
                 "related_news": all_news[:6],
                 "is_not_found": True,
+                **pref,
             },
         )
 
@@ -412,5 +449,2302 @@ def news_detail(request, slug):
             "article": article_data,
             "related_news": related_news,
             "page_slug": "tin-tuc-su-kien",
+            **pref,
         },
     )
+
+
+# CMS Section
+import json
+import os
+import re
+from urllib.parse import urlencode
+from datetime import timedelta
+from decimal import Decimal
+
+from django.apps import apps
+from django.contrib import messages
+from django.contrib.auth import get_user_model, login, logout, update_session_auth_hash
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, SetPasswordForm, UserCreationForm
+from django.contrib.auth.models import Group
+from django.contrib.auth.views import LoginView
+from django.conf import settings
+from django.core.mail import send_mail, get_connection
+from django.core.paginator import Paginator
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db import models as dj_models
+from django.db.models import Q
+from django.forms import modelform_factory
+from django.forms.models import model_to_dict
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
+
+from .models import (
+    ChiTietDonHang,
+    DonHang,
+    GopYKhachHang,
+    HoSoKhachHang,
+    Notification,
+    TrashRecord,
+    ChuoiCuaHang,
+    CuaHang,
+    KhuyenMai,
+    NhaCungCap,
+    NhanVien,
+    NhomSanPham,
+    SanPham,
+    ThuongHieu,
+)
+
+
+MODEL_REGISTRY = {
+    "thuong-hieu": ThuongHieu,
+    "nha-cung-cap": NhaCungCap,
+    "nhom-san-pham": NhomSanPham,
+    "san-pham": SanPham,
+    "chuoi-cua-hang": ChuoiCuaHang,
+    "cua-hang": CuaHang,
+    "nhan-vien": NhanVien,
+    "khuyen-mai": KhuyenMai,
+    "gop-y-khach-hang": GopYKhachHang,
+    "ho-so-khach-hang": HoSoKhachHang,
+    "don-hang": DonHang,
+    "chi-tiet-don-hang": ChiTietDonHang,
+}
+
+User = get_user_model()
+ROLE_ADMIN = "Admin"
+ROLE_USER = "User"
+ROLE_CHOICES = (
+    (ROLE_ADMIN, "Admin"),
+    (ROLE_USER, "User"),
+)
+
+MODULE_LABELS = {
+    "thuong-hieu": {"vi_singular": "Thương hiệu", "vi_plural": "Thương hiệu", "en_singular": "Brand", "en_plural": "Brands"},
+    "nha-cung-cap": {"vi_singular": "Nhà cung cấp", "vi_plural": "Nhà cung cấp", "en_singular": "Supplier", "en_plural": "Suppliers"},
+    "nhom-san-pham": {"vi_singular": "Nhóm sản phẩm", "vi_plural": "Nhóm sản phẩm", "en_singular": "Product Group", "en_plural": "Product Groups"},
+    "san-pham": {"vi_singular": "Sản phẩm", "vi_plural": "Sản phẩm", "en_singular": "Product", "en_plural": "Products"},
+    "chuoi-cua-hang": {"vi_singular": "Chuỗi cửa hàng", "vi_plural": "Chuỗi cửa hàng", "en_singular": "Store Chain", "en_plural": "Store Chains"},
+    "cua-hang": {"vi_singular": "Cửa hàng", "vi_plural": "Cửa hàng", "en_singular": "Store", "en_plural": "Stores"},
+    "nhan-vien": {"vi_singular": "Nhân viên", "vi_plural": "Nhân viên", "en_singular": "Employee", "en_plural": "Employees"},
+    "khuyen-mai": {"vi_singular": "Khuyến mãi", "vi_plural": "Khuyến mãi", "en_singular": "Promotion", "en_plural": "Promotions"},
+    "gop-y-khach-hang": {"vi_singular": "Góp ý khách hàng", "vi_plural": "Góp ý khách hàng", "en_singular": "Customer Feedback", "en_plural": "Customer Feedback"},
+    "ho-so-khach-hang": {"vi_singular": "Hồ sơ khách hàng", "vi_plural": "Hồ sơ khách hàng", "en_singular": "Customer Profile", "en_plural": "Customer Profiles"},
+    "don-hang": {"vi_singular": "Đơn hàng", "vi_plural": "Đơn hàng", "en_singular": "Order", "en_plural": "Orders"},
+    "chi-tiet-don-hang": {"vi_singular": "Chi tiết đơn hàng", "vi_plural": "Chi tiết đơn hàng", "en_singular": "Order Item", "en_plural": "Order Items"},
+}
+
+CMS_TRANSLATIONS = {
+    "vi": {
+        "system_settings": "Cài đặt hệ thống",
+        "dashboard": "Tổng quan",
+        "navigation": "Điều hướng",
+        "data": "Dữ liệu",
+        "logout": "Đăng xuất",
+        "add_new": "Thêm mới",
+        "save_changes": "Lưu thay đổi",
+        "back_to_list": "Quay lại danh sách",
+        "search_placeholder": "Tìm theo nội dung...",
+        "actions": "Thao tác",
+        "previous": "Trước",
+        "next": "Sau",
+        "first": "Đầu",
+        "last": "Cuối",
+        "page": "Trang",
+        "no_data": "Chưa có dữ liệu.",
+        "language": "Ngôn ngữ",
+        "theme": "Giao diện",
+        "light_theme": "Nền sáng",
+        "dark_theme": "Nền tối",
+        "vietnamese": "Tiếng Việt",
+        "english": "Tiếng Anh",
+        "save_settings": "Lưu cài đặt",
+        "settings_saved": "Đã lưu cài đặt hệ thống.",
+        "logged_in_as": "Đăng nhập bởi",
+        "internal_cms": "Hệ thống nội bộ",
+        "custom_internal_management": "Hệ thống quản trị nội bộ tự tạo",
+        "manage": "Quản lý",
+        "confirm_delete": "Xác nhận xóa",
+        "you_are_deleting": "Bạn đang xóa một bản ghi của",
+        "confirm_delete_btn": "Xác nhận xóa",
+        "cancel": "Hủy",
+        "total_records": "Tổng bản ghi",
+        "all_modules": "Tất cả module dữ liệu trong hệ thống",
+        "total_modules": "Số module",
+        "module_hint": "Bao gồm danh mục, cửa hàng, nhân viên, khuyến mãi...",
+        "manage_module": "Quản lý",
+        "edit": "Sửa",
+        "delete": "Xóa",
+        "create_prefix": "Thêm",
+        "edit_prefix": "Sửa",
+        "file_current": "Tệp hiện tại",
+        "saved_successfully": "Lưu thành công.",
+        "deleted_successfully": "Xóa thành công.",
+        "no_access": "Tài khoản không có quyền truy cập trang quản trị.",
+        "store_front": "Cửa hàng",
+        "notifications": "Thông báo",
+        "user_management": "Quản lý người dùng",
+        "role": "Vai trò",
+        "admin_role": "Admin",
+        "user_role": "User",
+        "account_status": "Trạng thái",
+        "active": "Hoạt động",
+        "inactive": "Ngưng",
+        "create_user": "Tạo người dùng",
+        "full_name": "Họ tên",
+        "update_role": "Cập nhật quyền",
+        "user_area": "Trang người dùng",
+        "user_portal": "Khu vực người dùng",
+        "welcome_user": "Xin chào",
+        "user_intro": "Trang dành cho tài khoản người dùng đã đăng nhập.",
+        "access_admin": "Vào trang quản trị",
+        "user_login_title": "Đăng nhập người dùng",
+        "user_login_hint": "Tài khoản người dùng sẽ vào trang người dùng. Tài khoản admin sẽ được chuyển sang trang quản trị.",
+        "user_created": "Đã tạo tài khoản mới.",
+        "user_updated": "Đã cập nhật quyền người dùng.",
+        "register": "Đăng ký",
+        "products_page": "Sản phẩm",
+        "cart": "Giỏ hàng",
+        "checkout": "Thanh toán",
+        "my_orders": "Đơn hàng của tôi",
+        "buy_now": "Mua ngay",
+        "add_to_cart": "Thêm vào giỏ",
+        "cart_empty": "Giỏ hàng đang trống.",
+        "continue_shopping": "Tiếp tục mua sắm",
+        "place_order": "Đặt hàng",
+        "receiver_name": "Người nhận",
+        "delivery_address": "Địa chỉ giao hàng",
+        "quantity": "Số lượng",
+        "order_success": "Đã tạo đơn hàng thành công.",
+        "login_to_buy": "Bạn cần đăng nhập tài khoản khách hàng để mua sản phẩm.",
+        "product_added": "Đã thêm sản phẩm vào giỏ hàng.",
+        "cart_updated": "Đã cập nhật giỏ hàng.",
+        "order_status": "Trạng thái đơn",
+        "order_code": "Mã đơn",
+        "order_time": "Thời gian đặt",
+        "product_catalog_intro": "Khách có thể xem hàng tự do, nhưng cần tài khoản để thêm giỏ và đặt mua.",
+        "customer_profile": "Hồ sơ khách hàng",
+        "update_profile": "Cập nhật hồ sơ",
+        "profile_saved": "Đã lưu hồ sơ khách hàng.",
+        "all_statuses": "Tất cả trạng thái",
+        "confirm_order": "Xác nhận đơn",
+        "ship_order": "Bắt đầu giao",
+        "deliver_order": "Đã giao",
+        "complete_order": "Hoàn tất đơn",
+        "cancel_order": "Hủy đơn",
+        "order_status_updated": "Đã cập nhật trạng thái đơn hàng.",
+        "trash": "Thùng rác",
+        "restore": "Khôi phục",
+        "delete_permanently": "Xóa hẳn",
+        "deleted_at": "Thời gian xóa",
+        "expires_at": "Tự xóa sau",
+        "trash_empty": "Thùng rác đang trống.",
+        "unit_price": "Đơn giá",
+        "line_total": "Thành tiền",
+        "total_amount": "Tổng tiền",
+        "featured_products": "Sản phẩm nổi bật",
+        "password_strength": "Độ mạnh mật khẩu",
+        "password_weak": "Yếu",
+        "password_medium": "Trung bình",
+        "password_strong": "Mạnh",
+        "password_hint": "Nên có ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.",
+        "password_too_weak": "Mật khẩu đang quá yếu. Hãy dùng ít nhất 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt.",
+        "change_password": "Đổi mật khẩu",
+        "reset_password": "Đặt lại mật khẩu",
+        "password_updated": "Đã cập nhật mật khẩu.",
+        "current_password": "Mật khẩu hiện tại",
+        "new_password": "Mật khẩu mới",
+        "confirm_password": "Xác nhận mật khẩu",
+        "notification_title": "Thông báo hệ thống",
+        "notification_empty": "Chưa có thông báo.",
+        "support_request": "Yêu cầu hỗ trợ",
+        "retry_request": "Yêu cầu thử lại",
+        "login_title": "Đăng nhập quản trị",
+        "login_only_staff": "Chỉ tài khoản Admin mới được phép truy cập.",
+        "username": "Tài khoản",
+        "password": "Mật khẩu",
+        "login": "Đăng nhập",
+        "cancel": "Hủy",
+        "coord_pick_hint": "Tọa độ chỉ được lấy từ bản đồ.",
+        "pick_on_map": "Chọn trên bản đồ",
+        "coord_saved_from_map": "Đã nhận tọa độ từ bản đồ. Hãy bấm Lưu thay đổi để chốt.",
+        "coord_required_from_map": "Cần chốt tọa độ bằng cách click trên bản đồ trước khi lưu.",
+    },
+    "en": {
+        "system_settings": "System Settings",
+        "dashboard": "Dashboard",
+        "navigation": "Navigation",
+        "data": "Data",
+        "logout": "Log Out",
+        "add_new": "Add New",
+        "save_changes": "Save Changes",
+        "back_to_list": "Back to List",
+        "search_placeholder": "Search by content...",
+        "actions": "Actions",
+        "previous": "Previous",
+        "next": "Next",
+        "first": "First",
+        "last": "Last",
+        "page": "Page",
+        "no_data": "No data yet.",
+        "language": "Language",
+        "theme": "Theme",
+        "light_theme": "Light",
+        "dark_theme": "Dark",
+        "vietnamese": "Vietnamese",
+        "english": "English",
+        "save_settings": "Save Settings",
+        "settings_saved": "System settings saved.",
+        "logged_in_as": "Logged in as",
+        "internal_cms": "Internal System",
+        "custom_internal_management": "Custom internal management system",
+        "manage": "Manage",
+        "confirm_delete": "Confirm Deletion",
+        "you_are_deleting": "You are deleting a record of",
+        "confirm_delete_btn": "Confirm Delete",
+        "cancel": "Cancel",
+        "total_records": "Total Records",
+        "all_modules": "All data modules in the system",
+        "total_modules": "Total Modules",
+        "module_hint": "Including categories, stores, employees, promotions...",
+        "manage_module": "Manage",
+        "edit": "Edit",
+        "delete": "Delete",
+        "create_prefix": "Create",
+        "edit_prefix": "Edit",
+        "file_current": "Current file",
+        "store_front": "Storefront",
+        "notifications": "Notifications",
+        "user_management": "User Management",
+        "role": "Role",
+        "admin_role": "Admin",
+        "user_role": "User",
+        "account_status": "Status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "create_user": "Create User",
+        "full_name": "Full Name",
+        "update_role": "Update Role",
+        "user_area": "User Area",
+        "user_portal": "User Portal",
+        "welcome_user": "Welcome",
+        "user_intro": "This page is for authenticated user accounts.",
+        "access_admin": "Open Admin",
+        "user_login_title": "User Login",
+        "user_login_hint": "Regular users enter the user area. Admin accounts are redirected to the admin panel.",
+        "user_created": "New user created.",
+        "user_updated": "User role updated.",
+        "register": "Register",
+        "products_page": "Products",
+        "cart": "Cart",
+        "checkout": "Checkout",
+        "my_orders": "My Orders",
+        "buy_now": "Buy Now",
+        "add_to_cart": "Add to Cart",
+        "cart_empty": "Your cart is empty.",
+        "continue_shopping": "Continue Shopping",
+        "place_order": "Place Order",
+        "receiver_name": "Receiver",
+        "delivery_address": "Delivery Address",
+        "quantity": "Quantity",
+        "order_success": "Order created successfully.",
+        "login_to_buy": "Please sign in with a customer account before purchasing.",
+        "product_added": "Product added to cart.",
+        "cart_updated": "Cart updated.",
+        "order_status": "Order Status",
+        "order_code": "Order Code",
+        "order_time": "Order Time",
+        "product_catalog_intro": "Visitors can browse products freely, but must sign in to add to cart and checkout.",
+        "customer_profile": "Customer Profile",
+        "update_profile": "Update Profile",
+        "profile_saved": "Customer profile saved.",
+        "all_statuses": "All Statuses",
+        "confirm_order": "Confirm Order",
+        "ship_order": "Start Delivery",
+        "deliver_order": "Delivered",
+        "complete_order": "Complete Order",
+        "cancel_order": "Cancel Order",
+        "order_status_updated": "Order status updated.",
+        "trash": "Trash",
+        "restore": "Restore",
+        "delete_permanently": "Delete permanently",
+        "deleted_at": "Deleted at",
+        "expires_at": "Expires at",
+        "trash_empty": "Trash is empty.",
+        "unit_price": "Unit Price",
+        "line_total": "Line Total",
+        "total_amount": "Total Amount",
+        "featured_products": "Featured Products",
+        "password_strength": "Password Strength",
+        "password_weak": "Weak",
+        "password_medium": "Medium",
+        "password_strong": "Strong",
+        "password_hint": "Use at least 8 characters with uppercase, lowercase, numbers, and special characters.",
+        "password_too_weak": "Password is too weak. Use at least 8 characters with uppercase, lowercase, numbers, and special characters.",
+        "change_password": "Change Password",
+        "reset_password": "Reset Password",
+        "password_updated": "Password updated.",
+        "current_password": "Current Password",
+        "new_password": "New Password",
+        "confirm_password": "Confirm Password",
+        "notification_title": "System Notifications",
+        "notification_empty": "No notifications yet.",
+        "support_request": "Support Request",
+        "retry_request": "Retry Request",
+        "coord_pick_hint": "Coordinates must be selected from the map.",
+        "pick_on_map": "Pick on map",
+        "coord_saved_from_map": "Coordinates received from map. Click Save Changes to confirm.",
+        "coord_required_from_map": "Please pick coordinates on map before saving.",
+    },
+}
+
+FIELD_LABELS = {
+    "en": {
+        "ten": "Name",
+        "ghi_chu": "Notes",
+        "mo_ta": "Description",
+        "nhom_san_pham": "Category",
+        "nha_cung_cap": "Supplier",
+        "thuong_hieu": "Brand",
+        "hinh_anh": "Product Image",
+        "gia_ban": "Price",
+        "logo": "Logo",
+        "chuoi": "Store Chain",
+        "dia_chi": "Address",
+        "quan_huyen": "District",
+        "vi_do": "Latitude (lat)",
+        "kinh_do": "Longitude (lng)",
+        "mo_cua": "Open Time",
+        "dong_cua": "Close Time",
+        "hoat_dong_24h": "Open 24h",
+        "san_pham": "Products",
+        "cua_hang": "Store",
+        "ho_ten": "Full Name",
+        "chuc_vu": "Position",
+        "so_dien_thoai": "Phone",
+        "email": "Email",
+        "avatar": "Avatar",
+        "chu_de": "Subject",
+        "noi_dung": "Feedback Content",
+        "da_phan_hoi": "Responded",
+        "user": "User",
+        "khach_hang": "Customer",
+        "ho_ten_nguoi_nhan": "Receiver",
+        "dia_chi_giao_hang": "Delivery Address",
+        "ghi_chu": "Note",
+        "trang_thai": "Status",
+        "tong_so_luong": "Total Quantity",
+        "tong_tien": "Total Amount",
+        "don_hang": "Order",
+        "so_luong": "Quantity",
+        "don_gia": "Unit Price",
+        "created_at": "Created At",
+    }
+}
+
+
+def _is_admin_user(user):
+    if not user.is_authenticated:
+        return False
+    return _ensure_user_role(user) == ROLE_ADMIN
+
+
+def _is_regular_user(user):
+    return user.is_authenticated and not _is_admin_user(user)
+
+
+def _require_regular_user(request):
+    if _is_regular_user(request.user):
+        return None
+    if _is_admin_user(request.user):
+        return redirect("store:admin_dashboard")
+    return redirect("store:user_login")
+
+
+def _require_customer_account(request):
+    if _is_regular_user(request.user):
+        return None
+    next_url = request.POST.get("next") or request.get_full_path() or reverse("store:product_catalog")
+    if _is_admin_user(request.user):
+        logout(request)
+    login_url = reverse("store:user_login")
+    if next_url:
+        login_url = f"{login_url}?next={next_url}"
+    return redirect(login_url)
+
+
+def _cart_session(request):
+    return request.session.setdefault("cart", {})
+
+
+def _remember_post_login_cart_action(request, product_id, next_url):
+    request.session["post_login_cart_action"] = {
+        "product_id": int(product_id),
+        "next": next_url or reverse("store:cart"),
+    }
+    request.session.modified = True
+
+
+def _resume_post_login_cart_action(request):
+    payload = request.session.pop("post_login_cart_action", None)
+    if not payload:
+        return None
+
+    product_id = payload.get("product_id")
+    if product_id:
+        cart = _cart_session(request)
+        key = str(product_id)
+        cart[key] = int(cart.get(key, 0)) + 1
+        request.session.modified = True
+    return payload.get("next") or reverse("store:cart")
+
+
+def _format_currency(value):
+    try:
+        amount = int(Decimal(value))
+    except Exception:
+        amount = 0
+    return f"{amount:,}".replace(",", ".") + " đ"
+
+
+def _get_customer_profile(user):
+    profile, _ = HoSoKhachHang.objects.get_or_create(user=user)
+    return profile
+
+
+def _purge_expired_trash():
+    TrashRecord.objects.filter(expires_at__lt=timezone.now()).delete()
+
+
+def _move_to_trash(obj):
+    data = model_to_dict(obj)
+    # Ensure file fields are stored as plain paths
+    for field in obj._meta.fields:
+        if field.get_internal_type() in {"ImageField", "FileField"}:
+            value = getattr(obj, field.name)
+            data[field.name] = str(value) if value else ""
+    data = json.loads(json.dumps(data, cls=DjangoJSONEncoder))
+    data.pop("id", None)
+    TrashRecord.objects.create(
+        model_label=obj._meta.label_lower,
+        object_id=str(obj.pk),
+        data=data,
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+
+
+def _model_slug_from_label(label: str) -> str:
+    try:
+        model = apps.get_model(label)
+    except Exception:
+        return label.split(".")[-1]
+    for slug, registered in MODEL_REGISTRY.items():
+        if registered is model:
+            return slug
+    return model._meta.model_name
+
+
+def _trash_display_name(data: dict) -> str:
+    for key in ("ten", "ho_ten", "ho_ten_nguoi_nhan", "username", "email"):
+        value = data.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
+def _send_feedback_emails(feedback):
+    user_subject = "Circle K & GS25 đã nhận góp ý của bạn"
+    user_message = (
+        f"Xin chào {feedback.ho_ten},\n\n"
+        "Chúng tôi đã nhận được góp ý của bạn và sẽ phản hồi sớm nhất có thể.\n\n"
+        f"Chủ đề: {feedback.chu_de}\n"
+        f"Nội dung: {feedback.noi_dung}\n\n"
+        "Cảm ơn bạn đã đồng hành cùng Circle K & GS25."
+    )
+    admin_subject = f"Góp ý mới từ website: {feedback.chu_de}"
+    admin_message = (
+        "Hệ thống vừa ghi nhận một góp ý mới.\n\n"
+        f"Họ tên: {feedback.ho_ten}\n"
+        f"Email: {feedback.email}\n"
+        f"Số điện thoại: {feedback.so_dien_thoai or '-'}\n"
+        f"Chủ đề: {feedback.chu_de}\n"
+        f"Nội dung:\n{feedback.noi_dung}\n"
+    )
+
+    send_mail(
+        user_subject,
+        user_message,
+        settings.DEFAULT_FROM_EMAIL,
+        [feedback.email],
+        fail_silently=False,
+    )
+    send_mail(
+        admin_subject,
+        admin_message,
+        settings.DEFAULT_FROM_EMAIL,
+        [settings.FEEDBACK_NOTIFICATION_EMAIL],
+        fail_silently=False,
+    )
+
+
+def _send_order_confirmation(order, items):
+    customer_email = (order.khach_hang.email or "").strip()
+    if not customer_email:
+        return False
+    created_at = order.created_at or timezone.now()
+    created_text = created_at.strftime("%d/%m/%Y %H:%M")
+    item_lines = []
+    for item in items:
+        line_total = item.get("line_total")
+        if line_total is None:
+            line_total = (item.get("unit_price") or Decimal("0")) * (item.get("quantity") or 0)
+        item_lines.append(
+            f"- {item['product'].ten} x {item['quantity']} = {_format_currency(line_total)}"
+        )
+    items_text = "\n".join(item_lines) if item_lines else "-"
+    subject = f"Xác nhận đơn hàng {order.pk} - Circle K & GS25"
+    message = (
+        f"Xin chào {order.ho_ten_nguoi_nhan},\n\n"
+        "Cảm ơn bạn đã đặt hàng tại Circle K & GS25.\n"
+        f"Mã đơn: {order.pk}\n"
+        f"Thời gian đặt: {created_text}\n"
+        f"Người nhận: {order.ho_ten_nguoi_nhan}\n"
+        f"Số điện thoại: {order.so_dien_thoai}\n"
+        f"Địa chỉ giao hàng: {order.dia_chi_giao_hang}\n"
+        f"Ghi chú: {order.ghi_chu or '-'}\n\n"
+        "Chi tiết đơn hàng:\n"
+        f"{items_text}\n\n"
+        f"Tổng số lượng: {order.tong_so_luong}\n"
+        f"Tổng tiền: {_format_currency(order.tong_tien)}\n\n"
+        "Chúng tôi sẽ liên hệ với bạn để xác nhận và giao hàng sớm nhất.\n"
+        "Trân trọng."
+    )
+    customer_conn = get_connection(
+        host=settings.ORDER_EMAIL_HOST,
+        port=settings.ORDER_EMAIL_PORT,
+        username=settings.ORDER_EMAIL_HOST_USER,
+        password=settings.ORDER_EMAIL_HOST_PASSWORD,
+        use_tls=settings.ORDER_EMAIL_USE_TLS,
+        use_ssl=settings.ORDER_EMAIL_USE_SSL,
+        timeout=settings.EMAIL_TIMEOUT,
+    )
+    send_mail(
+        subject,
+        message,
+        settings.DEFAULT_FROM_EMAIL,
+        [customer_email],
+        fail_silently=False,
+        connection=customer_conn,
+    )
+    return True
+
+
+def _cart_items(request):
+    cart = _cart_session(request)
+    product_ids = [int(pid) for pid in cart.keys() if str(pid).isdigit()]
+    products = {p.pk: p for p in SanPham.objects.filter(pk__in=product_ids)}
+    items = []
+    total_quantity = 0
+    total_amount = Decimal("0")
+    for pid, quantity in cart.items():
+        try:
+            product = products[int(pid)]
+        except Exception:
+            continue
+        qty = max(int(quantity), 0)
+        if qty <= 0:
+            continue
+        unit_price = product.gia_ban or Decimal("0")
+        line_total = unit_price * qty
+        total_quantity += qty
+        total_amount += line_total
+        items.append({"product": product, "quantity": qty, "unit_price": unit_price, "line_total": line_total})
+    return items, total_quantity, total_amount
+
+
+def _ensure_role_groups():
+    admin_group, _ = Group.objects.get_or_create(name=ROLE_ADMIN)
+    user_group, _ = Group.objects.get_or_create(name=ROLE_USER)
+    return {ROLE_ADMIN: admin_group, ROLE_USER: user_group}
+
+
+def _ensure_user_role(user):
+    groups = _ensure_role_groups()
+    if not user or not user.is_authenticated:
+        return None
+
+    target_role = None
+    if user.groups.filter(name=ROLE_ADMIN).exists():
+        target_role = ROLE_ADMIN
+    elif user.groups.filter(name=ROLE_USER).exists():
+        target_role = ROLE_USER
+    elif user.is_superuser or user.is_staff:
+        target_role = ROLE_ADMIN
+    else:
+        target_role = ROLE_USER
+
+    target_group = groups[target_role]
+    needs_group_sync = not user.groups.filter(pk=target_group.pk).exists() or user.groups.exclude(pk=target_group.pk).exists()
+    expected_is_staff = target_role == ROLE_ADMIN
+    needs_staff_sync = user.is_staff != expected_is_staff
+
+    if needs_group_sync:
+        user.groups.set([target_group])
+    if needs_staff_sync:
+        user.is_staff = expected_is_staff
+        user.save(update_fields=["is_staff"])
+
+    return target_role
+
+
+def _get_user_role(user):
+    return _ensure_user_role(user) or ROLE_USER
+
+
+def _sync_user_role(user, role: str):
+    groups = _ensure_role_groups()
+    role = ROLE_ADMIN if role == ROLE_ADMIN else ROLE_USER
+    user.groups.set([groups[role]])
+    user.is_staff = role == ROLE_ADMIN
+    user.save(update_fields=["is_staff"])
+
+
+def _clean_user_email(raw_email: str, exclude_user_id=None):
+    email = (raw_email or "").strip().lower()
+    if not email:
+        return "", None
+
+    try:
+        validate_email(email)
+    except ValidationError:
+        return email, "Email không đúng định dạng."
+
+    query = User.objects.filter(email__iexact=email)
+    if exclude_user_id is not None:
+        query = query.exclude(pk=exclude_user_id)
+    if query.exists():
+        return email, "Email đã tồn tại."
+
+    return email, None
+
+
+def _password_strength(password: str):
+    password = password or ""
+    score = 0
+    if len(password) >= 8:
+        score += 1
+    if len(password) >= 12:
+        score += 1
+    if re.search(r"[A-Z]", password):
+        score += 1
+    if re.search(r"[a-z]", password):
+        score += 1
+    if re.search(r"\d", password):
+        score += 1
+    if re.search(r"[^A-Za-z0-9]", password):
+        score += 1
+
+    if score <= 3:
+        return "weak"
+    if score <= 4:
+        return "medium"
+    return "strong"
+
+
+def _enforce_password_strength(form, pref):
+    password = (
+        form.data.get("new_password1")
+        or form.data.get("password1")
+        or ""
+    )
+    strength = _password_strength(password)
+    if password and strength == "weak":
+        target_field = "new_password1" if "new_password1" in form.fields else "password1"
+        form.add_error(target_field, pref["t"]["password_too_weak"])
+    return strength
+
+
+def _require_admin_user(request):
+    if _is_admin_user(request.user):
+        return None
+    return redirect("store:admin_login")
+
+
+def _resolve_model(model_slug):
+    model = MODEL_REGISTRY.get(model_slug)
+    if model is None:
+        raise Http404("Không tìm thấy model.")
+    return model
+
+
+def _admin_pref_context(request):
+    lang = request.session.get("admin_lang", "vi")
+    if lang not in CMS_TRANSLATIONS:
+        lang = "vi"
+    theme = request.session.get("admin_theme", "light")
+    if theme not in {"light", "dark"}:
+        theme = "light"
+    unread_count = Notification.objects.filter(resolved=False).count()
+    return {
+        "admin_lang": lang,
+        "admin_theme": theme,
+        "admin_unread_notifications": unread_count,
+        "show_admin_link": _is_admin_user(request.user),
+        "t": CMS_TRANSLATIONS[lang],
+    }
+
+def _model_label(model_slug, lang, plural=True):
+    labels = MODULE_LABELS.get(model_slug, {})
+    if lang == "en":
+        return labels.get("en_plural" if plural else "en_singular", model_slug)
+    return labels.get("vi_plural" if plural else "vi_singular", model_slug)
+
+
+def _field_label(field, lang):
+    if lang != "en":
+        return field.verbose_name
+    return FIELD_LABELS.get("en", {}).get(field.name, field.verbose_name)
+
+
+def _menu_context(lang="vi"):
+    menu = []
+    for slug, model in MODEL_REGISTRY.items():
+        menu.append(
+            {
+                "slug": slug,
+                "name": _model_label(slug, lang, plural=True),
+                "count": model.objects.count(),
+            }
+        )
+    return menu
+
+
+def _build_file_preview_context(model, obj=None):
+    previews = {}
+    image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".jfif"}
+    for field in model._meta.fields:
+        if field.get_internal_type() not in {"ImageField", "FileField"}:
+            continue
+        is_image_field = field.get_internal_type() == "ImageField"
+        if obj is None:
+            previews[field.name] = {"url": "", "is_image": is_image_field}
+            continue
+        value = getattr(obj, field.name, None)
+        if value:
+            is_image = is_image_field
+            if not is_image:
+                try:
+                    ext = os.path.splitext(str(value.name))[1].lower()
+                    is_image = ext in image_exts
+                except Exception:
+                    is_image = False
+            try:
+                previews[field.name] = {"url": value.url, "is_image": is_image}
+            except Exception:
+                previews[field.name] = {"url": "", "is_image": is_image}
+        else:
+            previews[field.name] = {"url": "", "is_image": is_image_field}
+    return previews
+
+
+def _sanitize_admin_form(form):
+    # Remove Django's default "---------" empty option labels for select fields.
+    for field in form.fields.values():
+        if hasattr(field, "empty_label") and field.empty_label == "---------":
+            field.empty_label = ""
+        try:
+            choices = list(getattr(field, "choices", []))
+            if choices and choices[0][1] == "---------":
+                choices[0] = (choices[0][0], "")
+                field.choices = choices
+        except Exception:
+            pass
+    return form
+
+
+def _validate_coord_from_map(request, form, instance=None):
+    if not form.is_valid():
+        return False
+
+    source = (request.POST.get("_coord_from_map") or "").strip()
+    lat = form.cleaned_data.get("vi_do")
+    lon = form.cleaned_data.get("kinh_do")
+
+    changed = not bool(instance and instance.pk)
+    if instance and instance.pk and lat is not None and lon is not None:
+        try:
+            old_lat = float(instance.vi_do)
+            old_lon = float(instance.kinh_do)
+            changed = abs(float(lat) - old_lat) > 1e-12 or abs(float(lon) - old_lon) > 1e-12
+        except Exception:
+            changed = True
+
+    if changed and source != "map":
+        pref = _admin_pref_context(request)
+        msg = pref["t"]["coord_required_from_map"]
+        form.add_error("vi_do", msg)
+        form.add_error("kinh_do", msg)
+        return False
+    return True
+
+
+class AdminLoginView(LoginView):
+    template_name = "admin/login.html"
+    authentication_form = AuthenticationForm
+    redirect_authenticated_user = False
+
+    def dispatch(self, request, *args, **kwargs):
+        if _is_admin_user(request.user):
+            return redirect("store:admin_dashboard")
+        if request.user.is_authenticated:
+            # Avoid redirect loop: authenticated but not CMS-authorized users
+            # must be signed out before showing CMS login form.
+            logout(request)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        return reverse("store:admin_dashboard")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        pref = _admin_pref_context(self.request)
+        context.update(pref)
+        return context
+
+    def form_valid(self, form):
+        if not _is_admin_user(form.get_user()):
+            pref = _admin_pref_context(self.request)
+            messages.error(self.request, pref["t"]["no_access"])
+            return self.form_invalid(form)
+        return super().form_valid(form)
+
+
+class UserLoginView(LoginView):
+    template_name = "user/login.html"
+    authentication_form = AuthenticationForm
+    redirect_authenticated_user = False
+
+    def dispatch(self, request, *args, **kwargs):
+        if _is_admin_user(request.user) and not request.GET.get("next"):
+            return redirect("store:admin_dashboard")
+        if _is_regular_user(request.user):
+            next_url = request.GET.get("next")
+            if next_url:
+                return redirect(next_url)
+            return redirect("store:user_dashboard")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        user = self.request.user
+        if _is_admin_user(user):
+            return reverse("store:admin_dashboard")
+        resumed_url = _resume_post_login_cart_action(self.request)
+        if resumed_url:
+            return resumed_url
+        next_url = self.request.POST.get("next") or self.request.GET.get("next")
+        if next_url:
+            return next_url
+        return reverse("store:user_dashboard")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        pref = _admin_pref_context(self.request)
+        context.update(pref)
+        return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        _ensure_user_role(self.request.user)
+        return response
+
+
+def user_register(request):
+    pref = _admin_pref_context(request)
+    form = UserCreationForm()
+    email_value = ""
+    full_name_value = ""
+    password_strength = ""
+
+    if request.user.is_authenticated:
+        if _is_admin_user(request.user):
+            return redirect("store:admin_dashboard")
+        return redirect("store:user_dashboard")
+
+    if request.method == "POST":
+        form = UserCreationForm(request.POST)
+        email_value = (request.POST.get("email") or "").strip()
+        full_name_value = (request.POST.get("full_name") or "").strip()
+        password_strength = _password_strength(request.POST.get("password1") or "")
+        email, email_error = _clean_user_email(email_value)
+        if email_error:
+            form.add_error(None, email_error)
+        if password_strength == "weak":
+            form.add_error("password1", pref["t"]["password_too_weak"])
+        if form.is_valid():
+            user = form.save(commit=False)
+            if full_name_value:
+                parts = full_name_value.split(" ", 1)
+                user.first_name = parts[0]
+                user.last_name = parts[1] if len(parts) > 1 else ""
+            user.email = email
+            user.is_active = True
+            user.save()
+            _sync_user_role(user, ROLE_USER)
+            _get_customer_profile(user)
+            login(request, user)
+            messages.success(request, pref["t"]["user_created"])
+            return redirect("store:user_dashboard")
+
+    return render(
+        request,
+        "user/register.html",
+        {
+            "form": form,
+            "email_value": email_value,
+            "full_name_value": full_name_value,
+            "password_strength_value": password_strength,
+            **pref,
+        },
+    )
+
+
+def admin_logout(request):
+    logout(request)
+    return redirect("store:admin_login")
+
+
+def user_logout(request):
+    logout(request)
+    return redirect("store:user_login")
+
+
+def admin_dashboard(request):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    modules = _menu_context(lang)
+    return render(
+        request,
+        "admin/index.html",
+        {
+            "modules": modules,
+            "total_records": sum(item["count"] for item in modules),
+            **pref,
+        },
+    )
+
+
+def admin_user_password(request, pk):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    user_obj = get_object_or_404(User, pk=pk)
+    form = SetPasswordForm(user=user_obj)
+    password_strength = ""
+
+    if request.method == "POST":
+        form = SetPasswordForm(user=user_obj, data=request.POST)
+        password_strength = _enforce_password_strength(form, pref)
+        if form.is_valid():
+            form.save()
+            messages.success(request, pref["t"]["password_updated"])
+            return redirect("store:admin_user_management")
+
+    return render(
+        request,
+        "admin/password_form.html",
+        {
+            "modules": _menu_context(pref["admin_lang"]),
+            "form": form,
+            "page_heading": f'{pref["t"]["reset_password"]}: {user_obj.username}',
+            "password_strength_value": password_strength,
+            **pref,
+        },
+    )
+
+
+def admin_order_status_action(request, pk, status):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    if status not in {"confirmed", "shipping", "delivered", "done", "cancelled"}:
+        return redirect("store:admin_list", model_slug="don-hang")
+
+    order = get_object_or_404(DonHang, pk=pk)
+    allowed_transitions = {
+        "pending": {"confirmed", "cancelled"},
+        "confirmed": {"shipping", "cancelled"},
+        "shipping": {"delivered", "cancelled"},
+        "delivered": set(),
+        "done": set(),
+        "cancelled": set(),
+    }
+    if status not in allowed_transitions.get(order.trang_thai, set()):
+        redirect_url = reverse("store:admin_list", kwargs={"model_slug": "don-hang"})
+        query = request.GET.urlencode()
+        if query:
+            redirect_url = f"{redirect_url}?{query}"
+        return redirect(redirect_url)
+
+    order.trang_thai = status
+    order.save(update_fields=["trang_thai"])
+    messages.success(request, _admin_pref_context(request)["t"]["order_status_updated"])
+
+    redirect_url = reverse("store:admin_list", kwargs={"model_slug": "don-hang"})
+    query = request.GET.urlencode()
+    if query:
+        redirect_url = f"{redirect_url}?{query}"
+    return redirect(redirect_url)
+
+
+def admin_user_management(request):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    _ensure_role_groups()
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    form = UserCreationForm()
+    create_user_email = ""
+    create_user_full_name = ""
+    create_user_role = ROLE_USER
+    create_user_is_active = True
+    create_user_password_strength = ""
+    query = request.GET.get("q", "").strip()
+    filter_field = request.GET.get("f", "").strip()
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "create_user":
+            form = UserCreationForm(request.POST)
+            create_user_email = (request.POST.get("email") or "").strip()
+            create_user_full_name = (request.POST.get("full_name") or "").strip()
+            create_user_role = request.POST.get("role", ROLE_USER)
+            create_user_is_active = request.POST.get("is_active") == "on"
+            create_user_password_strength = _password_strength(request.POST.get("password1") or "")
+            email, email_error = _clean_user_email(create_user_email)
+            if email_error:
+                form.add_error(None, email_error)
+            if create_user_password_strength == "weak":
+                form.add_error("password1", pref["t"]["password_too_weak"])
+            if form.is_valid():
+                user = form.save(commit=False)
+                if create_user_full_name:
+                    parts = create_user_full_name.split(" ", 1)
+                    user.first_name = parts[0]
+                    user.last_name = parts[1] if len(parts) > 1 else ""
+                user.email = email
+                user.is_active = create_user_is_active
+                user.save()
+                _sync_user_role(user, create_user_role)
+                messages.success(request, pref["t"]["user_created"])
+                return redirect("store:admin_user_management")
+        elif action == "update_role":
+            user = get_object_or_404(User, pk=request.POST.get("user_id"))
+            full_name = (request.POST.get("full_name") or "").strip()
+            email_input = (request.POST.get("email") or "").strip()
+            email, email_error = _clean_user_email(email_input, exclude_user_id=user.pk)
+            if email_error:
+                messages.error(request, f"{user.username}: {email_error}")
+                redirect_url = reverse("store:admin_user_management")
+                query_params = []
+                if query:
+                    query_params.append(f"q={query}")
+                if filter_field:
+                    query_params.append(f"f={filter_field}")
+                if query_params:
+                    redirect_url = f"{redirect_url}?{'&'.join(query_params)}"
+                return redirect(redirect_url)
+
+            if full_name:
+                parts = full_name.split(" ", 1)
+                user.first_name = parts[0]
+                user.last_name = parts[1] if len(parts) > 1 else ""
+            else:
+                user.first_name = ""
+                user.last_name = ""
+            user.email = email
+            if not user.is_superuser:
+                user.is_active = request.POST.get("is_active") == "on"
+                user.save(update_fields=["first_name", "last_name", "email", "is_active"])
+            else:
+                user.save(update_fields=["first_name", "last_name", "email"])
+            _sync_user_role(user, request.POST.get("role", ROLE_USER))
+            messages.success(request, pref["t"]["user_updated"])
+            redirect_url = reverse("store:admin_user_management")
+            query_params = []
+            if query:
+                query_params.append(f"q={query}")
+            if filter_field:
+                query_params.append(f"f={filter_field}")
+            if query_params:
+                redirect_url = f"{redirect_url}?{'&'.join(query_params)}"
+            return redirect(redirect_url)
+
+    user_qs = User.objects.order_by("username")
+    if query:
+        filter_field = filter_field or ""
+        if filter_field == "username":
+            user_qs = user_qs.filter(username__icontains=query)
+        elif filter_field == "email":
+            user_qs = user_qs.filter(email__icontains=query)
+        elif filter_field == "full_name":
+            user_qs = user_qs.filter(Q(first_name__icontains=query) | Q(last_name__icontains=query))
+        elif filter_field == "role":
+            role_value = query.strip().lower()
+            if role_value in {"admin", "administrator"}:
+                role_value = ROLE_ADMIN
+            elif role_value in {"user", "khach", "khách"}:
+                role_value = ROLE_USER
+            user_qs = user_qs.filter(groups__name=role_value)
+        elif filter_field == "status":
+            q_lower = query.strip().lower()
+            truthy = {"1", "true", "yes", "on", "hoat dong", "hoạt động", "active"}
+            falsy = {"0", "false", "no", "off", "ngung", "ngừng", "inactive"}
+            if q_lower in truthy:
+                user_qs = user_qs.filter(is_active=True)
+            elif q_lower in falsy:
+                user_qs = user_qs.filter(is_active=False)
+            else:
+                user_qs = user_qs.none()
+        else:
+            user_qs = user_qs.filter(
+                Q(username__icontains=query)
+                | Q(email__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(last_name__icontains=query)
+            )
+
+    paginator = Paginator(user_qs, 15)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    users = []
+    for user in page_obj.object_list:
+        users.append(
+            {
+                "object": user,
+                "role": _get_user_role(user),
+                "full_name": user.get_full_name().strip() or "-",
+            }
+        )
+
+    return render(
+        request,
+        "admin/user_management.html",
+        {
+            "modules": _menu_context(lang),
+            "create_user_form": form,
+            "create_user_email": create_user_email,
+            "create_user_full_name": create_user_full_name,
+            "create_user_role": create_user_role,
+            "create_user_is_active": create_user_is_active,
+            "create_user_password_strength": create_user_password_strength,
+            "users": users,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "query": query,
+            "filter_field": filter_field,
+            "role_choices": ROLE_CHOICES,
+            **pref,
+        },
+    )
+
+
+def admin_settings(request):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    if request.method == "POST":
+        lang = request.POST.get("language", "vi")
+        theme = request.POST.get("theme", "light")
+        if lang not in CMS_TRANSLATIONS:
+            lang = "vi"
+        if theme not in {"light", "dark"}:
+            theme = "light"
+        request.session["admin_lang"] = lang
+        request.session["admin_theme"] = theme
+        messages.success(request, CMS_TRANSLATIONS[lang]["settings_saved"])
+        return redirect("store:admin_settings")
+
+    pref = _admin_pref_context(request)
+    return render(request, "admin/settings.html", {"modules": _menu_context(pref["admin_lang"]), **pref})
+
+
+def _infer_product_ai_category(product) -> str:
+    group_name = ""
+    try:
+        group_name = (product.nhom_san_pham.ten if product.nhom_san_pham else "") or ""
+    except Exception:
+        group_name = ""
+    text = f"{product.ten} {group_name}".lower()
+    if any(k in text for k in ["nước", "cà phê", "trà", "sữa", "drink", "sting", "aquafina", "coca", "pepsi"]):
+        return "Đồ uống"
+    if any(k in text for k in ["mì", "xôi", "bánh mì", "tokbokki", "sandwich", "cơm", "cháo", "lẩu"]):
+        return "Đồ ăn nhanh"
+    if any(k in text for k in ["snack", "bắp rang", "kẹo", "chip", "ostar"]):
+        return "Ăn vặt"
+    return "Khác"
+
+
+def _strip_parenthetical_text(value):
+    text = "" if value is None else str(value)
+    text = re.sub(r"\s*\([^)]*\)", "", text)
+    return re.sub(r"\s{2,}", " ", text).strip()
+
+
+def _extract_district_from_address(address):
+    text = "" if address is None else str(address).strip()
+    if not text:
+        return ""
+    for chunk in [c.strip() for c in text.split(",") if c.strip()]:
+        low = chunk.lower()
+        if "quận" in low or "huyện" in low or "thủ đức" in low:
+            return chunk
+    return ""
+
+
+def _facet_specs_for_model(model_slug):
+    return {
+        "thuong-hieu": [
+            {"param": "brand", "label": "Thương hiệu", "expr": "ten"},
+        ],
+        "nha-cung-cap": [
+            {"param": "supplier", "label": "Nhà cung cấp", "expr": "ten"},
+        ],
+        "nhom-san-pham": [
+            {"param": "group", "label": "Nhóm sản phẩm", "expr": "ten"},
+        ],
+        "san-pham": [
+            {"param": "group", "label": "Nhóm sản phẩm", "expr": "nhom_san_pham__ten"},
+            {"param": "supplier", "label": "Nhà cung cấp", "expr": "nha_cung_cap__ten"},
+            {"param": "brand", "label": "Thương hiệu", "expr": "thuong_hieu__ten"},
+        ],
+        "chuoi-cua-hang": [
+            {"param": "chain", "label": "Chuỗi cửa hàng", "expr": "ten"},
+        ],
+        "cua-hang": [
+            {"param": "chain", "label": "Chuỗi cửa hàng", "expr": "chuoi__ten"},
+            {"param": "district", "label": "Quận/Huyện", "expr": "quan_huyen"},
+            {"param": "open24", "label": "Hoạt động", "bool_expr": "hoat_dong_24h"},
+        ],
+        "nhan-vien": [
+            {"param": "role", "label": "Chức vụ", "expr": "chuc_vu"},
+            {"param": "store", "label": "Cửa hàng", "expr": "cua_hang__ten"},
+        ],
+        "khuyen-mai": [
+            {"param": "promo", "label": "Khuyến mãi", "expr": "ten"},
+        ],
+        "gop-y-khach-hang": [
+            {"param": "topic", "label": "Chủ đề", "expr": "chu_de"},
+            {"param": "responded", "label": "Đã phản hồi", "bool_expr": "da_phan_hoi"},
+        ],
+        "ho-so-khach-hang": [
+            {"param": "user", "label": "Tài khoản", "expr": "user__username"},
+            {"param": "district", "label": "Quận/Huyện", "custom": "district_from_address", "address_expr": "dia_chi"},
+        ],
+        "don-hang": [],
+        "chi-tiet-don-hang": [
+            {"param": "order", "label": "Đơn hàng", "expr": "don_hang__id"},
+            {"param": "group", "label": "Nhóm sản phẩm", "expr": "san_pham__nhom_san_pham__ten"},
+        ],
+    }.get(model_slug, [])
+
+
+def _build_and_apply_facets(request, model_slug, qs, model):
+    facet_filters = []
+    specs = _facet_specs_for_model(model_slug)
+    if not specs:
+        return qs, facet_filters
+
+    for spec in specs:
+        param = spec["param"]
+        selected = [v for v in request.GET.getlist(param) if str(v).strip()]
+
+        if spec.get("bool_expr"):
+            expr = spec["bool_expr"]
+            options = [
+                {"value": "1", "label": "Có", "selected": "1" in selected},
+                {"value": "0", "label": "Không", "selected": "0" in selected},
+            ]
+            if selected:
+                bool_values = []
+                if "1" in selected:
+                    bool_values.append(True)
+                if "0" in selected:
+                    bool_values.append(False)
+                if bool_values:
+                    qs = qs.filter(**{f"{expr}__in": bool_values})
+            facet_filters.append(
+                {
+                    "param": param,
+                    "label": spec["label"],
+                    "options": options,
+                    "selected_count": len([x for x in selected if x in {"1", "0"}]),
+                }
+            )
+            continue
+
+        if spec.get("custom") == "ai_product_category":
+            all_products = list(model.objects.select_related("nhom_san_pham").all())
+            categories = []
+            by_id = {}
+            for product in all_products:
+                cat = _infer_product_ai_category(product)
+                by_id[product.pk] = cat
+                categories.append(cat)
+            unique_cats = sorted(set(categories))
+            options = [{"value": cat, "label": cat, "selected": cat in selected} for cat in unique_cats]
+            if selected:
+                allowed_ids = [pk for pk, cat in by_id.items() if cat in selected]
+                qs = qs.filter(pk__in=allowed_ids)
+            facet_filters.append(
+                {
+                    "param": param,
+                    "label": spec["label"],
+                    "options": options,
+                    "selected_count": len(selected),
+                }
+            )
+            continue
+
+        if spec.get("custom") == "district_from_address":
+            address_field = spec.get("address_expr")
+            all_rows = list(model.objects.all().only("pk", address_field))
+            district_by_id = {}
+            districts = []
+            for row in all_rows:
+                district = _extract_district_from_address(getattr(row, address_field, ""))
+                district_by_id[row.pk] = district
+                if district:
+                    districts.append(district)
+            unique_districts = sorted(set(districts))
+            options = [{"value": d, "label": d, "selected": d in selected} for d in unique_districts]
+            if selected:
+                allowed_ids = [pk for pk, district in district_by_id.items() if district in selected]
+                qs = qs.filter(pk__in=allowed_ids)
+            facet_filters.append(
+                {
+                    "param": param,
+                    "label": spec["label"],
+                    "options": options,
+                    "selected_count": len(selected),
+                }
+            )
+            continue
+
+        expr = spec["expr"]
+        values = list(
+            model.objects.order_by(expr).values_list(expr, flat=True).distinct()
+        )
+        values = [str(v) for v in values if v not in (None, "")]
+        options = [{"value": v, "label": _strip_parenthetical_text(v), "selected": v in selected} for v in values[:120]]
+        if selected:
+            qs = qs.filter(**{f"{expr}__in": selected})
+        facet_filters.append(
+            {
+                "param": param,
+                "label": spec["label"],
+                "options": options,
+                "selected_count": len(selected),
+            }
+        )
+
+    return qs, facet_filters
+
+
+def admin_list(request, model_slug):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    _purge_expired_trash()
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+
+    model = _resolve_model(model_slug)
+    query = request.GET.get("q", "").strip()
+    filter_field = request.GET.get("f", "").strip()
+    status_filter = request.GET.get("status", "").strip()
+    qs = model.objects.all().order_by("-pk")
+    qs, facet_filters = _build_and_apply_facets(request, model_slug, qs, model)
+    if model_slug == "don-hang" and status_filter in {"pending", "confirmed", "shipping", "delivered", "done", "cancelled"}:
+        if status_filter == "done":
+            qs = qs.filter(trang_thai__in=["done", "delivered"])
+        else:
+            qs = qs.filter(trang_thai=status_filter)
+    if query:
+        valid_fields = {
+            f.name
+            for f in model._meta.fields
+            if f.name != "id" and f.get_internal_type() not in {"ImageField", "FileField"}
+        }
+        if filter_field and filter_field not in valid_fields:
+            filter_field = ""
+        if filter_field:
+            field_obj = model._meta.get_field(filter_field)
+            field_type = field_obj.get_internal_type()
+            if field_type in {"CharField", "TextField", "EmailField", "SlugField"}:
+                qs = qs.filter(**{f"{filter_field}__icontains": query})
+            elif field_type in {
+                "IntegerField",
+                "PositiveIntegerField",
+                "BigIntegerField",
+                "AutoField",
+                "BigAutoField",
+                "SmallIntegerField",
+                "PositiveSmallIntegerField",
+            }:
+                try:
+                    qs = qs.filter(**{filter_field: int(query)})
+                except Exception:
+                    qs = qs.none()
+            elif field_type in {"DecimalField", "FloatField"}:
+                try:
+                    qs = qs.filter(**{filter_field: Decimal(query)})
+                except Exception:
+                    qs = qs.none()
+            elif field_type == "BooleanField":
+                truthy = {"1", "true", "yes", "on", "có", "co"}
+                falsy = {"0", "false", "no", "off", "không", "khong"}
+                q_lower = query.lower()
+                if q_lower in truthy:
+                    qs = qs.filter(**{filter_field: True})
+                elif q_lower in falsy:
+                    qs = qs.filter(**{filter_field: False})
+                else:
+                    qs = qs.none()
+            elif field_type in {"DateField", "DateTimeField"}:
+                dt_value = parse_datetime(query) or parse_date(query)
+                if dt_value:
+                    qs = qs.filter(**{filter_field: dt_value})
+                else:
+                    qs = qs.none()
+            else:
+                qs = qs.none()
+        else:
+            text_fields = [f.name for f in model._meta.fields if f.get_internal_type() in {"CharField", "TextField"}]
+            if text_fields:
+                from django.db.models import Q
+
+                conditions = Q()
+                for field_name in text_fields:
+                    conditions |= Q(**{f"{field_name}__icontains": query})
+                qs = qs.filter(conditions)
+
+    fields = [
+        {"name": f.name, "verbose_name": _field_label(f, lang), "type": f.get_internal_type()}
+        for f in model._meta.fields
+        if f.name != "id"
+    ]
+    filter_fields = [
+        {"name": f["name"], "verbose_name": f["verbose_name"]}
+        for f in fields
+        if f["type"] not in {"ImageField", "FileField"}
+    ]
+    paginator = Paginator(qs, 15)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    persisted_params = []
+    for key in request.GET.keys():
+        if key == "page":
+            continue
+        for value in request.GET.getlist(key):
+            if value != "":
+                persisted_params.append((key, value))
+    persisted_query = urlencode(persisted_params, doseq=True)
+
+    rows = []
+    for item in page_obj.object_list:
+        values = []
+        for field in fields:
+            raw_value = getattr(item, field["name"])
+            field_obj = model._meta.get_field(field["name"])
+            field_type = field_obj.get_internal_type()
+            if field_type in {"ImageField", "FileField"}:
+                if raw_value:
+                    try:
+                        values.append({"type": "image", "url": raw_value.url, "text": str(raw_value)})
+                    except Exception:
+                        values.append({"type": "text", "text": str(raw_value)})
+                else:
+                    values.append({"type": "text", "text": ""})
+            elif field_type == "BooleanField":
+                values.append({"type": "bool", "value": bool(raw_value)})
+            elif field["name"] in {"trang_thai"}:
+                display = str(raw_value)
+                try:
+                    display = getattr(item, f"get_{field['name']}_display")()
+                except Exception:
+                    pass
+                values.append({"type": "status", "value": str(raw_value), "text": display})
+            elif field["name"] in {"gia_ban", "tong_tien", "don_gia"}:
+                values.append({"type": "money", "text": _format_currency(raw_value)})
+            else:
+                values.append({"type": "text", "text": _strip_parenthetical_text(raw_value)})
+        row = {"object": item, "values": values}
+        if model_slug == "don-hang":
+            status_actions = []
+            if item.trang_thai == "pending":
+                status_actions.append({"value": "confirmed", "label": pref["t"]["confirm_order"]})
+                status_actions.append({"value": "cancelled", "label": pref["t"]["cancel_order"]})
+            elif item.trang_thai == "confirmed":
+                status_actions.append({"value": "shipping", "label": pref["t"]["ship_order"]})
+                status_actions.append({"value": "cancelled", "label": pref["t"]["cancel_order"]})
+            elif item.trang_thai == "shipping":
+                status_actions.append({"value": "delivered", "label": pref["t"]["deliver_order"]})
+                status_actions.append({"value": "cancelled", "label": pref["t"]["cancel_order"]})
+            row["status_actions"] = status_actions
+        rows.append(row)
+
+    return render(
+        request,
+        "admin/change_list.html",
+        {
+            "modules": _menu_context(lang),
+            "model_slug": model_slug,
+            "model_name": _model_label(model_slug, lang, plural=True),
+            "fields": fields,
+            "filter_fields": filter_fields,
+            "rows": rows,
+            "query": query,
+            "filter_field": filter_field,
+            "status_filter": status_filter,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "facet_filters": facet_filters,
+            "persisted_query": persisted_query,
+            **pref,
+        },
+    )
+
+
+def admin_create(request, model_slug):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+
+    model = _resolve_model(model_slug)
+    form_cls = modelform_factory(model, fields="__all__")
+    coord_picker_enabled = model_slug == "cua-hang"
+    if request.method == "POST":
+        form = _sanitize_admin_form(form_cls(request.POST, request.FILES))
+        valid = _validate_coord_from_map(request, form) if coord_picker_enabled else form.is_valid()
+        if valid:
+            form.save()
+            messages.success(request, pref["t"]["saved_successfully"])
+            return redirect("store:admin_list", model_slug=model_slug)
+    else:
+        form = _sanitize_admin_form(form_cls())
+
+    return render(
+        request,
+        "admin/change_form.html",
+        {
+            "modules": _menu_context(lang),
+            "form": form,
+            "model_slug": model_slug,
+            "model_name": _model_label(model_slug, lang, plural=False),
+            "mode": "create",
+            "file_previews": _build_file_preview_context(model),
+            "coord_picker_enabled": coord_picker_enabled,
+            **pref,
+        },
+    )
+
+
+def admin_update(request, model_slug, pk):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+
+    model = _resolve_model(model_slug)
+    obj = get_object_or_404(model, pk=pk)
+    form_cls = modelform_factory(model, fields="__all__")
+    coord_picker_enabled = model_slug == "cua-hang"
+
+    if request.method == "POST":
+        form = _sanitize_admin_form(form_cls(request.POST, request.FILES, instance=obj))
+        valid = _validate_coord_from_map(request, form, instance=obj) if coord_picker_enabled else form.is_valid()
+        if valid:
+            form.save()
+            messages.success(request, pref["t"]["saved_successfully"])
+            return redirect("store:admin_list", model_slug=model_slug)
+    else:
+        form = _sanitize_admin_form(form_cls(instance=obj))
+
+    return render(
+        request,
+        "admin/change_form.html",
+        {
+            "modules": _menu_context(lang),
+            "form": form,
+            "model_slug": model_slug,
+            "model_name": _model_label(model_slug, lang, plural=False),
+            "mode": "update",
+            "object": obj,
+            "file_previews": _build_file_preview_context(model, obj),
+            "coord_picker_enabled": coord_picker_enabled,
+            **pref,
+        },
+    )
+
+
+def admin_delete(request, model_slug, pk):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    _purge_expired_trash()
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+
+    model = _resolve_model(model_slug)
+    obj = get_object_or_404(model, pk=pk)
+    if request.method == "POST":
+        _move_to_trash(obj)
+        obj.delete()
+        messages.success(request, pref["t"]["deleted_successfully"])
+        return redirect("store:admin_list", model_slug=model_slug)
+
+    return render(
+        request,
+        "admin/delete_confirmation.html",
+        {
+            "modules": _menu_context(lang),
+            "model_slug": model_slug,
+            "model_name": _model_label(model_slug, lang, plural=False),
+            "object": obj,
+            **pref,
+        },
+    )
+
+
+def admin_trash_list(request):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    _purge_expired_trash()
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    query = request.GET.get("q", "").strip()
+    filter_field = request.GET.get("f", "").strip()
+
+    all_rows = []
+    for item in TrashRecord.objects.all():
+        model_slug = _model_slug_from_label(item.model_label)
+        all_rows.append(
+            {
+                "id": item.pk,
+                "object_id": str(item.object_id),
+                "model_name": _model_label(model_slug, lang, plural=False),
+                "display_name": _trash_display_name(item.data or {}) or "-",
+                "deleted_at": item.deleted_at,
+                "expires_at": item.expires_at,
+            }
+        )
+
+    fields = [
+        {"name": "model_name", "verbose_name": "Module"},
+        {"name": "display_name", "verbose_name": "Tên"},
+        {"name": "deleted_at", "verbose_name": pref["t"]["deleted_at"]},
+        {"name": "expires_at", "verbose_name": pref["t"]["expires_at"]},
+    ]
+
+    valid_fields = {f["name"] for f in fields}
+    if filter_field not in valid_fields:
+        filter_field = ""
+
+    if query and filter_field:
+        q_lower = query.lower()
+        all_rows = [
+            row
+            for row in all_rows
+            if q_lower in str(row.get(filter_field, "")).lower()
+        ]
+    elif query:
+        q_lower = query.lower()
+        all_rows = [
+            row
+            for row in all_rows
+            if any(q_lower in str(row.get(name, "")).lower() for name in valid_fields)
+        ]
+
+    paginator = Paginator(all_rows, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    rows = []
+    for item in page_obj.object_list:
+        values = [
+            {"type": "text", "text": item["model_name"]},
+            {"type": "text", "text": item["display_name"]},
+            {"type": "text", "text": item["deleted_at"].strftime("%d/%m/%Y %H:%M")},
+            {"type": "text", "text": item["expires_at"].strftime("%d/%m/%Y %H:%M")},
+        ]
+        rows.append(
+            {
+                "object": {"pk": item["object_id"]},
+                "values": values,
+                "restore_url": reverse("store:admin_trash_restore", args=[item["id"]]),
+                "delete_url": reverse("store:admin_trash_delete", args=[item["id"]]),
+            }
+        )
+
+    return render(
+        request,
+        "admin/change_list.html",
+        {
+            "modules": _menu_context(lang),
+            "model_slug": "trash",
+            "model_name": pref["t"]["trash"],
+            "fields": fields,
+            "rows": rows,
+            "query": "",
+            "query": query,
+            "filter_field": filter_field,
+            "status_filter": "",
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "show_create": False,
+            **pref,
+        },
+    )
+
+
+def admin_trash_restore(request, pk):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    _purge_expired_trash()
+    pref = _admin_pref_context(request)
+    trash = get_object_or_404(TrashRecord, pk=pk)
+    try:
+        model = apps.get_model(trash.model_label)
+        payload = dict(trash.data or {})
+        normalized = {}
+        for field in model._meta.fields:
+            name = field.name
+            if name not in payload:
+                continue
+            value = payload.get(name)
+            if isinstance(field, dj_models.ForeignKey):
+                if value in ("", None):
+                    if field.null:
+                        normalized[field.attname] = None
+                        continue
+                    raise ValueError("missing_fk")
+                if not field.remote_field.model.objects.filter(pk=value).exists():
+                    if field.null:
+                        normalized[field.attname] = None
+                        continue
+                    raise ValueError("fk_not_found")
+                normalized[field.attname] = value
+                continue
+            field_type = field.get_internal_type()
+            if field_type in {"DateTimeField"} and isinstance(value, str):
+                normalized[name] = parse_datetime(value) or value
+            elif field_type in {"DateField"} and isinstance(value, str):
+                normalized[name] = parse_date(value) or value
+            elif field_type in {"DecimalField"} and value not in (None, ""):
+                normalized[name] = Decimal(str(value))
+            elif field_type in {
+                "IntegerField",
+                "PositiveIntegerField",
+                "BigIntegerField",
+                "AutoField",
+                "BigAutoField",
+                "SmallIntegerField",
+                "PositiveSmallIntegerField",
+            } and value not in (None, ""):
+                normalized[name] = int(value)
+            elif field_type == "BooleanField":
+                if isinstance(value, str):
+                    normalized[name] = value.lower() in {"1", "true", "yes", "on", "có", "co"}
+                else:
+                    normalized[name] = bool(value)
+            else:
+                normalized[name] = value
+
+        pk_value = trash.object_id
+        if pk_value:
+            pk_field = model._meta.pk
+            if pk_field.get_internal_type() in {"AutoField", "BigAutoField", "IntegerField", "PositiveIntegerField"}:
+                try:
+                    pk_value = int(pk_value)
+                except Exception:
+                    pass
+        instance = model(**normalized)
+        if pk_value and not model.objects.filter(pk=pk_value).exists():
+            instance.pk = pk_value
+        instance.save()
+        trash.delete()
+        messages.success(request, pref["t"]["saved_successfully"])
+    except Exception:
+        messages.error(request, "Không thể khôi phục bản ghi. Vui lòng kiểm tra dữ liệu.")
+    return redirect("store:admin_trash")
+
+
+def admin_trash_delete(request, pk):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    _purge_expired_trash()
+    pref = _admin_pref_context(request)
+    trash = get_object_or_404(TrashRecord, pk=pk)
+    trash.delete()
+    messages.success(request, pref["t"]["deleted_successfully"])
+    return redirect("store:admin_trash")
+
+
+def admin_notifications(request):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "delete_selected":
+            ids = [int(i) for i in request.POST.getlist("selected_ids") if str(i).isdigit()]
+            if ids:
+                Notification.objects.filter(pk__in=ids).delete()
+                messages.success(request, pref["t"]["deleted_successfully"])
+            else:
+                messages.warning(request, "Vui lòng chọn ít nhất một thông báo.")
+            return redirect("store:admin_notifications")
+    # mark all as seen when opening notifications
+    Notification.objects.filter(resolved=False).update(resolved=True)
+    qs = Notification.objects.all()
+    paginator = Paginator(qs, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "admin/notifications.html",
+        {
+            "modules": _menu_context(lang),
+            "page_obj": page_obj,
+            "paginator": paginator,
+            **pref,
+        },
+    )
+
+
+def user_dashboard(request):
+    unauthorized = _require_regular_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    profile = _get_customer_profile(request.user)
+    return render(
+        request,
+        "user/dashboard.html",
+        {
+            "role_label": pref["t"]["user_role"],
+            "profile": profile,
+            **pref,
+        },
+    )
+
+
+def user_profile(request):
+    unauthorized = _require_regular_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    profile = _get_customer_profile(request.user)
+
+    if request.method == "POST":
+        full_name = (request.POST.get("full_name") or "").strip()
+        email_input = (request.POST.get("email") or "").strip()
+        phone = (request.POST.get("phone") or "").strip()
+        address = (request.POST.get("address") or "").strip()
+        email, email_error = _clean_user_email(email_input, exclude_user_id=request.user.pk)
+        if email_error:
+            messages.error(request, email_error)
+        else:
+            if full_name:
+                parts = full_name.split(" ", 1)
+                request.user.first_name = parts[0]
+                request.user.last_name = parts[1] if len(parts) > 1 else ""
+            else:
+                request.user.first_name = ""
+                request.user.last_name = ""
+            request.user.email = email
+            request.user.save(update_fields=["first_name", "last_name", "email"])
+            profile.so_dien_thoai = phone
+            profile.dia_chi = address
+            profile.save(update_fields=["so_dien_thoai", "dia_chi"])
+            messages.success(request, pref["t"]["profile_saved"])
+            return redirect("store:user_profile")
+
+    return render(
+        request,
+        "user/profile.html",
+        {
+            "profile": profile,
+            **pref,
+        },
+    )
+
+
+def user_password_change(request):
+    unauthorized = _require_regular_user(request)
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    form = PasswordChangeForm(user=request.user)
+    password_strength = ""
+
+    if request.method == "POST":
+        form = PasswordChangeForm(user=request.user, data=request.POST)
+        password_strength = _enforce_password_strength(form, pref)
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)
+            messages.success(request, pref["t"]["password_updated"])
+            return redirect("store:user_dashboard")
+
+    return render(
+        request,
+        "user/password_form.html",
+        {
+            "form": form,
+            "password_strength_value": password_strength,
+            **pref,
+        },
+    )
+
+
+def product_catalog(request):
+    pref = _admin_pref_context(request)
+    qs = SanPham.objects.select_related("nhom_san_pham", "thuong_hieu").order_by("ten")
+    paginator = Paginator(qs, 9)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    products = list(page_obj.object_list)
+    for product in products:
+        product.display_price = _format_currency(product.gia_ban)
+    _, cart_total_quantity, _ = _cart_items(request)
+    return render(
+        request,
+        "store/product_catalog.html",
+        {
+            "products": products,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "cart_total_quantity": cart_total_quantity,
+            **pref,
+        },
+    )
+
+
+def cart_add(request, pk):
+    if request.method != "POST":
+        return redirect("store:product_catalog")
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        _remember_post_login_cart_action(request, pk, request.POST.get("next"))
+        messages.error(request, _admin_pref_context(request)["t"]["login_to_buy"])
+        return unauthorized
+
+    product = get_object_or_404(SanPham, pk=pk)
+    cart = _cart_session(request)
+    key = str(product.pk)
+    cart[key] = int(cart.get(key, 0)) + 1
+    request.session.modified = True
+    messages.success(request, _admin_pref_context(request)["t"]["product_added"])
+    return redirect(request.POST.get("next") or "store:cart")
+
+
+def cart_view(request):
+    items, total_quantity, total_amount = _cart_items(request)
+    for item in items:
+        item["display_unit_price"] = _format_currency(item["unit_price"])
+        item["display_line_total"] = _format_currency(item["line_total"])
+    return render(
+        request,
+        "store/cart.html",
+        {
+            "cart_items": items,
+            "cart_total_quantity": total_quantity,
+            "cart_total_amount": total_amount,
+            "display_cart_total_amount": _format_currency(total_amount),
+            **_admin_pref_context(request),
+        },
+    )
+
+
+def cart_update(request):
+    if request.method != "POST":
+        return redirect("store:cart")
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        messages.error(request, _admin_pref_context(request)["t"]["login_to_buy"])
+        return unauthorized
+
+    cart = _cart_session(request)
+    for key in list(cart.keys()):
+        qty = request.POST.get(f"qty_{key}")
+        if qty is None:
+            continue
+        try:
+            qty_int = max(int(qty), 0)
+        except ValueError:
+            qty_int = 0
+        if qty_int == 0:
+            cart.pop(key, None)
+        else:
+            cart[key] = qty_int
+    request.session.modified = True
+    messages.success(request, _admin_pref_context(request)["t"]["cart_updated"])
+    return redirect("store:cart")
+
+
+def cart_remove(request, pk):
+    if request.method != "POST":
+        return redirect("store:cart")
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        messages.error(request, _admin_pref_context(request)["t"]["login_to_buy"])
+        return unauthorized
+
+    cart = _cart_session(request)
+    cart.pop(str(pk), None)
+    request.session.modified = True
+    messages.success(request, "Đã xóa sản phẩm khỏi giỏ hàng.")
+    return redirect("store:cart")
+
+
+def cart_clear(request):
+    if request.method != "POST":
+        return redirect("store:cart")
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        messages.error(request, _admin_pref_context(request)["t"]["login_to_buy"])
+        return unauthorized
+
+    request.session["cart"] = {}
+    request.session.modified = True
+    messages.success(request, "Đã xóa toàn bộ giỏ hàng.")
+    return redirect("store:cart")
+
+
+def feedback_view(request):
+    pref = _admin_pref_context(request)
+    initial_name = ""
+    initial_email = ""
+    initial_phone = ""
+    if request.user.is_authenticated and _is_regular_user(request.user):
+        profile = _get_customer_profile(request.user)
+        initial_name = request.user.get_full_name().strip()
+        initial_email = request.user.email or ""
+        initial_phone = profile.so_dien_thoai or ""
+
+    form_data = {
+        "ho_ten": initial_name,
+        "email": initial_email,
+        "so_dien_thoai": initial_phone,
+        "chu_de": "",
+        "noi_dung": "",
+    }
+    errors = {}
+
+    if request.method == "POST":
+        form_data = {
+            "ho_ten": (request.POST.get("ho_ten") or "").strip(),
+            "email": (request.POST.get("email") or "").strip(),
+            "so_dien_thoai": (request.POST.get("so_dien_thoai") or "").strip(),
+            "chu_de": (request.POST.get("chu_de") or "").strip(),
+            "noi_dung": (request.POST.get("noi_dung") or "").strip(),
+        }
+        if not form_data["ho_ten"]:
+            errors["ho_ten"] = "Vui lòng nhập họ tên."
+        if not form_data["email"]:
+            errors["email"] = "Vui lòng nhập email."
+        else:
+            try:
+                validate_email(form_data["email"])
+            except ValidationError:
+                errors["email"] = "Email không đúng định dạng."
+        if not form_data["chu_de"]:
+            errors["chu_de"] = "Vui lòng nhập chủ đề."
+        if not form_data["noi_dung"]:
+            errors["noi_dung"] = "Vui lòng nhập nội dung góp ý."
+
+        if not errors:
+            feedback = GopYKhachHang.objects.create(**form_data)
+            try:
+                _send_feedback_emails(feedback)
+                messages.success(request, "Đã gửi góp ý thành công. Vui lòng kiểm tra email để xem phản hồi xác nhận.")
+            except Exception:
+                messages.warning(
+                    request,
+                    "Hệ thống đã lưu góp ý, nhưng chưa gửi được email. Hãy kiểm tra lại cấu hình Mailtrap trong .env.",
+                )
+            return redirect("store:feedback")
+
+    return render(
+        request,
+        "store/feedback.html",
+        {
+            "feedback_form": form_data,
+            "feedback_errors": errors,
+            "cart_total_quantity": _cart_items(request)[1],
+            **pref,
+        },
+    )
+
+
+def checkout_view(request):
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        messages.error(request, _admin_pref_context(request)["t"]["login_to_buy"])
+        return unauthorized
+
+    items, total_quantity, total_amount = _cart_items(request)
+    for item in items:
+        item["display_unit_price"] = _format_currency(item["unit_price"])
+        item["display_line_total"] = _format_currency(item["line_total"])
+    pref = _admin_pref_context(request)
+    if not items:
+        messages.error(request, pref["t"]["cart_empty"])
+        return redirect("store:product_catalog")
+
+    profile = _get_customer_profile(request.user)
+    initial_name = request.user.get_full_name().strip()
+    initial_email = request.user.email or ""
+    initial_phone = profile.so_dien_thoai or ""
+    initial_address = profile.dia_chi or ""
+    if request.method == "POST":
+        receiver_name = (request.POST.get("receiver_name") or "").strip()
+        phone = (request.POST.get("phone") or "").strip()
+        address = (request.POST.get("address") or "").strip()
+        note = (request.POST.get("note") or "").strip()
+        if receiver_name and phone and address:
+            order = DonHang.objects.create(
+                khach_hang=request.user,
+                ho_ten_nguoi_nhan=receiver_name,
+                so_dien_thoai=phone,
+                dia_chi_giao_hang=address,
+                ghi_chu=note,
+                tong_so_luong=total_quantity,
+                tong_tien=total_amount,
+            )
+            for item in items:
+                ChiTietDonHang.objects.create(
+                    don_hang=order,
+                    san_pham=item["product"],
+                    so_luong=item["quantity"],
+                    don_gia=item["unit_price"],
+                )
+            profile.so_dien_thoai = phone
+            profile.dia_chi = address
+            profile.save(update_fields=["so_dien_thoai", "dia_chi"])
+            request.session["cart"] = {}
+            request.session.modified = True
+            messages.success(request, pref["t"]["order_success"])
+            try:
+                if not _send_order_confirmation(order, items):
+                    messages.warning(
+                        request,
+                        "Đã tạo đơn hàng nhưng khách hàng chưa có email để gửi xác nhận.",
+                    )
+            except Exception:
+                messages.warning(
+                    request,
+                    "Đã tạo đơn hàng nhưng chưa gửi được email. Hãy kiểm tra lại cấu hình Mailtrap trong .env.",
+                )
+            return redirect("store:my_orders")
+        messages.error(request, "Vui lòng điền đầy đủ thông tin nhận hàng.")
+    return render(
+        request,
+        "store/checkout.html",
+        {
+            "cart_items": items,
+            "cart_total_quantity": total_quantity,
+            "cart_total_amount": total_amount,
+            "display_cart_total_amount": _format_currency(total_amount),
+            "initial_name": initial_name,
+            "initial_email": initial_email,
+            "initial_phone": initial_phone,
+            "initial_address": initial_address,
+            **pref,
+        },
+    )
+
+
+def my_orders(request):
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        return unauthorized
+    qs = DonHang.objects.filter(khach_hang=request.user).prefetch_related("items__san_pham")
+    paginator = Paginator(qs, 10)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    orders = list(page_obj.object_list)
+    for order in orders:
+        order.display_total_amount = _format_currency(order.tong_tien)
+        for item in order.items.all():
+            item.display_unit_price = _format_currency(item.don_gia)
+    _, cart_total_quantity, _ = _cart_items(request)
+    return render(
+        request,
+        "store/my_orders.html",
+        {
+            "orders": orders,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "cart_total_quantity": cart_total_quantity,
+            **_admin_pref_context(request),
+        },
+    )
+
+
+def report_404_action(request, action):
+    # log user intent from 404 page
+    if action not in {"retry", "support"}:
+        return redirect("store:home")
+    title = "Retry Request" if action == "retry" else "Support Request"
+    Notification.objects.create(
+        level="info",
+        title=title,
+        message="User clicked from 404 page",
+        path=(request.GET.get("path") or request.path)[:255],
+        method=request.method[:10],
+        status_code=404,
+    )
+    # redirect back or home
+    return redirect(request.GET.get("back") or "store:home")
+
+
+
+
+
+
+

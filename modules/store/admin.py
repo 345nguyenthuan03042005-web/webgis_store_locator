@@ -19,6 +19,9 @@ from .models import (
     CuaHang,
     NhanVien,
     KhuyenMai,
+    HoSoKhachHang,
+    DonHang,
+    ChiTietDonHang,
 )
 
 
@@ -305,6 +308,28 @@ class KhuyenMaiAdmin(admin.ModelAdmin):
     @admin.display(description="Mô tả")
     def mo_ta_short(self, obj):
         return (obj.mo_ta[:70] + "...") if obj.mo_ta and len(obj.mo_ta) > 70 else (obj.mo_ta or "-")
+
+
+@admin.register(HoSoKhachHang)
+class HoSoKhachHangAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "so_dien_thoai", "dia_chi")
+    search_fields = ("user__username", "user__email", "so_dien_thoai", "dia_chi")
+    list_select_related = ("user",)
+
+
+@admin.register(DonHang)
+class DonHangAdmin(admin.ModelAdmin):
+    list_display = ("id", "khach_hang", "ho_ten_nguoi_nhan", "trang_thai", "tong_so_luong", "tong_tien", "created_at")
+    list_filter = ("trang_thai", "created_at")
+    search_fields = ("khach_hang__username", "khach_hang__email", "ho_ten_nguoi_nhan", "so_dien_thoai", "dia_chi_giao_hang")
+    list_select_related = ("khach_hang",)
+
+
+@admin.register(ChiTietDonHang)
+class ChiTietDonHangAdmin(admin.ModelAdmin):
+    list_display = ("id", "don_hang", "san_pham", "so_luong", "don_gia")
+    search_fields = ("don_hang__khach_hang__username", "san_pham__ten")
+    list_select_related = ("don_hang", "san_pham")
 
 try:
     admin.site.unregister(User)

@@ -1,10 +1,14 @@
 from datetime import time
 from unittest.mock import patch
 
+from django.contrib.auth.models import User
+from django.core import mail
 from django.test import TestCase
+from django.test.utils import override_settings
 
+from modules.store.controllers import ROLE_ADMIN, ROLE_USER, _ensure_role_groups
 from modules.spatial.controllers import _store_dict
-from modules.store.models import ChuoiCuaHang, CuaHang
+from modules.store.models import ChiTietDonHang, ChuoiCuaHang, CuaHang, DonHang, GopYKhachHang, SanPham
 
 
 class SmokeTests(TestCase):
@@ -100,3 +104,251 @@ class SmartSearchTests(TestCase):
         self.assertEqual(data["mode"], "geocode_address")
         self.assertTrue(data["ok"])
         self.assertEqual(data["count"], 1)
+
+
+class AdminOrderManagementTests(TestCase):
+    def setUp(self):
+        groups = _ensure_role_groups()
+        self.admin = User.objects.create_user(
+            username="admin_orders",
+            password="Abc12345!",
+            is_staff=True,
+        )
+        self.admin.groups.add(groups[ROLE_ADMIN])
+
+        self.customer = User.objects.create_user(
+            username="customer_orders",
+            password="Abc12345!",
+        )
+        self.customer.groups.add(groups[ROLE_USER])
+
+        self.product = SanPham.objects.create(
+            ten="San pham test",
+            gia_ban=25000,
+        )
+        self.order = DonHang.objects.create(
+            khach_hang=self.customer,
+            ho_ten_nguoi_nhan="Khach Test",
+            so_dien_thoai="0123456789",
+            dia_chi_giao_hang="Dia chi test",
+            trang_thai="pending",
+            tong_so_luong=1,
+            tong_tien=25000,
+        )
+
+    def test_admin_order_list_can_filter_by_status(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/admin/don-hang/", {"status": "pending"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["status_filter"], "pending")
+        rows = response.context["rows"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["object"].pk, self.order.pk)
+        self.assertEqual(rows[0]["status_actions"][0]["value"], "confirmed")
+
+    def test_admin_can_confirm_ship_and_deliver_order(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            f"/admin/orders/{self.order.pk}/confirmed/",
+            {"status": "pending", "page": 1},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.trang_thai, "confirmed")
+
+        response = self.client.get(
+            f"/admin/orders/{self.order.pk}/shipping/",
+            {"status": "confirmed", "page": 1},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.trang_thai, "shipping")
+
+        response = self.client.get(
+            f"/admin/orders/{self.order.pk}/delivered/",
+            {"status": "shipping", "page": 1},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.trang_thai, "delivered")
+
+    def test_admin_cannot_cancel_delivered_order(self):
+        self.client.force_login(self.admin)
+        self.order.trang_thai = "delivered"
+        self.order.save(update_fields=["trang_thai"])
+
+        response = self.client.get(
+            f"/admin/orders/{self.order.pk}/cancelled/",
+            {"status": "delivered", "page": 1},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.trang_thai, "delivered")
+
+    def test_done_filter_includes_delivered_orders(self):
+        self.client.force_login(self.admin)
+        self.order.trang_thai = "delivered"
+        self.order.save(update_fields=["trang_thai"])
+
+        response = self.client.get("/admin/don-hang/", {"status": "done"})
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["object"].pk, self.order.pk)
+
+
+class CustomerPurchaseFlowTests(TestCase):
+    def setUp(self):
+        groups = _ensure_role_groups()
+        self.admin = User.objects.create_user(
+            username="admin_flow",
+            password="Abc12345!",
+            is_staff=True,
+        )
+        self.admin.groups.add(groups[ROLE_ADMIN])
+
+        self.customer = User.objects.create_user(
+            username="customer_flow",
+            password="Abc12345!",
+        )
+        self.customer.groups.add(groups[ROLE_USER])
+
+        self.product = SanPham.objects.create(
+            ten="San pham mua ngay",
+            gia_ban=30000,
+        )
+
+    def test_buy_now_redirects_guest_to_login_then_checkout(self):
+        response = self.client.post(
+            f"/cart/add/{self.product.pk}/",
+            {"next": "/checkout/"},
+        )
+
+        self.assertRedirects(response, "/user/login/?next=/checkout/")
+
+        response = self.client.post(
+            "/user/login/?next=/checkout/",
+            {"username": "customer_flow", "password": "Abc12345!", "next": "/checkout/"},
+        )
+
+        self.assertRedirects(response, "/checkout/")
+
+    def test_add_to_cart_redirects_guest_to_login_then_cart(self):
+        response = self.client.post(
+            f"/cart/add/{self.product.pk}/",
+            {"next": "/cart/"},
+        )
+
+        self.assertRedirects(response, "/user/login/?next=/cart/")
+
+        response = self.client.post(
+            "/user/login/?next=/cart/",
+            {"username": "customer_flow", "password": "Abc12345!", "next": "/cart/"},
+        )
+
+        self.assertRedirects(response, "/cart/")
+
+    def test_admin_is_redirected_to_customer_login_when_buying(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            f"/cart/add/{self.product.pk}/",
+            {"next": "/checkout/"},
+        )
+
+        self.assertRedirects(response, "/user/login/?next=/checkout/")
+
+    def test_regular_user_cannot_access_admin_dashboard(self):
+        self.client.force_login(self.customer)
+
+        response = self.client.get("/admin/")
+
+        self.assertRedirects(response, "/admin/login/")
+
+    def test_admin_cannot_access_user_dashboard(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/user/")
+
+        self.assertRedirects(response, "/admin/")
+
+    def test_checkout_creates_order_and_item(self):
+        self.client.force_login(self.customer)
+        session = self.client.session
+        session["cart"] = {str(self.product.pk): 2}
+        session.save()
+
+        response = self.client.post(
+            "/checkout/",
+            {
+                "receiver_name": "Nguyen Van A",
+                "phone": "0900000000",
+                "address": "123 Duong Test",
+                "note": "Giao gio hanh chinh",
+            },
+        )
+
+        self.assertRedirects(response, "/orders/")
+        order = DonHang.objects.get(khach_hang=self.customer)
+        self.assertEqual(order.tong_so_luong, 2)
+        self.assertEqual(order.tong_tien, 60000)
+        self.assertTrue(ChiTietDonHang.objects.filter(don_hang=order, san_pham=self.product, so_luong=2).exists())
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    DEFAULT_FROM_EMAIL="noreply@example.com",
+    FEEDBACK_NOTIFICATION_EMAIL="support@example.com",
+)
+class FeedbackFlowTests(TestCase):
+    def test_feedback_page_ok(self):
+        response = self.client.get("/feedback/")
+        self.assertEqual(response.status_code, 200)
+
+    def test_feedback_submission_saves_and_sends_mail(self):
+        response = self.client.post(
+            "/feedback/",
+            {
+                "ho_ten": "Nguyen Van A",
+                "email": "nguyenvana@example.com",
+                "so_dien_thoai": "0900000000",
+                "chu_de": "Góp ý về dịch vụ",
+                "noi_dung": "Nhân viên hỗ trợ rất nhiệt tình.",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(GopYKhachHang.objects.count(), 1)
+        feedback = GopYKhachHang.objects.first()
+        self.assertEqual(feedback.ho_ten, "Nguyen Van A")
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[0].to, ["nguyenvana@example.com"])
+        self.assertEqual(mail.outbox[1].to, ["support@example.com"])
+
+    def test_feedback_submission_validates_required_fields(self):
+        response = self.client.post(
+            "/feedback/",
+            {
+                "ho_ten": "",
+                "email": "sai-dinh-dang",
+                "chu_de": "",
+                "noi_dung": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vui lòng nhập họ tên.")
+        self.assertContains(response, "Email không đúng định dạng.")
+        self.assertContains(response, "Vui lòng nhập chủ đề.")
+        self.assertContains(response, "Vui lòng nhập nội dung góp ý.")
+        self.assertEqual(GopYKhachHang.objects.count(), 0)

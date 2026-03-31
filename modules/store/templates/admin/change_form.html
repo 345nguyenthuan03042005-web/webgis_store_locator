@@ -1,72 +1,77 @@
-﻿{% extends "admin/base_site.html" %}
-{% load static i18n admin_urls admin_modify %}
-
-{% block extrahead %}
-  {{ block.super }}
-  {{ media }}
-{% endblock %}
-
+{% extends "admin/base.html" %}
+{% block title %}{% if mode == 'create' %}{{ t.create_prefix|default:"Thêm" }} {{ model_name }}{% else %}{{ t.edit_prefix|default:"Sửa" }} {{ model_name }}{% endif %}{% endblock %}
+{% block page_title %}{% if mode == 'create' %}{{ t.create_prefix|default:"Thêm" }} {{ model_name }}{% else %}{{ t.edit_prefix|default:"Sửa" }} {{ model_name }}{% endif %}{% endblock %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap:10px;">
-  <div>
-    <h4 class="mb-0">{% if add %}Th&ecirc;m{% else %}S&#7917;a{% endif %} {{ opts.verbose_name }}</h4>
-    <small class="text-muted">{% if add %}T&#7841;o m&#7899;i{% else %}C&#7853;p nh&#7853;t{% endif %}</small>
-  </div>
+  <section class="panel card">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% if coord_picker_enabled %}
+        <input type="hidden" name="_coord_from_map" id="id_coord_from_map" value="">
+        <div class="admin-coord-panel">
+          <div class="admin-coord-tools">
+            <input
+              type="text"
+              id="admin-coord-search"
+              class="admin-coord-search"
+              placeholder="Nhập địa chỉ để tìm nhanh trên bản đồ..."
+            >
+            <button type="button" id="admin-coord-search-btn" class="btn btn-light">Tìm</button>
+          </div>
+          <div id="admin-coord-map" class="admin-coord-map" aria-label="Bản đồ chọn tọa độ"></div>
+          <div class="top-sub" id="admin-coord-status">Click lên bản đồ để chọn tọa độ.</div>
+        </div>
+        <link
+          rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""
+        >
+        <script
+          src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""
+        ></script>
+      {% endif %}
 
-  <a class="btn btn-outline-secondary btn-sm" href="{% url opts|admin_urlname:'changelist' %}">
-    <i class="mdi mdi-arrow-left"></i> Quay l&#7841;i
-  </a>
-</div>
+      {% for field in form %}
+        <div class="form-row">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {% if field.field.widget.input_type == "file" %}
+            <div class="file-input-wrap" data-mode="{{ mode }}">
+              <input
+                type="file"
+                name="{{ field.html_name }}"
+                id="{{ field.id_for_label }}"
+                {% if field.field.required %}required{% endif %}
+                {% if field.field.widget.attrs.accept %}accept="{{ field.field.widget.attrs.accept }}"{% endif %}
+              >
+            </div>
+          {% else %}
+            {{ field }}
+          {% endif %}
+          {% if field.help_text %}<div class="top-sub">{{ field.help_text }}</div>{% endif %}
+          {% for error in field.errors %}
+            <div class="err" style="margin-top:8px; margin-bottom:0;">{{ error }}</div>
+          {% endfor %}
 
-<form method="post" {% if has_file_field %}enctype="multipart/form-data"{% endif %} novalidate>
-  {% csrf_token %}
-
-  {% if errors %}
-    <div class="alert alert-danger">Vui l&ograve;ng ki&#7875;m tra l&#7841;i d&#7919; li&#7879;u.</div>
-  {% endif %}
-
-  {% for fieldset in adminform %}
-    <div class="card mb-3">
-      <div class="card-body">
-        {% include "admin/includes/fieldset.html" %}
+          {% if field.field.widget.input_type == "file" %}
+            <div class="file-preview-block">
+              {% for key, preview in file_previews.items %}
+                {% if key == field.name %}
+                  {% if preview.url and preview.is_image %}
+                    <img class="file-preview-image" src="{{ preview.url }}" alt="{{ field.label }}" data-preview-for="{{ field.id_for_label }}">
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+              <img class="file-preview-image is-hidden" src="" alt="{{ field.label }}" data-preview-for="{{ field.id_for_label }}">
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+        <button class="btn btn-primary" type="submit">{{ t.save_changes|default:"Lưu thay đổi" }}</button>
+        <a class="btn btn-light" href="{% url 'store:admin_list' model_slug %}">{{ t.back_to_list|default:"Quay lại danh sách" }}</a>
       </div>
-    </div>
-  {% endfor %}
-
-  {% for inline_admin_formset in inline_admin_formsets %}
-    {% include inline_admin_formset.opts.template %}
-  {% endfor %}
-
-  {% if opts.model_name == "cuahang" %}
-    <input type="hidden" name="_coord_from_map" id="id_coord_from_map" value="">
-    <div class="mt-2 mb-3">
-      <button type="button" id="btn-pick-coord-main-map" class="btn btn-outline-primary btn-sm">
-        Ch&#7885;n t&#7885;a &#273;&#7897; t&#7915; b&#7843;n &#273;&#7891; tra c&#7913;u
-      </button>
-      <button type="button" id="btn-geocode-address-admin" class="btn btn-outline-secondary btn-sm">
-        L&#7845;y t&#7885;a &#273;&#7897; t&#7915; &#273;&#7883;a ch&#7881;
-      </button>
-      <small class="text-muted d-block mt-1">
-        Quy tr&igrave;nh t&#7889;i &#432;u: 1) L&#7845;y t&#7885;a &#273;&#7897; t&#7915; &#273;&#7883;a ch&#7881; &#273;&#7875; &#273;&#7883;nh v&#7883; 2) Click tr&ecirc;n b&#7843;n &#273;&#7891; &#273;&#7875; ch&#7889;t (b&#7855;t bu&#7897;c tr&#432;&#7899;c khi l&#432;u).
-      </small>
-      <small id="coord-source-status" class="text-muted d-block mt-1"></small>
-    </div>
-  {% endif %}
-
-  <div class="mt-3">
-    {% submit_row %}
-  </div>
-</form>
-
-<script>
-  (function () {
-    var links = document.querySelectorAll('a.button');
-    links.forEach(function (a) {
-      var txt = (a.textContent || '').trim().toLowerCase();
-      if (txt === 'reset password') a.textContent = 'Đặt lại mật khẩu';
-      if (txt === 'set password') a.textContent = 'Thiết lập mật khẩu';
-    });
-  })();
-</script>
+    </form>
+  </section>
 {% endblock %}
-

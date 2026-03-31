@@ -1,0 +1,51 @@
+{% load static %}
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ t.my_orders|default:"Đơn hàng của tôi" }}</title>
+  <link rel="stylesheet" href="{% static 'admin/css/style.css' %}">
+</head>
+<body data-theme="light">
+  <main class="content" style="max-width:1000px;margin:0 auto;padding:28px 18px;">
+    {% if messages %}{% for message in messages %}<div class="msg">{{ message }}</div>{% endfor %}{% endif %}
+    <section class="panel card">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;">
+        <h1 style="margin:0;">{{ t.my_orders|default:"Đơn hàng của tôi" }}</h1>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <a class="btn btn-light" href="{% url 'store:product_catalog' %}">{{ t.products_page|default:"Sản phẩm" }}</a>
+          <a class="btn btn-light" href="{% url 'store:cart' %}">{{ t.cart|default:"Giỏ hàng" }} ({{ cart_total_quantity }})</a>
+        </div>
+      </div>
+
+      {% for order in orders %}
+        <article class="panel card" style="margin-top:14px;">
+          <div><strong>{{ t.order_code|default:"Mã đơn" }}:</strong> {{ order.pk }}</div>
+          <div class="top-sub">{{ t.order_status|default:"Trạng thái đơn" }}: {{ order.get_trang_thai_display }} | {{ t.order_time|default:"Thời gian đặt" }}: {{ order.created_at|date:"d/m/Y H:i" }}</div>
+          <div class="top-sub">{{ t.total_amount|default:"Tổng tiền" }}: {{ order.display_total_amount }}</div>
+          {% for item in order.items.all %}
+            <div style="padding:8px 0;border-bottom:1px solid #e5e7eb;">{{ item.san_pham.ten }} x {{ item.so_luong }} - {{ item.display_unit_price }}</div>
+          {% endfor %}
+        </article>
+      {% empty %}
+        <p>{{ t.no_data|default:"Chưa có dữ liệu." }}</p>
+      {% endfor %}
+
+      {% if paginator.num_pages > 1 %}
+        <div class="pagination">
+          <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page=1{% else %}#{% endif %}">Đầu</a>
+          <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page={{ page_obj.previous_page_number }}{% else %}#{% endif %}">Trước</a>
+          {% for p in paginator.page_range %}
+            {% if p == 1 or p == paginator.num_pages or p >= page_obj.number|add:"-1" and p <= page_obj.number|add:"1" %}
+              <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?page={{ p }}">{{ p }}</a>
+            {% endif %}
+          {% endfor %}
+          <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ page_obj.next_page_number }}{% else %}#{% endif %}">Sau</a>
+          <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ paginator.num_pages }}{% else %}#{% endif %}">Cuối</a>
+        </div>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>

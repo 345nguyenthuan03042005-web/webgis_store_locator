@@ -1,45 +1,19 @@
-{% extends "admin/base_site.html" %}
-{% load i18n admin_urls %}
-
+{% extends "admin/base.html" %}
+{% block title %}{{ t.delete|default:"Xóa" }} {{ model_name }}{% endblock %}
+{% block page_title %}{{ t.confirm_delete|default:"Xác nhận xóa" }}{% endblock %}
 {% block content %}
-<div class="card admin-delete-card">
-  <div class="card-body">
-    <div class="admin-delete-head">
-      <h4 class="card-title">X&aacute;c nh&#7853;n x&oacute;a d&#7919; li&#7879;u</h4>
-      <p class="admin-delete-sub">H&agrave;nh &#273;&#7897;ng n&agrave;y kh&ocirc;ng th&#7875; ho&agrave;n t&aacute;c.</p>
-    </div>
-
-    {% if perms_lacking %}
-      <div class="admin-delete-alert admin-delete-alert-danger">
-        <strong>Kh&ocirc;ng th&#7875; x&oacute;a.</strong> B&#7841;n kh&ocirc;ng &#273;&#7911; quy&#7873;n x&oacute;a &#273;&#7889;i t&#432;&#7907;ng n&agrave;y.
-      </div>
-    {% elif protected %}
-      <div class="admin-delete-alert admin-delete-alert-danger">
-        <strong>Kh&ocirc;ng th&#7875; x&oacute;a.</strong> C&oacute; d&#7919; li&#7879;u li&ecirc;n k&#7871;t &#273;ang &#273;&#432;&#7907;c b&#7843;o v&#7879;.
-      </div>
-    {% else %}
-      <div class="admin-delete-alert admin-delete-alert-warn">
-        B&#7841;n ch&#7855;c ch&#7855;n mu&#7889;n x&oacute;a &#273;&#7889;i t&#432;&#7907;ng: <strong>{{ object }}</strong>?
-      </div>
-    {% endif %}
-
-    <form method="post" class="admin-delete-form">
+  <section class="panel card" style="max-width:780px;">
+    <p class="top-sub">{{ t.you_are_deleting|default:"Bạn đang xóa một bản ghi của" }} {{ model_name }}.</p>
+    <h3 style="margin-top:0;">{{ object }}</h3>
+    <form method="post" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
       {% csrf_token %}
-      <input type="hidden" name="post" value="yes">
-      {% if is_popup %}<input type="hidden" name="{{ is_popup_var }}" value="1">{% endif %}
-      {% if to_field %}<input type="hidden" name="{{ to_field_var }}" value="{{ to_field }}">{% endif %}
-
-      <div class="admin-delete-actions">
-        {% if not perms_lacking and not protected %}
-          <button type="submit" class="btn btn-danger btn-sm text-white">
-            <i class="mdi mdi-delete"></i> X&oacute;a
-          </button>
-        {% endif %}
-        <a class="btn btn-outline-secondary btn-sm" href="{% url opts|admin_urlname:'changelist' %}">
-          Quay l&#7841;i
-        </a>
-      </div>
+      <button class="btn btn-danger" type="submit">{{ t.confirm_delete|default:"Xác nhận xóa" }}</button>
+      <a class="btn btn-light" href="{% url 'store:admin_list' model_slug %}">{{ t.cancel|default:"Hủy" }}</a>
     </form>
-  </div>
-</div>
+  </section>
 {% endblock %}
+
+
+
+
+
