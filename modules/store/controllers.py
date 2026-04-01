@@ -949,6 +949,17 @@ def _get_customer_profile(user):
     return profile
 
 
+def _refresh_authenticated_user(request):
+    user = getattr(request, "user", None)
+    if not user or not user.is_authenticated:
+        return user
+    try:
+        user.refresh_from_db()
+    except Exception:
+        return user
+    return user
+
+
 def _purge_expired_trash():
     TrashRecord.objects.filter(expires_at__lt=timezone.now()).delete()
 
@@ -1828,7 +1839,7 @@ def admin_order_status_action(request, pk, status):
         "pending": {"confirmed", "cancelled"},
         "confirmed": {"shipping", "cancelled"},
         "shipping": {"delivered", "cancelled"},
-        "delivered": set(),
+        "delivered": {"done"},
         "done": set(),
         "cancelled": set(),
     }
@@ -2364,6 +2375,8 @@ def admin_list(request, model_slug):
             elif item.trang_thai == "shipping":
                 status_actions.append({"value": "delivered", "label": pref["t"]["deliver_order"]})
                 status_actions.append({"value": "cancelled", "label": pref["t"]["cancel_order"]})
+            elif item.trang_thai == "delivered":
+                status_actions.append({"value": "done", "label": pref["t"]["complete_order"]})
             row["status_actions"] = status_actions
         rows.append(row)
 
@@ -2716,18 +2729,22 @@ def admin_notifications(request):
     )
 
 
+@never_cache
 def user_dashboard(request):
     unauthorized = _require_regular_user(request)
     if unauthorized:
         return unauthorized
+    _refresh_authenticated_user(request)
     return redirect("store:user_profile")
 
 
+@never_cache
 def user_profile(request):
     unauthorized = _require_regular_user(request)
     if unauthorized:
         return unauthorized
 
+    _refresh_authenticated_user(request)
     pref = _admin_pref_context(request)
     profile = _get_customer_profile(request.user)
 
@@ -2779,11 +2796,13 @@ def user_profile(request):
     )
 
 
+@never_cache
 def user_address(request):
     unauthorized = _require_regular_user(request)
     if unauthorized:
         return unauthorized
 
+    _refresh_authenticated_user(request)
     pref = _admin_pref_context(request)
     profile = _get_customer_profile(request.user)
     addresses = list(_customer_addresses_qs(request.user))
@@ -2921,11 +2940,13 @@ def user_address(request):
     )
 
 
+@never_cache
 def user_password_change(request):
     unauthorized = _require_regular_user(request)
     if unauthorized:
         return unauthorized
 
+    _refresh_authenticated_user(request)
     pref = _admin_pref_context(request)
     form = PasswordChangeForm(user=request.user)
     password_strength = ""
