@@ -264,10 +264,20 @@
       height: 74px;
       border-radius: 50%;
       border: 1px solid rgba(148,163,184,.24);
+      overflow: hidden;
       display: grid;
       place-items: center;
       color: #94a3b8;
       background: linear-gradient(180deg, #fff, #f8fafc);
+    }
+    .avatar-photo,
+    .avatar-ring img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+      border-radius: 999px;
     }
     .avatar-ring svg { width: 34px; height: 34px; stroke: currentColor; }
     .aside-name {
@@ -755,10 +765,14 @@
         <aside class="profile-aside">
           <div class="aside-top">
             <div class="avatar-ring" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21a8 8 0 0 0-16 0"/>
-                <circle cx="12" cy="8" r="4"/>
-              </svg>
+              {% if profile.avatar %}
+                <img class="avatar-photo" src="{{ profile.avatar.url }}" alt="Ảnh đại diện {{ display_name }}">
+              {% else %}
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21a8 8 0 0 0-16 0"/>
+                  <circle cx="12" cy="8" r="4"/>
+                </svg>
+              {% endif %}
             </div>
             <div>
               <p class="aside-name">{{ display_name }}</p>
@@ -978,6 +992,18 @@
 
       let marker = null;
       let lastAutoDetail = "";
+      let latestSelectionToken = 0;
+      let reverseController = null;
+      let searchController = null;
+
+      function nextSelectionToken() {
+        latestSelectionToken += 1;
+        return latestSelectionToken;
+      }
+
+      function isStaleSelection(token) {
+        return token !== latestSelectionToken;
+      }
 
       function setStatus(text, type) {
         statusEl.textContent = text || "";
@@ -1021,11 +1047,16 @@
         }
       }
 
-      async function reverseFill(lat, lon) {
+      async function reverseFill(lat, lon, token) {
+        if (reverseController) reverseController.abort();
+        reverseController = new AbortController();
         setStatus("Đang lấy thông tin địa chỉ...", "");
         try {
-          const res = await fetch(`/tools/reverse-geo/?lat=${lat}&lon=${lon}`);
+          const res = await fetch(`/tools/reverse-geo/?lat=${lat}&lon=${lon}`, {
+            signal: reverseController.signal,
+          });
           const payload = await res.json();
+          if (isStaleSelection(token)) return;
           const data = payload.data || {};
           if (!payload.ok) {
             setStatus(payload.error || "Không lấy được địa chỉ từ tọa độ.", "is-error");
@@ -1037,11 +1068,15 @@
           if (!searchInput.value.trim()) searchInput.value = display;
           setStatus("Đã điền địa chỉ từ vị trí bạn chọn.", "is-success");
         } catch (error) {
+          if (error && error.name === "AbortError") return;
           setStatus("Không kết nối được dịch vụ bản đồ.", "is-error");
         }
       }
 
       async function geocodeSearch() {
+        const token = nextSelectionToken();
+        if (searchController) searchController.abort();
+        searchController = new AbortController();
         const query = searchInput.value.trim() || [detailInput.value, wardInput.value, districtInput.value, provinceInput.value].filter(Boolean).join(", " );
         if (query.length < 3) {
           setStatus("Nhập địa chỉ hoặc khu vực trước khi tìm trên bản đồ.", "is-error");
@@ -1049,37 +1084,21 @@
         }
         setStatus("Đang tìm vị trí trên bản đồ...", "");
         try {
-          const res = await fetch(`/tools/geocode/?q=${encodeURIComponent(query)}`);
-          const payload = await res.json();
-          const data = payload.data || {};
-          let location = data.location || null;
-
-          if ((!payload.ok || !location) && query.length >= 3) {
-            const suggestRes = await fetch(`/tools/suggest/?q=${encodeURIComponent(query)}`);
-            const suggestPayload = await suggestRes.json();
-            const suggestData = suggestPayload.data || {};
-            const firstItem = Array.isArray(suggestData.items) ? suggestData.items[0] : null;
-            if (firstItem && firstItem.lat && firstItem.lon) {
-              location = {
-                lat: firstItem.lat,
-                lon: firstItem.lon,
-                display: firstItem.display || query,
-              };
-            }
-          }
-
-          if (!location && query.length >= 3) {
-            const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=vn&q=${encodeURIComponent(query)}`);
-            const osmItems = await osmRes.json();
-            const firstOsm = Array.isArray(osmItems) ? osmItems[0] : null;
-            if (firstOsm && firstOsm.lat && firstOsm.lon) {
-              location = {
+          // Same geocoding logic as admin page: direct Nominatim search only.
+          const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=vn&q=${encodeURIComponent(query)}`, {
+            signal: searchController.signal,
+            headers: { Accept: "application/json" },
+          });
+          const osmItems = await osmRes.json();
+          if (isStaleSelection(token)) return;
+          const firstOsm = Array.isArray(osmItems) ? osmItems[0] : null;
+          const location = firstOsm && firstOsm.lat && firstOsm.lon
+            ? {
                 lat: firstOsm.lat,
                 lon: firstOsm.lon,
                 display: firstOsm.display_name || query,
-              };
-            }
-          }
+              }
+            : null;
 
           if (!location) {
             setStatus("Không tìm thấy vị trí phù hợp. Hãy thử nhập chi tiết hơn.", "is-error");
@@ -1094,8 +1113,9 @@
           }
 
           setMarker(lat, lon, location.display || query);
-          await reverseFill(lat, lon);
+          await reverseFill(lat, lon, token);
         } catch (error) {
+          if (error && error.name === "AbortError") return;
           setStatus("Không thể tìm vị trí lúc này.", "is-error");
         }
       }
@@ -1109,6 +1129,7 @@
       });
 
       locateBtn.addEventListener("click", () => {
+        const token = nextSelectionToken();
         if (!navigator.geolocation) {
           setStatus("Trình duyệt không hỗ trợ định vị GPS.", "is-error");
           return;
@@ -1118,8 +1139,9 @@
           async (position) => {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
+            if (isStaleSelection(token)) return;
             setMarker(lat, lon, "Vị trí hiện tại");
-            await reverseFill(lat, lon);
+            await reverseFill(lat, lon, token);
           },
           () => setStatus("Không thể lấy vị trí hiện tại. Hãy kiểm tra quyền GPS.", "is-error"),
           { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
@@ -1127,10 +1149,11 @@
       });
 
       map.on("click", async (event) => {
+        const token = nextSelectionToken();
         const lat = event.latlng.lat;
         const lon = event.latlng.lng;
         setMarker(lat, lon, "Đang lấy địa chỉ...");
-        await reverseFill(lat, lon);
+        await reverseFill(lat, lon, token);
       });
 
       const initialQuery = [detailInput.value, wardInput.value, districtInput.value, provinceInput.value].filter(Boolean).join(", " );
@@ -1142,4 +1165,3 @@
   </script>
 </body>
 </html>
-
