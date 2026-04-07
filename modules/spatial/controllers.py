@@ -255,12 +255,13 @@ def _ensure_hcm_vn(q: str) -> str:
     has_vn = ("viet nam" in low_plain) or ("vietnam" in low_plain)
     has_hcm = ("ho chi minh" in low_plain) or ("tp hcm" in low_plain) or bool(re.search(r"\bhcm\b", low_plain))
     has_district = bool(re.search(r"\bquan\s*\d+\b", low_plain))
+    comma_parts = [part.strip() for part in q.split(",") if part.strip()]
 
     q = re.sub(r"(?i)\bTP\s*HCM\b", "Thanh pho Ho Chi Minh", q)
     q = re.sub(r"(?i)\bHCM\b", "Thanh pho Ho Chi Minh", q)
     q = re.sub(r"(?i)\bSai\s*Gon\b", "Thanh pho Ho Chi Minh", q)
 
-    if has_district and not has_hcm:
+    if (has_district or len(comma_parts) >= 2) and not has_hcm:
         q = f"{q}, Thanh pho Ho Chi Minh"
     if not has_vn:
         q = f"{q}, Viet Nam"
@@ -846,7 +847,7 @@ def smart_search(request):
     lat_in = data.get("lat")
     lng_in = data.get("lng")
 
-    brand = _normalize_brand(ten) or _normalize_brand(data.get("brand", "")) or "CIRCLEK"
+    brand = _normalize_brand(ten) or _normalize_brand(data.get("brand", ""))
     max_km = _safe_float(data.get("max_km"), 0.5) or 0.5
     if max_km <= 0:
         max_km = 0.5
@@ -892,10 +893,10 @@ def smart_search(request):
             lat, lng = DEFAULT_CENTER
             mode = "default"
 
-    candidates = _bbox_filter(
-        CuaHang.objects.select_related("chuoi").filter(_brand_q(brand)),
-        lat, lng, max_km
-    )
+    candidates = CuaHang.objects.select_related("chuoi").all()
+    if brand:
+        candidates = candidates.filter(_brand_q(brand))
+    candidates = _bbox_filter(candidates, lat, lng, max_km)
 
     stores_list = []
     for s in candidates:
@@ -918,4 +919,3 @@ def smart_search(request):
         "stores": stores_list[:300],
         "message": f"Tim thay {len(stores_list)} cua hang trong {max_km} km.",
     })
-

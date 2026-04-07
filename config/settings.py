@@ -1,5 +1,6 @@
 ﻿"""Django settings for webgis_store_locator."""
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -20,11 +21,13 @@ def _load_env_file(path: Path) -> None:
 
 _load_env_file(BASE_DIR / '.env')
 
-SECRET_KEY = os.getenv(
-    'DJANGO_SECRET_KEY',
-    'webgis-store-locator-dev-secret-key-change-this-in-production-2026',
-)
 DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() in ('1', 'true', 'yes', 'on')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '').strip()
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = hashlib.sha256(str(BASE_DIR.resolve()).encode('utf-8')).hexdigest()
+    else:
+        raise RuntimeError('Missing DJANGO_SECRET_KEY. Configure it in .env or the environment.')
 
 ALLOWED_HOSTS = [
     h.strip()
@@ -115,13 +118,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'sandbox.smtp.mailtrap.io')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '2525'))
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '0ed35b2f76c426')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'e9befc1657b8d8')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'c2f709fb2a70b3').strip()
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '6e9af9edac71a0').strip()
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes', 'on')
 EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'false').lower() in ('1', 'true', 'yes', 'on')
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '15'))
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Circle K & GS25 <no-reply@circlek-gs25.local>')
-FEEDBACK_NOTIFICATION_EMAIL = os.getenv('FEEDBACK_NOTIFICATION_EMAIL', EMAIL_HOST_USER or 'tranthithanhthao625@gmail.com')
+FEEDBACK_NOTIFICATION_EMAIL = os.getenv('FEEDBACK_NOTIFICATION_EMAIL', '').strip() or EMAIL_HOST_USER
 EMAIL_BACKEND = os.getenv(
     'EMAIL_BACKEND',
     'django.core.mail.backends.smtp.EmailBackend'
@@ -130,12 +133,16 @@ EMAIL_BACKEND = os.getenv(
 )
 
 # Optional: separate SMTP credentials for customer order emails.
-ORDER_EMAIL_HOST = os.getenv('ORDER_EMAIL_HOST', 'sandbox.smtp.mailtrap.io')
+ORDER_EMAIL_HOST = os.getenv('ORDER_EMAIL_HOST', EMAIL_HOST)
 ORDER_EMAIL_PORT = int(os.getenv('ORDER_EMAIL_PORT', str(2525)))
-ORDER_EMAIL_HOST_USER = os.getenv('ORDER_EMAIL_HOST_USER', '53078e17970686')
-ORDER_EMAIL_HOST_PASSWORD = os.getenv('ORDER_EMAIL_HOST_PASSWORD', '10527cfabd3968')
+ORDER_EMAIL_HOST_USER = os.getenv('ORDER_EMAIL_HOST_USER', 'ff1192c7434d62').strip() or EMAIL_HOST_USER
+ORDER_EMAIL_HOST_PASSWORD = os.getenv('ORDER_EMAIL_HOST_PASSWORD', '5dfe2a4b6a990e').strip() or EMAIL_HOST_PASSWORD
 ORDER_EMAIL_USE_TLS = os.getenv('ORDER_EMAIL_USE_TLS', str(EMAIL_USE_TLS)).lower() in ('1', 'true', 'yes', 'on')
 ORDER_EMAIL_USE_SSL = os.getenv('ORDER_EMAIL_USE_SSL', str(EMAIL_USE_SSL)).lower() in ('1', 'true', 'yes', 'on')
+
+TRASH_RETENTION_DAYS = int(os.getenv('TRASH_RETENTION_DAYS', '15'))
+if TRASH_RETENTION_DAYS not in {7, 15}:
+    TRASH_RETENTION_DAYS = 15
 
 # Security defaults:
 # - relaxed for local DEBUG

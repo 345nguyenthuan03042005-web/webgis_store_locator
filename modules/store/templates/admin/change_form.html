@@ -1,4 +1,5 @@
 {% extends "admin/base.html" %}
+{% load static %}
 {% block title %}{% if mode == 'create' %}{{ t.create_prefix|default:"Thêm" }} {{ model_name }}{% else %}{{ t.edit_prefix|default:"Sửa" }} {{ model_name }}{% endif %}{% endblock %}
 {% block page_title %}{% if mode == 'create' %}{{ t.create_prefix|default:"Thêm" }} {{ model_name }}{% else %}{{ t.edit_prefix|default:"Sửa" }} {{ model_name }}{% endif %}{% endblock %}
 {% block content %}
@@ -44,6 +45,7 @@
                 id="{{ field.id_for_label }}"
                 {% if field.field.required %}required{% endif %}
                 {% if field.field.widget.attrs.accept %}accept="{{ field.field.widget.attrs.accept }}"{% endif %}
+                {% if field.field.widget.attrs.multiple %}multiple{% endif %}
               >
             </div>
           {% else %}
@@ -55,23 +57,137 @@
           {% endfor %}
 
           {% if field.field.widget.input_type == "file" %}
-            <div class="file-preview-block">
-              {% for key, preview in file_previews.items %}
-                {% if key == field.name %}
-                  {% if preview.url and preview.is_image %}
-                    <img class="file-preview-image" src="{{ preview.url }}" alt="{{ field.label }}" data-preview-for="{{ field.id_for_label }}">
+            {% if model_slug == 'san-pham' and field.name == 'product_images' %}
+              <div class="file-preview-block">
+                <div
+                  class="multi-image-preview"
+                  data-product-image-preview
+                  data-input-id="{{ field.id_for_label }}"
+                ></div>
+              </div>
+            {% else %}
+              <div class="file-preview-block">
+                {% for key, preview in file_previews.items %}
+                  {% if key == field.name %}
+                    {% if preview.url and preview.is_image %}
+                      <img class="file-preview-image" src="{{ preview.url }}" alt="{{ field.label }}" data-preview-for="{{ field.id_for_label }}">
+                    {% endif %}
                   {% endif %}
-                {% endif %}
-              {% endfor %}
-              <img class="file-preview-image is-hidden" src="" alt="{{ field.label }}" data-preview-for="{{ field.id_for_label }}">
-            </div>
+                {% endfor %}
+                <img class="file-preview-image is-hidden" src="" alt="{{ field.label }}" data-preview-for="{{ field.id_for_label }}">
+              </div>
+            {% endif %}
           {% endif %}
         </div>
       {% endfor %}
+      {% if model_slug == 'san-pham' and file_previews.gallery_items %}
+        <section
+          class="panel card"
+          data-product-gallery-manager
+          style="margin-top:18px; border:1px solid rgba(15,118,110,.12); background:linear-gradient(180deg,#f8fffd,#f5fbf9);"
+        >
+          <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+              <div class="top-sub" style="text-transform:uppercase;letter-spacing:.08em;">Gallery</div>
+              <h3 style="margin:6px 0 8px;">Ảnh phụ hiện tại</h3>
+              <div class="top-sub">Kéo thả để đổi thứ tự hiển thị. Bấm `Xóa ảnh` để loại khỏi gallery khi lưu.</div>
+            </div>
+          </div>
+          <div
+            data-gallery-sortable
+            style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-top:16px;"
+          >
+            {% for image in file_previews.gallery_items %}
+              <article
+                class="gallery-item-card"
+                data-gallery-item
+                data-image-id="{{ image.id }}"
+                draggable="true"
+                style="border:1px solid rgba(15,23,42,.08);border-radius:18px;padding:12px;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.06);"
+              >
+                <input type="hidden" name="image_order_{{ image.id }}" value="{{ image.order }}" data-gallery-order>
+                <img
+                  src="{{ image.url }}"
+                  alt="{{ image.caption }}"
+                  style="width:100%;height:160px;object-fit:cover;border-radius:14px;display:block;background:#f8fafc;"
+                >
+                <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:10px;">
+                  <strong style="font-size:14px;">{{ image.caption }}</strong>
+                  <span class="top-sub" data-gallery-order-badge>Thứ tự {{ image.order }}</span>
+                </div>
+                <input type="hidden" name="delete_image_ids" value="" data-gallery-delete>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                  <button type="button" class="btn btn-light" data-gallery-handle>Kéo để sắp xếp</button>
+                  <button type="button" class="btn btn-danger" data-gallery-delete-toggle>Xóa ảnh</button>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+      {% if model_slug == 'khuyen-mai' %}
+        <div class="top-sub" style="margin-top:10px;">
+          Gợi ý nhanh:
+          `Mã voucher` nên viết ngắn gọn, in hoa, không dấu.
+          `Giá trị giảm` nhập `10` nếu là giảm 10%, hoặc nhập `50000` nếu là giảm 50.000đ.
+          `Đơn tối thiểu` giúp tránh áp dụng voucher cho đơn quá nhỏ.
+          `Ngày bắt đầu` và `Ngày kết thúc` có thể để trống nếu không muốn giới hạn theo thời gian.
+        </div>
+        <section
+          class="panel card"
+          id="voucherPreviewCard"
+          data-voucher-preview
+          data-sample-order="200000"
+          style="margin-top:18px; border:1px solid rgba(15,118,110,.12); background:linear-gradient(180deg,#f8fffd,#f5fbf9);"
+        >
+          <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+            <div>
+              <div class="top-sub" style="text-transform:uppercase; letter-spacing:.08em;">Preview Voucher</div>
+              <h3 style="margin:6px 0 8px;">Đơn mẫu sẽ được giảm bao nhiêu?</h3>
+              <div class="top-sub" id="voucherPreviewHint">
+                Nhập mã, loại giảm, giá trị giảm và điều kiện tối thiểu để xem kết quả ngay.
+              </div>
+            </div>
+            <div style="min-width:220px;">
+              <label for="voucherPreviewSampleInput" class="top-sub" style="display:block; margin-bottom:6px;">Số tiền mẫu</label>
+              <input
+                id="voucherPreviewSampleInput"
+                type="number"
+                min="0"
+                step="1000"
+                value="200000"
+                style="width:100%; margin-bottom:10px;"
+              >
+              <div style="display:flex; justify-content:space-between; gap:12px; margin-top:8px;">
+                <span class="top-sub">Tạm tính</span>
+                <strong id="voucherPreviewSubtotal">200.000 đ</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; gap:12px; margin-top:8px;">
+                <span class="top-sub">Giảm giá</span>
+                <strong id="voucherPreviewDiscount">0 đ</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; gap:12px; margin-top:12px; padding-top:12px; border-top:1px solid #d7ece4; font-size:18px;">
+                <span>Sau giảm</span>
+                <strong id="voucherPreviewTotal">200.000 đ</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+      {% endif %}
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
         <button class="btn btn-primary" type="submit">{{ t.save_changes|default:"Lưu thay đổi" }}</button>
         <a class="btn btn-light" href="{% url 'store:admin_list' model_slug %}">{{ t.back_to_list|default:"Quay lại danh sách" }}</a>
       </div>
-    </form>
+</form>
   </section>
+{% endblock %}
+{% block extra_js %}
+  {{ block.super }}
+  {% if model_slug == 'san-pham' %}
+    <script src="{% static 'store/js/product_admin_gallery.js' %}"></script>
+    <script src="{% static 'store/js/product_admin_uploads.js' %}"></script>
+  {% endif %}
+  {% if model_slug == 'khuyen-mai' %}
+    <script src="{% static 'store/js/voucher_admin_preview.js' %}"></script>
+  {% endif %}
 {% endblock %}

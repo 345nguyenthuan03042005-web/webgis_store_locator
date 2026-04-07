@@ -1,4 +1,6 @@
 ﻿from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -38,6 +40,8 @@ class NhomSanPham(models.Model):
 
 
 class SanPham(models.Model):
+    LOW_STOCK_THRESHOLD = 5
+
     ten = models.CharField("Tên sản phẩm", max_length=120)
     gia_ban = models.DecimalField(
         "Giá bán",
@@ -85,6 +89,34 @@ class SanPham(models.Model):
     def __str__(self) -> str:
         return self.ten
 
+    @property
+    def stock_level(self) -> str:
+        if self.ton_kho <= 0:
+            return "out"
+        if self.ton_kho <= self.LOW_STOCK_THRESHOLD:
+            return "low"
+        return "ok"
+
+    @property
+    def stock_label(self) -> str:
+        if self.stock_level == "out":
+            return "Hết hàng"
+        if self.stock_level == "low":
+            return f"Sắp hết ({self.ton_kho})"
+        return f"Còn {self.ton_kho}"
+
+    @property
+    def stock_hint(self) -> str:
+        if self.stock_level == "out":
+            return "Sản phẩm đang hết hàng."
+        if self.stock_level == "low":
+            return f"Chỉ còn {self.ton_kho} sản phẩm trong kho."
+        return f"Còn {self.ton_kho} sản phẩm trong kho."
+
+    @property
+    def is_low_stock(self) -> bool:
+        return self.stock_level == "low"
+
 
 class HinhAnhSanPham(models.Model):
     san_pham = models.ForeignKey(
@@ -131,6 +163,9 @@ class ChuoiCuaHang(models.Model):
 
 
 class CuaHang(models.Model):
+    LATITUDE_VALIDATORS = [MinValueValidator(-90), MaxValueValidator(90)]
+    LONGITUDE_VALIDATORS = [MinValueValidator(-180), MaxValueValidator(180)]
+
     chuoi = models.ForeignKey(
         "ChuoiCuaHang",
         on_delete=models.CASCADE,
@@ -141,8 +176,8 @@ class CuaHang(models.Model):
     dia_chi = models.CharField("Địa chỉ", max_length=255)
     quan_huyen = models.CharField("Quận/Huyện", max_length=50)
 
-    vi_do = models.FloatField("Vĩ độ (lat)")
-    kinh_do = models.FloatField("Kinh độ (lng)")
+    vi_do = models.FloatField("Vĩ độ (lat)", validators=LATITUDE_VALIDATORS)
+    kinh_do = models.FloatField("Kinh độ (lng)", validators=LONGITUDE_VALIDATORS)
     mo_cua = models.TimeField("Giờ mở cửa", null=True, blank=True)
     dong_cua = models.TimeField("Giờ đóng cửa", null=True, blank=True)
     hoat_dong_24h = models.BooleanField("Hoạt động 24h", default=False)
@@ -205,8 +240,26 @@ class NhanVien(models.Model):
 
 
 class KhuyenMai(models.Model):
+    DISCOUNT_TYPE_CHOICES = (
+        ("fixed", "Giảm số tiền"),
+        ("percent", "Giảm theo phần trăm"),
+    )
+
     ten = models.CharField("Tên khuyến mãi", max_length=150)
+    ma_code = models.CharField("Mã voucher", max_length=50, unique=True, db_index=True, null=True, blank=True)
     mo_ta = models.TextField("Mô tả", blank=True)
+    loai_giam = models.CharField(
+        "Loại giảm giá",
+        max_length=20,
+        choices=DISCOUNT_TYPE_CHOICES,
+        default="fixed",
+    )
+    gia_tri_giam = models.DecimalField("Giá trị giảm", max_digits=12, decimal_places=0, default=0)
+    gia_tri_don_hang_toi_thieu = models.DecimalField("Đơn tối thiểu", max_digits=12, decimal_places=0, default=0)
+    giam_toi_da = models.DecimalField("Giảm tối đa", max_digits=12, decimal_places=0, null=True, blank=True)
+    dang_ap_dung = models.BooleanField("Đang áp dụng", default=True)
+    ngay_bat_dau = models.DateTimeField("Bắt đầu", null=True, blank=True)
+    ngay_ket_thuc = models.DateTimeField("Kết thúc", null=True, blank=True)
 
     thuong_hieu = models.ManyToManyField(
         "ThuongHieu",
@@ -225,7 +278,7 @@ class KhuyenMai(models.Model):
         verbose_name_plural = "Khuyến mãi"
 
     def __str__(self) -> str:
-        return self.ten
+        return f"{self.ten} ({self.ma_code})" if self.ma_code else self.ten
 
 
 class Notification(models.Model):
@@ -248,7 +301,8 @@ class Notification(models.Model):
 
 
 def _trash_expiry():
-    return timezone.now() + timezone.timedelta(days=30)
+    retention_days = getattr(settings, "TRASH_RETENTION_DAYS", 15)
+    return timezone.now() + timezone.timedelta(days=retention_days)
 
 
 class TrashRecord(models.Model):
@@ -360,6 +414,18 @@ class DonHang(models.Model):
         ("done", "Hoàn tất"),
         ("cancelled", "Đã hủy"),
     )
+    PAYMENT_METHOD_CHOICES = (
+        ("cod", "Thanh toán khi nhận hàng"),
+        ("bank_transfer", "Chuyển khoản ngân hàng"),
+        ("momo", "Ví MoMo"),
+        ("ewallet", "Ví điện tử"),
+    )
+    PAYMENT_STATUS_CHOICES = (
+        ("unpaid", "Chưa thanh toán"),
+        ("paid", "Đã thanh toán"),
+        ("awaiting_confirmation", "Chờ xác nhận chuyển khoản"),
+        ("refunded", "Hoàn tiền"),
+    )
 
     khach_hang = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -369,10 +435,61 @@ class DonHang(models.Model):
     ho_ten_nguoi_nhan = models.CharField("Họ tên người nhận", max_length=120)
     so_dien_thoai = models.CharField("Số điện thoại", max_length=20)
     dia_chi_giao_hang = models.CharField("Địa chỉ giao hàng", max_length=255)
+    vi_do_giao_hang = models.FloatField(
+        "Vĩ độ giao hàng",
+        null=True,
+        blank=True,
+        validators=CuaHang.LATITUDE_VALIDATORS,
+    )
+    kinh_do_giao_hang = models.FloatField(
+        "Kinh độ giao hàng",
+        null=True,
+        blank=True,
+        validators=CuaHang.LONGITUDE_VALIDATORS,
+    )
     ghi_chu = models.TextField("Ghi chú", blank=True)
     trang_thai = models.CharField("Trạng thái", max_length=20, choices=STATUS_CHOICES, default="pending")
+    phuong_thuc_thanh_toan = models.CharField(
+        "Phương thức thanh toán",
+        max_length=30,
+        choices=PAYMENT_METHOD_CHOICES,
+        default="cod",
+    )
+    trang_thai_thanh_toan = models.CharField(
+        "Trạng thái thanh toán",
+        max_length=30,
+        choices=PAYMENT_STATUS_CHOICES,
+        default="unpaid",
+    )
     tong_so_luong = models.PositiveIntegerField("Tổng số lượng", default=0)
+    tong_tien_truoc_giam = models.DecimalField("Tổng tiền trước giảm", max_digits=12, decimal_places=0, default=0)
+    giam_gia = models.DecimalField("Giảm giá", max_digits=12, decimal_places=0, default=0)
     tong_tien = models.DecimalField("Tổng tiền", max_digits=12, decimal_places=0, default=0)
+    cua_hang_xu_ly = models.ForeignKey(
+        "CuaHang",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="don_hang_xu_ly",
+        verbose_name="Cửa hàng xử lý",
+    )
+    khuyen_mai = models.ForeignKey(
+        "KhuyenMai",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="don_hang",
+        verbose_name="Voucher áp dụng",
+    )
+    ma_voucher_ap_dung = models.CharField("Mã voucher áp dụng", max_length=50, blank=True)
+    anh_bien_lai = models.ImageField(
+        "Ảnh biên lai chuyển khoản",
+        upload_to="receipts/",
+        null=True,
+        blank=True,
+    )
+    ma_giao_dich_thanh_toan = models.CharField("Mã giao dịch thanh toán", max_length=120, blank=True)
+    thoi_gian_gui_bien_lai = models.DateTimeField("Thời gian gửi biên lai", null=True, blank=True)
     created_at = models.DateTimeField("Thời gian tạo", auto_now_add=True)
 
     class Meta:
@@ -405,3 +522,322 @@ class ChiTietDonHang(models.Model):
 
     def __str__(self) -> str:
         return f"{self.san_pham.ten} x {self.so_luong}"
+
+
+class XacNhanThanhToan(models.Model):
+    ACTION_CHOICES = (
+        ("submitted", "Đã gửi biên lai"),
+        ("approved", "Đã duyệt biên lai"),
+        ("rejected", "Đã từ chối biên lai"),
+    )
+
+    don_hang = models.ForeignKey(
+        "DonHang",
+        on_delete=models.CASCADE,
+        related_name="lich_su_xac_nhan_thanh_toan",
+        verbose_name="Đơn hàng",
+    )
+    hanh_dong = models.CharField(
+        "Hành động",
+        max_length=20,
+        choices=ACTION_CHOICES,
+    )
+    ghi_chu = models.TextField("Ghi chú", blank=True)
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="xac_nhan_thanh_toan_da_thuc_hien",
+        verbose_name="Người thực hiện",
+    )
+    created_at = models.DateTimeField("Thời gian tạo", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Xác nhận thanh toán"
+        verbose_name_plural = "Xác nhận thanh toán"
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"Đơn #{self.don_hang_id} - {self.get_hanh_dong_display()}"
+
+
+class TonKhoCuaHang(models.Model):
+    cua_hang = models.ForeignKey(
+        "CuaHang",
+        on_delete=models.CASCADE,
+        related_name="ton_kho_san_pham",
+        verbose_name="Cửa hàng",
+    )
+    san_pham = models.ForeignKey(
+        "SanPham",
+        on_delete=models.CASCADE,
+        related_name="ton_kho_theo_cua_hang",
+        verbose_name="Sản phẩm",
+    )
+    ton_kho = models.PositiveIntegerField("Tồn kho", default=0)
+    updated_at = models.DateTimeField("Cập nhật lúc", auto_now=True)
+
+    class Meta:
+        verbose_name = "Tồn kho cửa hàng"
+        verbose_name_plural = "Tồn kho cửa hàng"
+        ordering = ["cua_hang__ten", "san_pham__ten"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cua_hang", "san_pham"],
+                name="uniq_store_product_stock",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.cua_hang.ten} - {self.san_pham.ten}: {self.ton_kho}"
+
+
+def _movement_signed_quantity(movement) -> int:
+    return movement.so_luong if movement.loai == "import" else -movement.so_luong
+
+
+def _validate_inventory_sequence(product, *, candidate=None, exclude_id=None):
+    if product is None:
+        return
+
+    movements = list(
+        GiaoDichKho.objects.filter(san_pham=product)
+        .exclude(pk=exclude_id)
+        .order_by("created_at", "id")
+    )
+    if candidate is not None:
+        movements.append(candidate)
+        movements.sort(
+            key=lambda item: (
+                item.created_at or timezone.now(),
+                item.pk or 10**12,
+            )
+        )
+
+    running = 0
+    for movement in movements:
+        delta = _movement_signed_quantity(movement)
+        if running + delta < 0:
+            raise ValidationError(
+                {
+                    "so_luong": (
+                        f"Giao dịch '{movement}' làm tồn kho của {product.ten} bị âm."
+                    )
+                }
+            )
+        running += delta
+
+
+def _validate_store_inventory_sequence(store, product, *, candidate=None, exclude_id=None):
+    if store is None or product is None:
+        return
+
+    movements = list(
+        GiaoDichKho.objects.filter(san_pham=product, cua_hang=store)
+        .exclude(pk=exclude_id)
+        .order_by("created_at", "id")
+    )
+    if candidate is not None and candidate.cua_hang_id == getattr(store, "pk", store) and candidate.san_pham_id == getattr(product, "pk", product):
+        movements.append(candidate)
+        movements.sort(
+            key=lambda item: (
+                item.created_at or timezone.now(),
+                item.pk or 10**12,
+            )
+        )
+
+    running = 0
+    for movement in movements:
+        delta = _movement_signed_quantity(movement)
+        if running + delta < 0:
+            raise ValidationError(
+                {
+                    "so_luong": (
+                        f"Giao dịch '{movement}' làm tồn kho của {product.ten} tại {store.ten} bị âm."
+                    )
+                }
+            )
+        running += delta
+
+
+def sync_product_stock(product):
+    if product is None:
+        return 0
+
+    running = 0
+    movement_rows = []
+    movements = list(
+        GiaoDichKho.objects.filter(san_pham=product).order_by("created_at", "id")
+    )
+    for movement in movements:
+        ton_truoc = running
+        running += _movement_signed_quantity(movement)
+        movement_rows.append((movement.pk, ton_truoc, running))
+
+    for movement_id, ton_truoc, ton_sau in movement_rows:
+        GiaoDichKho.objects.filter(pk=movement_id).update(
+            ton_truoc=ton_truoc,
+            ton_sau=ton_sau,
+        )
+
+    if product.ton_kho != running:
+        SanPham.objects.filter(pk=product.pk).update(ton_kho=running)
+        product.ton_kho = running
+    return running
+
+
+def sync_store_stock(product, store):
+    if product is None or store is None:
+        return 0
+
+    running = 0
+    movements = list(
+        GiaoDichKho.objects.filter(san_pham=product, cua_hang=store).order_by("created_at", "id")
+    )
+    for movement in movements:
+        running += _movement_signed_quantity(movement)
+
+    stock_row, _ = TonKhoCuaHang.objects.get_or_create(
+        cua_hang=store,
+        san_pham=product,
+        defaults={"ton_kho": running},
+    )
+    if stock_row.ton_kho != running:
+        TonKhoCuaHang.objects.filter(pk=stock_row.pk).update(ton_kho=running)
+        stock_row.ton_kho = running
+    return running
+
+
+class GiaoDichKho(models.Model):
+    TYPE_CHOICES = (
+        ("import", "Nhập kho"),
+        ("export", "Xuất kho"),
+    )
+
+    san_pham = models.ForeignKey(
+        "SanPham",
+        on_delete=models.CASCADE,
+        related_name="giao_dich_kho",
+        verbose_name="Sản phẩm",
+    )
+    cua_hang = models.ForeignKey(
+        "CuaHang",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="giao_dich_kho",
+        verbose_name="Cửa hàng",
+    )
+    nhan_vien = models.ForeignKey(
+        "NhanVien",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="giao_dich_kho",
+        verbose_name="Nhân viên ký",
+    )
+    loai = models.CharField("Loại giao dịch", max_length=20, choices=TYPE_CHOICES)
+    so_luong = models.PositiveIntegerField("Số lượng", default=1)
+    ton_truoc = models.PositiveIntegerField("Tồn trước", default=0, editable=False)
+    ton_sau = models.PositiveIntegerField("Tồn sau", default=0, editable=False)
+    don_hang = models.ForeignKey(
+        "DonHang",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="giao_dich_kho",
+        verbose_name="Đơn hàng liên quan",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="giao_dich_kho_da_tao",
+        verbose_name="Người tạo",
+    )
+    ghi_chu = models.TextField("Ghi chú", blank=True)
+    chu_ky = models.ImageField(
+        "Chữ ký nhân viên",
+        upload_to="signatures/",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField("Thời gian tạo", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Giao dịch kho"
+        verbose_name_plural = "Giao dịch kho"
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        store_suffix = f" @ {self.cua_hang.ten}" if self.cua_hang_id else ""
+        return f"{self.get_loai_display()} - {self.san_pham.ten} x {self.so_luong}{store_suffix}"
+
+    def clean(self):
+        super().clean()
+        if self.so_luong <= 0:
+            raise ValidationError({"so_luong": "Số lượng phải lớn hơn 0."})
+        if self.nhan_vien_id and self.nhan_vien and self.nhan_vien.cua_hang_id:
+            if self.cua_hang_id and self.cua_hang_id != self.nhan_vien.cua_hang_id:
+                raise ValidationError({"cua_hang": "Cửa hàng của giao dịch phải trùng với cửa hàng của nhân viên ký."})
+            if not self.cua_hang_id:
+                self.cua_hang = self.nhan_vien.cua_hang
+        if self.loai == "export" and not self.cua_hang_id:
+            if self.don_hang_id and self.don_hang and self.don_hang.cua_hang_xu_ly_id:
+                self.cua_hang = self.don_hang.cua_hang_xu_ly
+            else:
+                raise ValidationError({"cua_hang": "Phiếu xuất kho cần gắn với một cửa hàng."})
+        if self.loai == "import":
+            errors = {}
+            if not self.nhan_vien_id:
+                errors["nhan_vien"] = "Phiếu nhập kho cần chọn nhân viên ký."
+            if not self.chu_ky:
+                errors["chu_ky"] = "Phiếu nhập kho cần có chữ ký nhân viên."
+            if errors:
+                raise ValidationError(errors)
+        if not self.san_pham_id:
+            return
+        _validate_inventory_sequence(
+            self.san_pham,
+            candidate=self,
+            exclude_id=self.pk,
+        )
+        if self.cua_hang_id:
+            _validate_store_inventory_sequence(
+                self.cua_hang,
+                self.san_pham,
+                candidate=self,
+                exclude_id=self.pk,
+            )
+
+    def save(self, *args, **kwargs):
+        old_store_id = None
+        if self.pk:
+            old_store_id = (
+                GiaoDichKho.objects.filter(pk=self.pk)
+                .values_list("cua_hang_id", flat=True)
+                .first()
+            )
+        self.full_clean()
+        super().save(*args, **kwargs)
+        sync_product_stock(self.san_pham)
+        if old_store_id and old_store_id != self.cua_hang_id:
+            old_store = CuaHang.objects.filter(pk=old_store_id).first()
+            if old_store:
+                sync_store_stock(self.san_pham, old_store)
+        if self.cua_hang_id:
+            sync_store_stock(self.san_pham, self.cua_hang)
+
+    def delete(self, *args, **kwargs):
+        product = self.san_pham
+        store = self.cua_hang
+        _validate_inventory_sequence(product, exclude_id=self.pk)
+        if store is not None:
+            _validate_store_inventory_sequence(store, product, exclude_id=self.pk)
+        result = super().delete(*args, **kwargs)
+        sync_product_stock(product)
+        if store is not None:
+            sync_store_stock(product, store)
+        return result

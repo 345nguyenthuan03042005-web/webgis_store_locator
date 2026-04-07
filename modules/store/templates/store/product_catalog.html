@@ -190,6 +190,104 @@
       box-shadow: 0 2px 8px rgba(15, 23, 42, .18);
     }
     .product-media-dots span.is-active { background: #fff; }
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 18px;
+      align-items: stretch;
+    }
+    .product-card {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      border-radius: 24px;
+    }
+    .product-title {
+      margin: 12px 0 6px;
+      min-height: 76px;
+      line-height: 1.3;
+      display: flex;
+      align-items: flex-start;
+    }
+    .product-title a {
+      text-decoration: none;
+      color: inherit;
+    }
+    .product-price {
+      margin-top: 8px;
+      font-weight: 800;
+      font-size: 20px;
+    }
+    .stock-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      min-height: 52px;
+    }
+    .stock-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .stock-badge.in-stock {
+      background: rgba(15, 118, 110, .12);
+      color: #0f766e;
+    }
+    .stock-badge.low-stock {
+      background: rgba(245, 158, 11, .16);
+      color: #b45309;
+    }
+    .stock-badge.out-stock {
+      background: rgba(239, 68, 68, .12);
+      color: #b91c1c;
+    }
+    .stock-hint {
+      color: #486581;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .card-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: auto;
+      padding-top: 14px;
+    }
+    .card-actions form {
+      margin: 0;
+    }
+    .card-actions .btn,
+    .card-actions form .btn {
+      width: 100%;
+      justify-content: center;
+    }
+    .card-actions.is-single {
+      grid-template-columns: 1fr;
+    }
+    .btn.is-out-stock {
+      background: linear-gradient(180deg, #e5e7eb, #d1d5db);
+      color: #6b7280;
+      border-color: rgba(148, 163, 184, .35);
+      box-shadow: none;
+    }
+    .btn.is-out-stock[disabled] {
+      opacity: 1;
+      cursor: not-allowed;
+      transform: none;
+    }
+    @media (max-width: 640px) {
+      .product-title {
+        min-height: auto;
+      }
+      .card-actions {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body data-theme="light">
@@ -217,11 +315,11 @@
         </div>
       </section>
 
-      <section class="grid">
+      <section class="grid product-grid">
         {% for product in products %}
-          <article class="panel card">
+          <article class="panel card product-card">
             <a href="{% url 'store:product_detail' product.pk %}" style="display:block;">
-              <div class="product-media" data-product-gallery>
+              <div class="product-media" data-product-gallery data-autoplay-ms="5000">
                 {% for image_url in product.card_gallery %}
                   <img
                     src="{{ image_url }}"
@@ -233,26 +331,34 @@
                 {% if product.card_gallery|length > 1 %}
                   <div class="product-media-dots">
                     {% for image_url in product.card_gallery %}
-                      <span class="{% if forloop.first %}is-active{% endif %}"></span>
+                      <span class="{% if forloop.first %}is-active{% endif %}" data-gallery-dot></span>
                     {% endfor %}
                   </div>
                 {% endif %}
               </div>
             </a>
-            <h3 style="margin:12px 0 6px;"><a href="{% url 'store:product_detail' product.pk %}" style="text-decoration:none;color:inherit;">{{ product.ten }}</a></h3>
+            <h3 class="product-title"><a href="{% url 'store:product_detail' product.pk %}">{{ product.ten }}</a></h3>
             <div class="top-sub">{{ product.nhom_san_pham|default:"-" }} | {{ product.thuong_hieu|default:"-" }}</div>
-            <div style="margin-top:8px;font-weight:800;font-size:20px;">{{ product.display_price }}</div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
-              <form method="post" action="{% url 'store:cart_add' product.pk %}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{% url 'store:cart' %}">
-                <button class="btn btn-light" type="submit">{{ t.add_to_cart|default:"Thêm vào giỏ" }}</button>
-              </form>
-              <form method="post" action="{% url 'store:cart_add' product.pk %}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{% url 'store:checkout' %}">
-                <button class="btn btn-primary" type="submit">{{ t.buy_now|default:"Mua ngay" }}</button>
-              </form>
+            <div class="product-price">{{ product.display_price }}</div>
+            <div class="stock-row">
+              <span class="stock-badge {{ product.stock_css }}">{{ product.catalog_stock_label }}</span>
+              <span class="stock-hint">{{ product.catalog_stock_hint }}</span>
+            </div>
+            <div class="card-actions {% if product.ton_kho <= 0 %}is-single{% endif %}">
+              {% if product.ton_kho <= 0 %}
+                <button class="btn btn-light is-out-stock" type="button" disabled>Hết hàng</button>
+              {% else %}
+                <form method="post" action="{% url 'store:cart_add' product.pk %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{% url 'store:cart' %}">
+                  <button class="btn btn-light" type="submit">{{ t.add_to_cart|default:"Thêm vào giỏ" }}</button>
+                </form>
+                <form method="post" action="{% url 'store:cart_add' product.pk %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{% url 'store:checkout' %}">
+                  <button class="btn btn-primary" type="submit">{{ t.buy_now|default:"Mua ngay" }}</button>
+                </form>
+              {% endif %}
             </div>
           </article>
         {% empty %}
@@ -282,21 +388,6 @@
 
     {% include 'shared/footer.html' %}
   </div>
-  <script>
-    document.querySelectorAll("[data-product-gallery]").forEach((gallery) => {
-      const images = Array.from(gallery.querySelectorAll("img"));
-      const dots = Array.from(gallery.querySelectorAll(".product-media-dots span"));
-      if (images.length < 2) return;
-      let index = 0;
-      window.setInterval(() => {
-        images[index].classList.remove("is-active");
-        if (dots[index]) dots[index].classList.remove("is-active");
-        index = (index + 1) % images.length;
-        images[index].classList.add("is-active");
-        if (dots[index]) dots[index].classList.add("is-active");
-      }, 1700);
-    });
-  </script>
+  <script src="/static/store/js/product_gallery.js"></script>
 </body>
 </html>
-

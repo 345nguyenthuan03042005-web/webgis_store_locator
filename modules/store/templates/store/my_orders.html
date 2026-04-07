@@ -15,278 +15,175 @@
         linear-gradient(160deg, #f8fafb, #f1f6f4);
     }
     .site-shell { min-height: 100vh; }
-    .site-header {
-      background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-      box-shadow: 0 10px 28px rgba(8, 47, 44, 0.18);
-    }
-    .site-header .wrap {
-      max-width: 1320px;
-      margin: auto;
-      padding: 16px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 16px;
-    }
-    .logo {
-      font-size: 32px;
-      font-weight: 900;
-      letter-spacing: 1.5px;
-      color: #fff;
-      font-family: "Segoe UI", Arial, Helvetica, sans-serif;
-      text-transform: uppercase;
-      text-decoration: none;
-    }
-    .logo span { color: #ffd7a8; }
-    .site-nav { display: flex; gap: 28px; }
-    .site-nav a {
-      color: #fff;
-      text-decoration: none;
-      font-weight: 700;
-      font-size: 15px;
-    }
-    .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .btnFind, .btnWhite {
-      width: 140px;
-      height: 44px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      line-height: 1;
-      padding: 0 12px;
-      border-radius: 999px;
-      font-size: 13px;
-      font-weight: 900;
-      text-decoration: none;
-    }
-    .btnFind {
-      background: linear-gradient(135deg, #f59e0b, #f97316);
-      color: #fff;
-      box-shadow: 0 10px 24px rgba(249, 115, 22, .28);
-    }
-    .btnWhite {
-      width: 112px;
-      background: rgba(255,255,255,.92);
-      color: #123545;
-      border: 1px solid rgba(255,255,255,.45);
-    }
-    .notify-menu { position: relative; }
-    .notify-menu summary {
-      width: 52px;
-      min-width: 52px;
-      padding: 0;
-      position: relative;
-    }
-    .notify-menu summary::after { display: none; }
-    .notify-icon {
-      width: 20px;
-      height: 20px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-    .notify-count {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      min-width: 18px;
-      height: 18px;
-      padding: 0 5px;
-      border-radius: 999px;
-      background: linear-gradient(135deg, #ef4444, #f97316);
-      color: #fff;
-      font-size: 10px;
-      font-weight: 900;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 6px 16px rgba(239, 68, 68, .32);
-    }
-    .notify-panel {
-      position: absolute;
-      top: calc(100% + 10px);
-      right: 0;
-      width: min(360px, calc(100vw - 32px));
-      padding: 0;
-      overflow: hidden;
-      border-radius: 22px;
-      background: rgba(255,255,255,.98);
-      border: 1px solid rgba(148,163,184,.18);
-      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
-      z-index: 6;
-    }
-    .notify-header {
-      padding: 14px 18px;
-      background: linear-gradient(135deg, #ef4444, #f97316);
-      color: #fff;
-      font-size: 14px;
-      font-weight: 900;
-    }
-    .notify-list {
-      max-height: 360px;
-      overflow: auto;
-      background: #fff7f1;
-    }
-    .notify-item {
-      display: block;
-      padding: 14px 18px;
-      color: #1f2937;
-      text-decoration: none;
-      border-top: 1px solid rgba(148,163,184,.14);
-    }
-    .notify-item:first-child { border-top: none; }
-    .notify-item:hover { background: rgba(255,255,255,.78); }
-    .notify-item-title {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 4px;
-      font-size: 15px;
-      font-weight: 800;
-      color: #1f2937;
-    }
-    .notify-item-body {
-      color: #64748b;
-      font-size: 13px;
-      line-height: 1.5;
-    }
-    .notify-item-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2px 7px;
-      border-radius: 999px;
-      background: rgba(239,68,68,.12);
-      color: #dc2626;
-      font-size: 10px;
-      font-weight: 900;
-      text-transform: uppercase;
-    }
-    .notify-footer {
-      display: block;
-      padding: 12px 18px;
-      text-align: center;
-      color: #0f766e;
-      font-weight: 800;
-      text-decoration: none;
-      background: #fff;
-      border-top: 1px solid rgba(148,163,184,.14);
-    }
-    .notify-footer:hover { background: #f8fafc; }
-    .account-menu { position: relative; }
-    .account-menu summary {
-      list-style: none;
-      cursor: pointer;
-      width: auto;
-      min-width: 150px;
-      padding: 0 16px;
-      gap: 10px;
-    }
-    .account-menu summary::-webkit-details-marker { display: none; }
-    .account-menu summary::after {
-      content: "";
-      width: 8px;
-      height: 8px;
-      border-right: 2px solid currentColor;
-      border-bottom: 2px solid currentColor;
-      transform: rotate(45deg) translateY(-1px);
-      opacity: .7;
-    }
-    .account-menu[open] summary::after { transform: rotate(-135deg) translateY(-1px); }
-    .account-menu-panel {
-      position: absolute;
-      top: calc(100% + 10px);
-      right: 0;
-      width: 220px;
-      padding: 10px;
-      border-radius: 20px;
-      background: rgba(255,255,255,.98);
-      border: 1px solid rgba(148,163,184,.18);
-      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16);
-      z-index: 5;
-    }
-    .account-menu-label {
-      padding: 8px 10px 10px;
-      color: #0f172a;
-      font-weight: 800;
-      border-bottom: 1px solid rgba(148,163,184,.16);
-      margin-bottom: 6px;
-    }
-    .account-menu-link {
-      display: block;
-      padding: 11px 12px;
-      border-radius: 14px;
-      color: #123545;
-      text-decoration: none;
-      font-weight: 700;
-    }
-    .account-menu-link:hover { background: #f1f5f9; }
-    .account-menu-link.logout { color: #dc2626; }
     .page-wrap {
-      max-width: 1000px;
+      max-width: 1120px;
       margin: 0 auto;
       padding: 28px 18px 56px;
     }
-    .site-footer {
-      margin-top: 20px;
-      background: #0f172a;
-      color: #cbd5f5;
+    .orders-shell {
+      display: grid;
+      gap: 18px;
     }
-    .site-footer .container {
-      width: min(100%, 1320px);
-      margin: 0 auto;
-      padding: 0 20px;
+    .hero-card {
+      padding: 24px;
+      border-radius: 28px;
+      background:
+        radial-gradient(320px 180px at 100% 0%, rgba(253, 186, 116, .16), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.96), rgba(244,250,249,.9));
+      border: 1px solid rgba(148, 163, 184, .14);
+      box-shadow: 0 20px 44px rgba(15, 23, 42, .08);
     }
-    .newsletter-section {
-      background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
-      padding: 24px 0;
-    }
-    .newsletter-content {
+    .hero-head {
       display: flex;
-      gap: 16px;
-      align-items: center;
       justify-content: space-between;
+      gap: 12px;
+      align-items: center;
       flex-wrap: wrap;
     }
-    .newsletter-content h3 { margin: 0; color: #fff; font-size: 20px; font-weight: 900; line-height: 1.35; }
-    .newsletter-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .newsletter-form input {
-      min-width: 280px;
-      border: none;
-      border-radius: 999px;
-      padding: 12px 16px;
-      background: #fff;
+    .hero-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .hero-kpi {
+      padding: 16px 18px;
+      border-radius: 22px;
+      background: rgba(255,255,255,.76);
+      border: 1px solid rgba(148, 163, 184, .14);
+    }
+    .hero-kpi-label {
+      color: #64748b;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 800;
+    }
+    .hero-kpi-value {
+      margin-top: 8px;
       color: #0f172a;
-      font-weight: 700;
-    }
-    .newsletter-form button {
-      border: none;
-      border-radius: 999px;
-      padding: 12px 18px;
-      background: linear-gradient(135deg, #f59e0b, #f97316);
-      color: #fff;
+      font-size: 28px;
       font-weight: 900;
-      cursor: pointer;
     }
-    .footer-info { padding: 34px 0; }
-    .footer-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 24px; }
-    .footer-col h4 { margin: 0 0 12px; font-size: 16px; color: #fff; font-weight: 900; }
-    .footer-col p, .footer-col li, .footer-col a { color: #cbd5f5; font-size: 14px; line-height: 1.6; }
-    .footer-col ul { margin: 0; padding: 0; list-style: none; }
-    .footer-col li + li { margin-top: 8px; }
-    .footer-col a:hover { color: #fff; }
-    .footer-bottom { border-top: 1px solid rgba(203, 213, 245, 0.2); padding: 14px 0; text-align: center; }
-    .footer-bottom p { margin: 0; }
-    @media (max-width: 900px) {
-      .footer-grid { grid-template-columns: 1fr; }
-      .site-nav { gap: 16px; }
+    .orders-list {
+      display: grid;
+      gap: 16px;
+    }
+    .order-card {
+      padding: 22px;
+      border-radius: 26px;
+      background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(245,248,250,.94));
+      border: 1px solid rgba(148, 163, 184, .14);
+      box-shadow: 0 18px 42px rgba(15, 23, 42, .06);
+    }
+    .order-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .order-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .order-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 900;
+      background: rgba(20,184,166,.1);
+      color: #0f766e;
+      border: 1px solid rgba(20,184,166,.16);
+    }
+    .order-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .summary-box {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,.82);
+      border: 1px solid rgba(148, 163, 184, .12);
+    }
+    .summary-box .label {
+      color: #64748b;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 6px;
+    }
+    .summary-box .value {
+      color: #102a43;
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.45;
+    }
+    .items-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(248,250,252,.88);
+      border: 1px solid rgba(226,232,240,.95);
+    }
+    .item-name {
+      color: #0f172a;
+      font-weight: 800;
+    }
+    .item-meta {
+      color: #64748b;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .order-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(226,232,240,.92);
+    }
+    .empty-card {
+      padding: 40px 24px;
+      text-align: center;
+      border-radius: 28px;
+      background: rgba(255,255,255,.86);
+      border: 1px solid rgba(148, 163, 184, .14);
+      box-shadow: 0 18px 42px rgba(15, 23, 42, .06);
+    }
+    @media (max-width: 960px) {
+      .hero-kpis,
+      .order-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 640px) {
+      .hero-kpis,
+      .order-summary {
+        grid-template-columns: 1fr;
+      }
+      .item-row,
+      .order-actions {
+        align-items: flex-start;
+        flex-direction: column;
+      }
     }
   </style>
 </head>
@@ -296,48 +193,109 @@
 
     <main class="page-wrap">
       {% if messages %}{% for message in messages %}<div class="msg">{{ message }}</div>{% endfor %}{% endif %}
-      <section class="panel card">
-        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;">
-          <div>
-            <p class="stat-title">{{ t.user_portal|default:"Khu vực người dùng" }}</p>
-            <h1 class="top-title" style="margin:6px 0 0;">{{ t.my_orders|default:"Đơn hàng của tôi" }}</h1>
-            <p class="top-sub" style="margin-bottom:0;">Theo dõi trạng thái đơn và lịch sử mua hàng của bạn.</p>
-          </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <a class="btn btn-ghost" href="{% url 'store:user_profile' %}">Quay lại</a>
-          </div>
-        </div>
 
-        {% for order in orders %}
-          <article class="panel card" style="margin-top:14px;background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(244,248,250,.94));">
-            <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
-              <div>
-                <div><strong>{{ t.order_code|default:"Mã đơn" }}:</strong> #{{ order.pk }}</div>
-                <div class="top-sub">{{ t.order_status|default:"Trạng thái đơn" }}: {{ order.get_trang_thai_display }} | {{ t.order_time|default:"Thời gian đặt" }}: {{ order.created_at|date:"d/m/Y H:i" }}</div>
-                <div class="top-sub">{{ t.total_amount|default:"Tổng tiền" }}: {{ order.display_total_amount }}</div>
-              </div>
-              <a class="btn btn-ghost" href="{% url 'store:order_detail' order.pk %}">Xem chi tiết</a>
+      <section class="orders-shell">
+        <section class="hero-card">
+          <div class="hero-head">
+            <div>
+              <p class="stat-title">{{ t.user_portal|default:"Khu vực người dùng" }}</p>
+              <h1 class="top-title" style="margin:6px 0 0;">{{ t.my_orders|default:"Đơn hàng của tôi" }}</h1>
+              <p class="top-sub" style="margin:8px 0 0;">Theo dõi trạng thái đơn, thanh toán và lịch sử mua hàng của bạn.</p>
             </div>
-            {% for item in order.items.all %}
-              <div style="padding:8px 0;border-bottom:1px solid #e5e7eb;">{{ item.san_pham.ten }} x {{ item.so_luong }} - {{ item.display_unit_price }}</div>
+            <a class="btn btn-light" href="{% url 'store:user_profile' %}">Quay lại hồ sơ</a>
+          </div>
+
+          <div class="hero-kpis">
+            <div class="hero-kpi">
+              <div class="hero-kpi-label">Tổng đơn</div>
+              <div class="hero-kpi-value">{{ paginator.count }}</div>
+            </div>
+            <div class="hero-kpi">
+              <div class="hero-kpi-label">Trang hiện tại</div>
+              <div class="hero-kpi-value">{{ page_obj.number }} / {{ paginator.num_pages|default:"1" }}</div>
+            </div>
+            <div class="hero-kpi">
+              <div class="hero-kpi-label">Đang theo dõi</div>
+              <div class="hero-kpi-value">{{ orders|length }}</div>
+            </div>
+          </div>
+        </section>
+
+        {% if orders %}
+          <section class="orders-list">
+            {% for order in orders %}
+              <article class="order-card">
+                <div class="order-head">
+                  <div>
+                    <div style="font-size:24px;font-weight:900;color:#0f172a;">Mã đơn: {{ order.pk }}</div>
+                    <div class="top-sub" style="margin-top:6px;">Đặt lúc {{ order.created_at|date:"d/m/Y H:i" }}</div>
+                    <div class="order-meta">
+                      <span class="order-pill">{{ order.get_trang_thai_display }}</span>
+                      <span class="order-pill">{{ order.display_payment_status }}</span>
+                      <span class="order-pill">{{ order.display_payment_method }}</span>
+                    </div>
+                  </div>
+                  <a class="btn btn-primary" href="{% url 'store:order_detail' order.pk %}">Xem chi tiết</a>
+                </div>
+
+                <div class="order-summary">
+                  <div class="summary-box">
+                    <div class="label">Tổng tiền</div>
+                    <div class="value">{{ order.display_total_amount }}</div>
+                  </div>
+                  <div class="summary-box">
+                    <div class="label">Cửa hàng xử lý</div>
+                    <div class="value">{{ order.display_store_name }}</div>
+                  </div>
+                  <div class="summary-box">
+                    <div class="label">Người nhận</div>
+                    <div class="value">{{ order.ho_ten_nguoi_nhan }}</div>
+                  </div>
+                  <div class="summary-box">
+                    <div class="label">Biên lai</div>
+                    <div class="value">{% if order.anh_bien_lai %}Đã tải lên{% else %}Chưa có{% endif %}</div>
+                  </div>
+                </div>
+
+                <div class="items-list">
+                  {% for item in order.items.all %}
+                    <div class="item-row">
+                      <div>
+                        <div class="item-name">{{ item.san_pham.ten }}</div>
+                        <div class="item-meta">Số lượng {{ item.so_luong }} x {{ item.display_unit_price }}</div>
+                      </div>
+                      <strong>{{ item.display_line_total }}</strong>
+                    </div>
+                  {% endfor %}
+                </div>
+              </article>
             {% endfor %}
-          </article>
-        {% empty %}
-          <p>{{ t.no_data|default:"Chưa có dữ liệu." }}</p>
-        {% endfor %}
+          </section>
+        {% else %}
+          <section class="empty-card">
+            <h2 style="margin:0 0 8px;">Chưa có đơn hàng nào</h2>
+            <p class="top-sub" style="margin:0 0 18px;">Khi bạn đặt hàng thành công, danh sách đơn sẽ xuất hiện tại đây.</p>
+            <a class="btn btn-primary" href="{% url 'store:product_catalog' %}">Xem sản phẩm</a>
+          </section>
+        {% endif %}
 
         {% if paginator.num_pages > 1 %}
-          <div class="pagination">
-            <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page=1{% else %}#{% endif %}">Đầu</a>
-            <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page={{ page_obj.previous_page_number }}{% else %}#{% endif %}">Trước</a>
-            {% for p in paginator.page_range %}
-              {% if p == 1 or p == paginator.num_pages or p >= page_obj.number|add:"-1" and p <= page_obj.number|add:"1" %}
-                <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?page={{ p }}">{{ p }}</a>
-              {% endif %}
-            {% endfor %}
-            <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ page_obj.next_page_number }}{% else %}#{% endif %}">Sau</a>
-            <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ paginator.num_pages }}{% else %}#{% endif %}">Cuối</a>
-          </div>
+          <section class="panel card">
+            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
+              <div class="top-sub">Trang {{ page_obj.number }} / {{ paginator.num_pages }}</div>
+              <div class="pagination">
+                <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page=1{% else %}#{% endif %}">Đầu</a>
+                <a class="page-link {% if not page_obj.has_previous %}is-disabled{% endif %}" href="{% if page_obj.has_previous %}?page={{ page_obj.previous_page_number }}{% else %}#{% endif %}">Trước</a>
+                {% for p in paginator.page_range %}
+                  {% if p == 1 or p == paginator.num_pages or p >= page_obj.number|add:"-1" and p <= page_obj.number|add:"1" %}
+                    <a class="page-link {% if p == page_obj.number %}is-active{% endif %}" href="?page={{ p }}">{{ p }}</a>
+                  {% endif %}
+                {% endfor %}
+                <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ page_obj.next_page_number }}{% else %}#{% endif %}">Sau</a>
+                <a class="page-link {% if not page_obj.has_next %}is-disabled{% endif %}" href="{% if page_obj.has_next %}?page={{ paginator.num_pages }}{% else %}#{% endif %}">Cuối</a>
+              </div>
+            </div>
+          </section>
         {% endif %}
       </section>
     </main>
@@ -346,4 +304,3 @@
   </div>
 </body>
 </html>
-

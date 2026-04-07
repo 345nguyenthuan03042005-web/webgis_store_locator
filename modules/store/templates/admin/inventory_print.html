@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phiếu nhập kho #{{ movement.pk }}</title>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(20, 184, 166, .12), transparent 22%),
+        linear-gradient(180deg, #eef7f6 0%, #eef4f7 58%, #f6fafc 100%);
+      color: #102a43;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 24px auto;
+      padding: 18mm;
+      background: #fff;
+      box-shadow: 0 20px 50px rgba(15, 23, 42, .12);
+      border-radius: 24px;
+      overflow: hidden;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: flex-start;
+      padding: 22px 24px 26px;
+      margin: -18mm -18mm 0;
+      background: linear-gradient(135deg, #0f766e, #14b8a6);
+      color: #fff;
+    }
+    .brand {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+    .subtitle {
+      margin-top: 6px;
+      color: rgba(255,255,255,.84);
+      font-size: 14px;
+    }
+    .doc-code {
+      text-align: right;
+    }
+    .doc-code strong {
+      display: block;
+      font-size: 24px;
+      color: #fff;
+    }
+    .doc-code .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.16);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .section {
+      margin-top: 22px;
+    }
+    .section-title {
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #0f766e;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 22px;
+    }
+    .info-item {
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #f8fbfc;
+      border: 1px solid #d9e2ec;
+    }
+    .info-label {
+      font-size: 12px;
+      font-weight: 800;
+      color: #627d98;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .info-value {
+      margin-top: 6px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #102a43;
+    }
+    .qty-card {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #0f766e, #14b8a6);
+      color: #fff;
+      font-weight: 900;
+      font-size: 28px;
+      min-width: 200px;
+      justify-content: center;
+      box-shadow: 0 18px 30px rgba(20, 184, 166, .24);
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .barcode-card {
+      padding: 16px 18px;
+      border-radius: 18px;
+      border: 1px solid #d9e2ec;
+      background: linear-gradient(180deg, #f8fbfc, #ffffff);
+    }
+    .barcode-wrap {
+      margin-top: 12px;
+      min-height: 84px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px dashed #9fb3c8;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .barcode-wrap svg {
+      width: 100%;
+      height: auto;
+      max-height: 72px;
+    }
+    .barcode-code {
+      margin-top: 10px;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-align: center;
+      color: #0f172a;
+    }
+    .barcode-hint {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #627d98;
+      text-align: center;
+    }
+    .scan-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .qr-card {
+      padding: 16px 18px;
+      border-radius: 18px;
+      border: 1px solid #d9e2ec;
+      background: linear-gradient(180deg, #f8fbfc, #ffffff);
+    }
+    .qr-wrap {
+      margin-top: 12px;
+      min-height: 160px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px dashed #9fb3c8;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .qr-wrap svg {
+      width: 160px;
+      height: 160px;
+    }
+    .lookup-link {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #486581;
+      word-break: break-all;
+      text-align: center;
+    }
+    .stat-card {
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid #fed7aa;
+      background: linear-gradient(180deg, #fff7ed, #ffffff);
+    }
+    .stat-label {
+      font-size: 12px;
+      font-weight: 800;
+      color: #9a3412;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .stat-value {
+      margin-top: 8px;
+      font-size: 22px;
+      font-weight: 900;
+      color: #7c2d12;
+    }
+    .signature-box {
+      margin-top: 14px;
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px dashed #9fb3c8;
+      min-height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fcfdff;
+    }
+    .signature-box img {
+      max-width: 100%;
+      max-height: 120px;
+      object-fit: contain;
+    }
+    .notes {
+      min-height: 96px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid #d9e2ec;
+      background: #fbfdff;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    .approval-grid {
+      display: grid;
+      grid-template-columns: 1.2fr .9fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+    .approval-card {
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid #d9e2ec;
+      background: linear-gradient(180deg, #f8fbfc, #ffffff);
+    }
+    .approval-title {
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #0f766e;
+    }
+    .approval-meta {
+      margin-top: 14px;
+      display: grid;
+      gap: 12px;
+    }
+    .approval-meta strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #627d98;
+    }
+    .footer-note {
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px dashed #cbd5e1;
+      font-size: 12px;
+      color: #627d98;
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .actions {
+      width: 210mm;
+      margin: 0 auto 24px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .btn-print {
+      background: #0f766e;
+      color: #fff;
+    }
+    .btn-close {
+      background: #d9e2ec;
+      color: #102a43;
+    }
+    @media print {
+      body {
+        background: #fff;
+      }
+      .actions {
+        display: none;
+      }
+      .page {
+        width: auto;
+        min-height: auto;
+        margin: 0;
+        box-shadow: none;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="actions">
+    <button class="btn btn-close" type="button" onclick="window.close()">Dong</button>
+    <button class="btn btn-print" type="button" onclick="window.print()">In phieu</button>
+    <a class="btn btn-print" href="{% url 'store:admin_inventory_pdf' movement.pk %}" style="text-decoration:none;display:inline-flex;align-items:center;">Tai PDF</a>
+  </div>
+
+  <main class="page">
+    <header class="header">
+      <div>
+        <div class="brand">SmartGIS</div>
+        <div class="subtitle">Phieu nhap kho noi bo</div>
+      </div>
+      <div class="doc-code">
+        <div class="chip">Chung tu noi bo</div>
+        <strong>PNK-{{ movement.pk }}</strong>
+        <div class="subtitle">In luc {{ generated_at|date:"d/m/Y H:i" }}</div>
+      </div>
+    </header>
+
+    <section class="section">
+      <h2 class="section-title">Thong tin chung</h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">San pham</div>
+          <div class="info-value">{{ movement.san_pham.ten }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Thoi gian tao phieu</div>
+          <div class="info-value">{{ movement.created_at|date:"d/m/Y H:i" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Nhan vien ky</div>
+          <div class="info-value">{{ movement.nhan_vien.ho_ten|default:"-" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Cua hang</div>
+          <div class="info-value">{{ movement.nhan_vien.cua_hang.ten|default:"-" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Nguoi tao tren he thong</div>
+          <div class="info-value">{{ movement.created_by.username|default:"-" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Ton kho</div>
+          <div class="info-value">{{ movement.ton_truoc }} -> {{ movement.ton_sau }}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Tong hop so lieu</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">So luong nhap</div>
+          <div class="stat-value">{{ movement.so_luong }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Ton truoc</div>
+          <div class="stat-value">{{ movement.ton_truoc }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Ton sau</div>
+          <div class="stat-value">{{ movement.ton_sau }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Trang thai</div>
+          <div class="stat-value" style="font-size:18px;">Nhap kho</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Ma tra cuu</h2>
+      <div class="scan-grid">
+        <div class="barcode-card">
+          <div class="barcode-wrap">
+            {% if barcode_svg %}
+              {{ barcode_svg|safe }}
+            {% else %}
+              <div class="barcode-code">{{ document_code }}</div>
+            {% endif %}
+          </div>
+          <div class="barcode-code">{{ document_code }}</div>
+          <div class="barcode-hint">Dung ma nay de tim nhanh phieu nhap kho trong he thong.</div>
+        </div>
+        <div class="qr-card">
+          <div class="barcode-hint" style="margin-top:0;">Quet QR de mo thang phieu in.</div>
+          <div class="qr-wrap">
+            {% if qr_svg %}
+              {{ qr_svg|safe }}
+            {% else %}
+              <div class="barcode-code" style="letter-spacing:.04em;">QR</div>
+            {% endif %}
+          </div>
+          <div class="lookup-link">{{ lookup_url }}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Ghi chu</h2>
+      <div class="notes">{{ movement.ghi_chu|default:"Khong co ghi chu." }}</div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Xac nhan</h2>
+      <div class="approval-grid">
+        <div class="approval-card">
+          <div class="approval-title">Chu ky nhan vien</div>
+          <div class="signature-box">
+            {% if movement.chu_ky %}
+              <img src="{{ movement.chu_ky.url }}" alt="Chu ky nhan vien">
+            {% else %}
+              <div>Chua co chu ky</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="approval-card">
+          <div class="approval-title">Thong tin xac nhan</div>
+          <div class="approval-meta">
+            <div>
+              <strong>Nhan vien ky</strong>
+              <div>{{ movement.nhan_vien.ho_ten|default:"-" }}</div>
+            </div>
+            <div>
+              <strong>Nguoi tao tren he thong</strong>
+              <div>{{ movement.created_by.username|default:"-" }}</div>
+            </div>
+            <div>
+              <strong>Chuoi / Cua hang</strong>
+              <div>{{ movement.nhan_vien.cua_hang.chuoi.ten|default:"-" }} / {{ movement.nhan_vien.cua_hang.ten|default:"-" }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-note">
+      <div>Chung tu duoc tao tu he thong SmartGIS.</div>
+      <div>Vui long doi chieu hang hoa va luu kem chu ky khi can.</div>
+    </div>
+  </main>
+</body>
+</html>

@@ -125,7 +125,7 @@
                     <input type="email" name="email" value="{{ item.object.email|default:'' }}" form="user-form-{{ item.object.pk }}">
                   {% endif %}
                 </td>
-                <td>{{ item.role }}</td>
+                <td>{{ item.role_label|default:item.role }}</td>
                 <td>{% if item.object.is_active %}{{ t.active|default:"Hoạt động" }}{% else %}{{ t.inactive|default:"Ngưng" }}{% endif %}</td>
                 <td>
                   <form id="user-form-{{ item.object.pk }}" method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">

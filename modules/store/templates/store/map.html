@@ -221,7 +221,7 @@
       margin:0 auto;
       padding:20px 16px 20px;
       display:grid;
-      grid-template-columns:360px 1fr;
+      grid-template-columns:320px minmax(0, 1fr) 360px;
       gap:22px;
       min-height:calc(100vh - 86px);
       align-items:start;
@@ -232,6 +232,11 @@
       gap:16px;
       position:sticky;
       top:96px;
+    }
+    .results-column{
+      position:sticky;
+      top:96px;
+      min-width:0;
     }
     .panel{
       background:rgba(255,255,255,.92);
@@ -246,7 +251,7 @@
         radial-gradient(circle at top right, rgba(249,115,22,.18), transparent 28%),
         linear-gradient(180deg,var(--red),var(--red2));
       color:#fff;
-      padding:18px 18px 14px;
+      padding:14px 16px 10px;
       position:relative;
     }
     .topbar::after{
@@ -269,13 +274,13 @@
       display:inline-flex;
       align-items:center;
       justify-content:center;
-      min-height:42px;
+      min-height:38px;
       min-width:0;
-      padding:0 18px;
+      padding:0 16px;
       border-radius:999px;
       border:1px solid rgba(255,255,255,.22);
       background:rgba(255,255,255,.12);
-      font-size:18px;
+      font-size:16px;
       font-weight:900;
       box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
     }
@@ -286,22 +291,22 @@
       box-shadow:0 10px 20px rgba(0,0,0,.10);
     }
     .topbar-note{
-      margin-top:16px;
+      margin-top:10px;
       color:rgba(255,255,255,.86);
-      font-size:12px;
-      line-height:1.55;
+      font-size:11px;
+      line-height:1.45;
       font-weight:800;
       max-width:300px;
     }
     .cardHead{
-      padding:14px 18px;
+      padding:12px 16px;
       border-bottom:1px solid var(--border);
       display:flex;
       justify-content:space-between;
       align-items:center;
       background:linear-gradient(180deg,#ffffff,#f6fbfa);
       font-weight:1000;
-      font-size:18px;
+      font-size:16px;
       position:relative;
     }
     .cardHead::before{
@@ -314,7 +319,7 @@
       border-radius:999px;
       background:linear-gradient(90deg,var(--red),var(--yellow2));
     }
-    .cardBody{padding:18px}
+    .cardBody{padding:10px 16px 14px}
     .status{
       display:flex;
       gap:8px;
@@ -390,21 +395,21 @@
       box-shadow:0 6px 14px rgba(15,23,42,.04);
     }
     .controls{
-      margin-top:16px;
+      margin-top:10px;
       display:grid;
-      grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) auto;
-      gap:12px;
+      grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+      gap:10px;
       align-items:stretch;
     }
     select,.chip{
       border:1px solid var(--border);
       background:#fff;
       border-radius:999px;
-      padding:12px 16px;
-      font-size:15px;
+      padding:10px 14px;
+      font-size:14px;
       color:var(--ink);
       font-weight:800;
-      min-height:44px;
+      min-height:40px;
       box-shadow:0 8px 18px rgba(15,23,42,.04);
       font-family:inherit;
     }
@@ -414,10 +419,10 @@
       box-shadow:0 10px 22px rgba(15,23,42,.08);
     }
     .hint{
-      margin-top:14px;
+      margin-top:10px;
       color:var(--muted);
-      font-size:12px;
-      line-height:1.5;
+      font-size:11px;
+      line-height:1.45;
       font-weight:900;
     }
     .row {
@@ -431,7 +436,7 @@
       min-width:150px;
       border:1px solid var(--border);
       border-radius:16px;
-      padding:10px 12px;
+      padding:8px 10px;
       background:linear-gradient(180deg,#fff,#fcfdff);
       box-shadow:0 8px 18px rgba(15,23,42,.04);
     }
@@ -469,11 +474,11 @@
       font-weight:700;
     }
     .toggleRow {
-      margin-top:12px;
+      margin-top:8px;
       display:flex;
       align-items:center;
       justify-content:flex-start;
-      gap:14px;
+      gap:10px;
       flex-wrap:wrap;
       font-weight:900;
     }
@@ -522,27 +527,28 @@
       justify-content:center;
     }
     .action-grid{
-      margin-top:16px;
+      margin-top:12px;
       display:grid;
       grid-template-columns:repeat(3, minmax(0, 1fr));
-      gap:10px;
+      gap:8px;
     }
     .search-actions{
       display:grid;
-      grid-template-columns:52px minmax(0, 1fr) 1fr 1fr;
-      gap:10px;
+      grid-template-columns:34px minmax(360px, 3.4fr) 52px 64px;
+      gap:8px;
       align-items:center;
     }
     .search-actions .pin{
-      width:44px;
-      height:44px;
+      width:34px;
+      height:34px;
       margin:0;
-      font-size:16px;
+      font-size:12px;
     }
     .search-actions .btn{
-      min-height:44px;
-      padding:0 14px;
+      min-height:36px;
+      padding:0 6px;
       justify-content:center;
+      font-size:12px;
     }
     .searchBox{
       padding:0;
@@ -553,10 +559,10 @@
     .search-input-wrap{
       display:flex;
       align-items:center;
-      min-height:44px;
+      min-height:36px;
       border:1px solid var(--border);
       border-radius:999px;
-      padding:0 16px;
+      padding:0 10px;
       background:#fff;
       box-shadow:inset 0 1px 0 rgba(255,255,255,.7);
     }
@@ -586,7 +592,7 @@
     }
     .acItem:last-child { border-bottom:none; }
     .acItem:hover { background:#f8fafc; }
-    .result-panel .cardBody{padding:18px}
+    .result-panel .cardBody{padding:14px 16px 16px}
     .kv{
       display:grid;
       grid-template-columns:110px 1fr;
@@ -629,17 +635,24 @@
       overflow:hidden;
       display:flex;
       flex-direction:column;
-      min-height:640px;
+      min-height:540px;
     }
     .map-head{
       padding:14px 18px;
       border-bottom:1px solid var(--border);
       display:flex;
       justify-content:space-between;
-      align-items:center;
+      align-items:flex-start;
       gap:14px;
       background:linear-gradient(180deg,#fff,#f6fbfa);
       font-weight:1000;
+    }
+    .map-head-main{
+      flex:1;
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
     }
     .map-title{
       display:flex;
@@ -660,6 +673,10 @@
       flex-wrap:wrap;
       gap:10px;
       justify-content:flex-end;
+    }
+    .map-search{
+      width:100%;
+      max-width:none;
     }
     .map-badge{
       display:inline-flex;
@@ -713,7 +730,7 @@
     #map{
       width:100%;
       height:100%;
-      min-height:560px;
+      min-height:460px;
     }
     #result {
       display:none;
@@ -743,11 +760,11 @@
       .sidebar{
         position:static;
       }
+      .results-column{
+        position:static;
+      }
       .controls{
         grid-template-columns:1fr 1fr;
-      }
-      .controls .chip{
-        grid-column:1 / -1;
       }
       .action-grid{
         grid-template-columns:repeat(2, minmax(0, 1fr));
@@ -778,6 +795,11 @@
       .map-head{
         align-items:flex-start;
         flex-direction:column;
+      }
+      .map-head-main,
+      .map-search{
+        width:100%;
+        max-width:none;
       }
       .map-badges{
         justify-content:flex-start;
@@ -879,11 +901,11 @@
       .sidebar{
         position:static;
       }
+      .results-column{
+        position:static;
+      }
       .controls{
         grid-template-columns:1fr 1fr;
-      }
-      .controls .chip{
-        grid-column:1 / -1;
       }
       .action-grid{
         grid-template-columns:repeat(2, minmax(0, 1fr));
@@ -917,6 +939,11 @@
       .map-head{
         align-items:flex-start;
         flex-direction:column;
+      }
+      .map-head-main,
+      .map-search{
+        width:100%;
+        max-width:none;
       }
       .map-badges{
         justify-content:flex-start;
@@ -976,46 +1003,30 @@
           <span class="status"><span id="dot" class="dot"></span><span id="status">OK</span></span>
         </div>
         <div class="cardBody">
-          <div class="acWrap">
-            <div class="searchBox">
-              <div class="search-actions">
-                <div class="pin">📍</div>
-                <div class="search-input-wrap">
-                  <input id="q" placeholder="Nhập địa chỉ hoặc tên cửa hàng..." autocomplete="off" />
-                </div>
-                <button class="btn btnPrimary" id="btnSearch">Tìm</button>
-                <button class="btn btnWhite" id="btnMyLoc">Vị trí tôi</button>
-              </div>
-            </div>
-            <div id="acList" class="acList"></div>
-          </div>
-
           <div class="controls">
             <select id="brand">
+              <option value="">Cả hai</option>
               <option value="CIRCLEK">Circle K</option>
               <option value="GS25">GS25</option>
             </select>
 
             <select id="radiusKm">
-              <option value="0.05">Bắt dính 50m</option>
-              <option value="0.1">Bắt dính 100m</option>
-              <option value="0.2" selected>Bắt dính 200m</option>
-              <option value="0.5">Bắt dính 500m</option>
-              <option value="1">Bắt dính 1km</option>
-              <option value="2">Bắt dính 2km</option>
+              <option value="0.05">Tìm trong 50m</option>
+              <option value="0.1">Tìm trong 100m</option>
+              <option value="0.2" selected>Tìm trong 200m</option>
+              <option value="0.5">Tìm trong 500m</option>
+              <option value="1">Tìm trong 1km</option>
+              <option value="2">Tìm trong 2km</option>
             </select>
-
-            <div class="chip" id="btnClear">🧹 Xóa</div>
           </div>
 
           <div class="hint">
             Tip: Không muốn bật GPS 👉 click trực tiếp lên bản đồ để chọn vị trí.
           </div>
           <div class="toggleRow">
-            <label><input id="autoBounds" type="checkbox" /> Auto tải theo khung bản đồ</label>
             <label><input id="filterOpenNow" type="checkbox" /> Chỉ cửa hàng đang mở</label>
           </div>
-          <div class="row" style="margin-top:14px">
+          <div class="row" style="margin-top:10px">
             <div class="field">
               <label>Quận / huyện</label>
               <select id="districtSel">
@@ -1028,56 +1039,69 @@
             </div>
           </div>
           <div class="actions action-grid">
-            <button class="btn btnWhite mini" id="btnNearby">Tìm gần đây</button>
             <button class="btn btnWhite mini" id="btnLoadBounds">Tải trong khung</button>
             <button class="btn btnWhite mini" id="btnSortNear">Gần nhất</button>
-            <button class="btn btnWhite mini" id="btnExport">Xuất CSV</button>
             <button class="btn btnWhite mini" id="btnFav">Favorites</button>
             <button class="btn btnWhite mini" id="btnHistory">History</button>
             <button class="btn btnWhite mini" id="btnToggleMarkers">Ẩn marker</button>
             <button class="btn btnWhite mini" id="btnClearRoute">Xóa đường</button>
-            <button class="btn btnWhite mini" id="btnReset">Reset</button>
+            <button class="btn btnWhite mini" id="btnReset">Đặt lại</button>
           </div>
           <div class="hint" id="smartHint" style="display:none;"></div>
-        </div>
-      </section>
-
-      <section class="panel result-panel">
-        <div class="cardHead">
-          <span>Kết quả</span>
-        </div>
-        <div class="cardBody">
-          <div class="kv" id="kv"></div>
-          <div class="copy">
-            <button class="btnGhost" id="btnCopyCoord">Copy tọa độ</button>
-            <button class="btnGhost" id="btnCopyAddr">Copy địa chỉ</button>
-          </div>
-          <div class="small" id="dirBox" style="display:none;margin-top:16px">
-            <div style="font-size:14px;font-weight:1000;color:var(--ink);margin-bottom:8px">Chỉ đường</div>
-            <div id="dirSummary" style="color:var(--ink);margin-bottom:8px"></div>
-            <div id="dirSteps"></div>
-          </div>
-          <div class="small" style="margin-top:16px">Danh sách cửa hàng</div>
-          <div class="list" id="storeList"></div>
         </div>
       </section>
     </aside>
 
     <section class="map-panel">
       <div class="map-head">
-        <div class="map-title">
-          <strong>Bản đồ cửa hàng</strong>
-          <span>Click map để chọn vị trí, click store để xem nhanh và chỉ đường.</span>
+        <div class="map-head-main">
+          <div class="map-title">
+            <strong>Bản đồ cửa hàng</strong>
+            <span>Click map để chọn vị trí, click store để xem nhanh và chỉ đường.</span>
+          </div>
+          <div class="acWrap map-search">
+            <div class="searchBox">
+              <div class="search-actions">
+                <div class="pin">📍</div>
+                <div class="search-input-wrap">
+                  <input id="q" placeholder="Nhập địa chỉ hoặc tên cửa hàng..." autocomplete="off" />
+                </div>
+                <button class="btn btnPrimary" id="btnSearch">Tìm</button>
+                <button class="btn btnWhite" id="btnMyLoc">Vị trí tôi</button>
+              </div>
+            </div>
+            <div id="acList" class="acList"></div>
+          </div>
         </div>
         <div class="map-badges">
-          <button type="button" class="map-badge" id="mapQuickNearby">Tìm gần theo vị trí</button>
           <button type="button" class="map-badge warm" id="mapQuickExport">Hỗ trợ xuất CSV</button>
         </div>
       </div>
       <div id="map"></div>
     </section>
+
+    <section class="panel result-panel results-column">
+      <div class="cardHead">
+        <span>Kết quả</span>
+      </div>
+      <div class="cardBody">
+        <div class="kv" id="kv"></div>
+        <div class="copy">
+          <button class="btnGhost" id="btnCopyCoord">Copy tọa độ</button>
+          <button class="btnGhost" id="btnCopyAddr">Copy địa chỉ</button>
+        </div>
+        <div class="small" id="dirBox" style="display:none;margin-top:12px">
+          <div style="font-size:14px;font-weight:1000;color:var(--ink);margin-bottom:8px">Chỉ đường</div>
+          <div id="dirSummary" style="color:var(--ink);margin-bottom:8px"></div>
+          <div id="dirSteps"></div>
+        </div>
+        <div class="small" style="margin-top:12px">Danh sách cửa hàng</div>
+        <div class="list" id="storeList"></div>
+      </div>
+    </section>
   </main>
 
+  <script src="/static/store/js/csv_export.js"></script>
   <script>
 // ======================
 // DOM Elements
@@ -1111,8 +1135,6 @@ const radiusSel = document.getElementById('radiusKm') || ensureHiddenElement('ra
 const districtSel = document.getElementById('districtSel') || ensureHiddenElement('districtSel', 'select');
 const filterText = document.getElementById('filterText') || ensureHiddenElement('filterText', 'input', { type: 'text' });
 const filterOpenNow = document.getElementById('filterOpenNow') || ensureHiddenElement('filterOpenNow', 'input', { type: 'checkbox' });
-const autoBounds = document.getElementById('autoBounds') || ensureHiddenElement('autoBounds', 'input', { type: 'checkbox' });
-
 const storeListEl = document.getElementById('storeList') || ensureHiddenElement('storeList', 'div');
 
 const dirBox = document.getElementById("dirBox") || ensureHiddenElement('dirBox', 'div');
@@ -1122,7 +1144,7 @@ const dirSteps = document.getElementById("dirSteps") || ensureHiddenElement('dir
 // ======================
 // State
 // ======================
-let ACTIVE_BRAND = "CIRCLEK";
+let ACTIVE_BRAND = "";
 let currentCenter = null; // {lat, lng, display?}
 let markersVisible = true;
 
@@ -1174,6 +1196,10 @@ function haversineKm(lat1,lng1,lat2,lng2){
 
 function getRadiusKm(){ return Number(radiusSel.value || 0.5); }
 function getDistrict(){ return (districtSel.value||"").trim(); }
+function getActiveBrandParam(){ return (ACTIVE_BRAND || "").trim(); }
+function getActiveBrandLabel(){
+  return getActiveBrandParam() || "Cả hai";
+}
 
 function parseLatLng(text){
   const m = (text||"").trim().match(/^\s*(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*$/);
@@ -1200,6 +1226,9 @@ function distanceText(s){
   }
   const d = currentCenter ? haversineKm(currentCenter.lat, currentCenter.lng, s.lat, s.lng) : (s?.distance_km ?? null);
   return d != null ? `Ước lượng: ${Number(d).toFixed(2)} km` : "";
+}
+function favActionText(storeId){
+  return loadFavs().includes(storeId) ? "⭐ Bỏ yêu thích" : "⭐ Yêu thích";
 }
 
 async function fetchJSON(url){
@@ -1338,7 +1367,7 @@ function openStorePopup(s){
     <small style="color:#64748b">${esc(distanceText(s))}</small><br/>
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btnWhite mini" onclick="routeToStore(${s.lat},${s.lng},'${esc(s.name||"Store")}')">🧭 Chỉ đường</button>
-      <button class="btn btnWhite mini" onclick="toggleFav(${s.id})">⭐ Yêu thích</button>
+      <button class="btn btnWhite mini" onclick="toggleFav(${s.id})">${favActionText(s.id)}</button>
     </div>
   `;
   L.popup({maxWidth:360})
@@ -1412,9 +1441,7 @@ map.on("click", async (e)=>{
 });
 
 const loadBoundsDebounced = debounce(async ()=>{
-  if(autoBounds.checked){
-    await loadInBounds();
-  }
+  return;
 }, 450);
 map.on("moveend", loadBoundsDebounced);
 
@@ -1471,7 +1498,7 @@ function renderList(arr){
       <div class="actions">
         <button class="btn btnWhite mini" data-act="fly">📌 Xem</button>
         <button class="btn btnWhite mini" data-act="route">🧭 Chỉ đường</button>
-        <button class="btn btnWhite mini" data-act="fav">⭐ Yêu thích</button>
+        <button class="btn btnWhite mini" data-act="fav">${favActionText(s.id)}</button>
       </div>
     `;
 
@@ -1574,7 +1601,7 @@ async function enrichWithRoadMetrics(items){
 // API Calls
 // ======================
 async function refreshDistricts(){
-  const {res, data} = await fetchJSON(`/tools/districts/?brand=${encodeURIComponent(ACTIVE_BRAND)}`);
+  const {res, data} = await fetchJSON(`/tools/districts/?brand=${encodeURIComponent(getActiveBrandParam())}`);
   if(!res || !res.ok || !data.ok) return;
   const items = data.districts || [];
   districtSel.innerHTML = `<option value="">Tất cả</option>` + items.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");
@@ -1587,7 +1614,7 @@ async function loadNearby(){
   }
   const radius = getRadiusKm();
   const district = getDistrict();
-  const url = `/tools/stores-in-radius/?lat=${currentCenter.lat}&lon=${currentCenter.lng}&radius_km=${radius}&brand=${encodeURIComponent(ACTIVE_BRAND)}&district=${encodeURIComponent(district)}`;
+  const url = `/tools/stores-in-radius/?lat=${currentCenter.lat}&lon=${currentCenter.lng}&radius_km=${radius}&brand=${encodeURIComponent(getActiveBrandParam())}&district=${encodeURIComponent(district)}`;
   const {res, data} = await fetchJSON(url);
   if(!res || !res.ok || !data.ok) return;
 
@@ -1617,7 +1644,7 @@ async function loadNearby(){
 async function loadInBounds(){
   const district = getDistrict();
   const b = map.getBounds();
-  const url = `/tools/stores-in-bounds/?brand=${encodeURIComponent(ACTIVE_BRAND)}&district=${encodeURIComponent(district)}&south=${b.getSouth()}&west=${b.getWest()}&north=${b.getNorth()}&east=${b.getEast()}`;
+  const url = `/tools/stores-in-bounds/?brand=${encodeURIComponent(getActiveBrandParam())}&district=${encodeURIComponent(district)}&south=${b.getSouth()}&west=${b.getWest()}&north=${b.getNorth()}&east=${b.getEast()}`;
   const {res, data} = await fetchJSON(url);
   if(!res || !res.ok || !data.ok) return;
 
@@ -1646,7 +1673,7 @@ async function searchStoreDBFirst(){
 
   const district = getDistrict();
   setStatus("Đang tìm trong DB...");
-  const {res, data} = await fetchJSON(`/tools/search-stores/?brand=${encodeURIComponent(ACTIVE_BRAND)}&q=${encodeURIComponent(q)}&district=${encodeURIComponent(district)}&limit=200`);
+  const {res, data} = await fetchJSON(`/tools/search-stores/?brand=${encodeURIComponent(getActiveBrandParam())}&q=${encodeURIComponent(q)}&district=${encodeURIComponent(district)}&limit=200`);
   if(!res || !res.ok || !data.ok) return false;
 
   const items = (data.stores || []).map(x=>({
@@ -1687,7 +1714,8 @@ async function smartSearch(){
   const ll = parseLatLng(q);
 
   const body = {
-    ten: ACTIVE_BRAND,
+    ten: getActiveBrandParam(),
+    brand: getActiveBrandParam(),
     dia_chi: q,
     lat: ll ? ll.lat : null,
     lng: ll ? ll.lng : null,
@@ -1870,32 +1898,17 @@ document.getElementById("btnMyLoc").onclick = ()=>{
 };
 
 document.getElementById("brand").addEventListener("change", (e)=>{
-  ACTIVE_BRAND = e.target.value || "CIRCLEK";
-  setStatus(`Đã chọn ${ACTIVE_BRAND}.`, true);
+  ACTIVE_BRAND = (e.target.value || "").trim();
+  setStatus(`Đã chọn ${getActiveBrandLabel()}.`, true);
   refreshDistricts();
   if(currentCenter) loadNearby();
 });
 
-document.getElementById("btnClear").onclick = ()=>{
-  qInput.value = "";
-  hideAC();
-  clearRoute();
-  if(radiusCircle){ radiusCircle.remove(); radiusCircle = null; }
-  if(userMarker){ userMarker.remove(); userMarker = null; }
-  currentCenter = null;
-  STORES = [];
-  STORES_VIEW = [];
-  lastNearbyItems = [];
-  renderList([]);
-  renderMarkers([]);
-  const kv = document.getElementById("kv");
-  if(kv) kv.innerHTML = "";
-  hideDirections();
-  setStatus("Đã xóa dữ liệu tìm kiếm.", true);
-};
+const btnNearby = document.getElementById("btnNearby");
+if(btnNearby) btnNearby.onclick = loadNearby;
 
-document.getElementById("btnNearby").onclick = loadNearby;
-document.getElementById("btnLoadBounds").onclick = loadInBounds;
+const btnLoadBounds = document.getElementById("btnLoadBounds");
+if(btnLoadBounds) btnLoadBounds.onclick = loadInBounds;
 
 document.getElementById("btnToggleMarkers").onclick = ()=>{
   markersVisible = !markersVisible;
@@ -1909,6 +1922,8 @@ document.getElementById("btnClearRoute").onclick = ()=>{
 };
 
 document.getElementById("btnReset").onclick = ()=>{
+  qInput.value = "";
+  hideAC();
   currentCenter = null;
   clearRoute();
   if(userMarker){ userMarker.remove(); userMarker=null; }
@@ -1916,51 +1931,51 @@ document.getElementById("btnReset").onclick = ()=>{
   cluster.clearLayers();
   STORES = []; STORES_VIEW = []; lastNearbyItems = [];
   renderList([]);
+  renderMarkers([]);
+  const kv = document.getElementById("kv");
+  if(kv) kv.innerHTML = "";
+  hideDirections();
   map.setView([10.7769, 106.7009], 12);
   setStatus("Đã reset. Click map hoặc bấm Vị trí tôi để bắt đầu.", true);
 };
 
 document.getElementById("btnSortNear").onclick = sortByNearest;
 
-document.getElementById("btnExport").onclick = ()=>{
+const btnExport = document.getElementById("btnExport");
+if(btnExport) btnExport.onclick = ()=>{
   const items = (STORES_VIEW && STORES_VIEW.length) ? STORES_VIEW : STORES;
   if(!items.length){ setStatus("Không có dữ liệu để export.", false); return; }
 
-  const header = [
-    "id","brand","name","district","address","lat","lng",
-    "distance_km_estimate","distance_road_km","duration_min",
-    "open_time","close_time","is_24h","is_open_now","business_hours","coord_source"
+  const columns = [
+    { key: "id", label: "id" },
+    { key: "brand", label: "brand" },
+    { key: "name", label: "name" },
+    { key: "district", label: "district" },
+    { key: "address_db", label: "address" },
+    { key: "lat", label: "lat" },
+    { key: "lng", label: "lng" },
+    { key: "distance_km", label: "distance_km_estimate" },
+    { key: "road_distance_km", label: "distance_road_km" },
+    { key: "road_duration_min", label: "duration_min" },
+    { key: "open_time", label: "open_time" },
+    { key: "close_time", label: "close_time" },
+    { key: "is_24h", label: "is_24h" },
+    { key: "is_open_now", label: "is_open_now" },
+    { key: "business_hours", label: "business_hours" },
+    { key: "coord_source", label: "coord_source" }
   ];
-  const lines = [header.join(",")];
-  for(const s of items){
-    const row = [
-      s.id ?? "",
-      s.brand ?? "",
-      s.name ?? "",
-      s.district ?? "",
-      s.address_db ?? "",
-      s.lat ?? "",
-      s.lng ?? "",
-      s.distance_km ?? "",
-      s.road_distance_km ?? "",
-      s.road_duration_min ?? "",
-      s.open_time ?? "",
-      s.close_time ?? "",
-      s.is_24h ?? "",
-      s.is_open_now ?? "",
-      s.business_hours ?? "",
-      s.coord_source ?? "db",
-    ].map(v => `"${String(v).replaceAll('"','""')}"`);
-    lines.push(row.join(","));
-  }
-  const csv = "\ufeff" + lines.join("\n");
-  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `export_${ACTIVE_BRAND.toLowerCase()}_${Date.now()}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-  setStatus("Đã export CSV ✅", true);
+  const normalizedItems = items.map((s) => ({
+    ...s,
+    address_db: s.address_db ?? "",
+    coord_source: s.coord_source ?? "db",
+  }));
+  window.StoreCsvExporter.exportCsv({
+    items: normalizedItems,
+    columns,
+    activeBrand: getActiveBrandParam() || "ALL",
+    filename: window.StoreCsvExporter.buildFilename("stores_export", getActiveBrandParam() || "ALL"),
+  });
+  setStatus(`Đã export ${normalizedItems.length} dòng CSV ✅`, true);
 };
 
 document.getElementById("btnFav").onclick = ()=>{
@@ -2063,7 +2078,9 @@ document.querySelectorAll(".tab").forEach(t=>{
     document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
     t.classList.add("active");
     ACTIVE_BRAND = t.dataset.brand;
-    setStatus(`Đã chọn ${ACTIVE_BRAND}.`, true);
+    const brandSelect = document.getElementById("brand");
+    if(brandSelect) brandSelect.value = ACTIVE_BRAND;
+    setStatus(`Đã chọn ${getActiveBrandLabel()}.`, true);
     refreshDistricts();
     if(currentCenter) loadNearby();
   };
@@ -2092,4 +2109,3 @@ if (initialQuery) {
 {% include 'shared/footer.html' %}
 </body>
 </html>
-

@@ -715,14 +715,14 @@
     {% for product in featured_products %}
       <div class="product-card">
         <a href="{% url 'store:product_detail' product.pk %}" style="display:block;">
-          <div class="product-media" data-product-gallery>
+          <div class="product-media" data-product-gallery data-autoplay-ms="5000">
             {% for image_url in product.card_gallery %}
               <img src="{{ image_url }}" alt="{{ product.ten }}" class="{% if forloop.first %}is-active{% endif %}">
             {% endfor %}
             {% if product.card_gallery|length > 1 %}
               <div class="product-media-dots">
                 {% for image_url in product.card_gallery %}
-                  <span class="{% if forloop.first %}is-active{% endif %}"></span>
+                  <span class="{% if forloop.first %}is-active{% endif %}" data-gallery-dot></span>
                 {% endfor %}
               </div>
             {% endif %}
@@ -789,6 +789,7 @@
 {% include 'shared/footer.html' %}
 
 <!-- ================= JAVASCRIPT ================= -->
+<script src="/static/store/js/csv_export.js"></script>
 <script>
 if (document.getElementById('map') && document.getElementById('q')) {
 // ======================
@@ -1598,12 +1599,24 @@ document.getElementById("btnExport").onclick = ()=>{
   const items = (STORES_VIEW && STORES_VIEW.length) ? STORES_VIEW : STORES;
   if(!items.length){ setStatus("Không có dữ liệu để export.", false); return; }
 
-  const header = [
-    "id","brand","name","district","address","lat","lng",
-    "distance_km_estimate","distance_road_km","duration_min",
-    "open_time","close_time","is_24h","is_open_now","business_hours","coord_source"
+  const columns = [
+    { key: "id", label: "id" },
+    { key: "brand", label: "brand" },
+    { key: "name", label: "name" },
+    { key: "district", label: "district" },
+    { key: "address_db", label: "address" },
+    { key: "lat", label: "lat" },
+    { key: "lng", label: "lng" },
+    { key: "distance_km", label: "distance_km_estimate" },
+    { key: "road_distance_km", label: "distance_road_km" },
+    { key: "road_duration_min", label: "duration_min" },
+    { key: "open_time", label: "open_time" },
+    { key: "close_time", label: "close_time" },
+    { key: "is_24h", label: "is_24h" },
+    { key: "is_open_now", label: "is_open_now" },
+    { key: "business_hours", label: "business_hours" },
+    { key: "coord_source", label: "coord_source" }
   ];
-  const lines = [header.join(",")];
   for(const s of items){
     const row = [
       s.id ?? "",
@@ -1633,6 +1646,42 @@ document.getElementById("btnExport").onclick = ()=>{
   a.click();
   URL.revokeObjectURL(a.href);
   setStatus("Đã export CSV.", true);
+};
+
+document.getElementById("btnExport").onclick = ()=>{
+  const items = (STORES_VIEW && STORES_VIEW.length) ? STORES_VIEW : STORES;
+  if(!items.length){ setStatus("Không có dữ liệu để export.", false); return; }
+
+  const columns = [
+    { key: "id", label: "id" },
+    { key: "brand", label: "brand" },
+    { key: "name", label: "name" },
+    { key: "district", label: "district" },
+    { key: "address_db", label: "address" },
+    { key: "lat", label: "lat" },
+    { key: "lng", label: "lng" },
+    { key: "distance_km", label: "distance_km_estimate" },
+    { key: "road_distance_km", label: "distance_road_km" },
+    { key: "road_duration_min", label: "duration_min" },
+    { key: "open_time", label: "open_time" },
+    { key: "close_time", label: "close_time" },
+    { key: "is_24h", label: "is_24h" },
+    { key: "is_open_now", label: "is_open_now" },
+    { key: "business_hours", label: "business_hours" },
+    { key: "coord_source", label: "coord_source" }
+  ];
+  const normalizedItems = items.map((s) => ({
+    ...s,
+    address_db: s.address_db ?? "",
+    coord_source: s.coord_source ?? "db",
+  }));
+  window.StoreCsvExporter.exportCsv({
+    items: normalizedItems,
+    columns,
+    activeBrand: ACTIVE_BRAND,
+    filename: window.StoreCsvExporter.buildFilename("stores_export", ACTIVE_BRAND),
+  });
+  setStatus(`Đã export ${normalizedItems.length} dòng CSV.`, true);
 };
 
 document.getElementById("btnFav").onclick = ()=>{
@@ -1712,26 +1761,12 @@ if (initialQuery) {
     }
   }, 100);
 }
-
-document.querySelectorAll("[data-product-gallery]").forEach((gallery) => {
-  const images = Array.from(gallery.querySelectorAll("img"));
-  const dots = Array.from(gallery.querySelectorAll(".product-media-dots span"));
-  if (images.length < 2) return;
-  let index = 0;
-  window.setInterval(() => {
-    images[index].classList.remove("is-active");
-    if (dots[index]) dots[index].classList.remove("is-active");
-    index = (index + 1) % images.length;
-    images[index].classList.add("is-active");
-    if (dots[index]) dots[index].classList.add("is-active");
-  }, 1700);
-});
+}
 
 if (window.location.hash === "#products") {
   window.location.replace("{% url 'store:product_catalog' %}");
 }
 </script>
+<script src="/static/store/js/product_gallery.js"></script>
 </body>
 </html>
-
-

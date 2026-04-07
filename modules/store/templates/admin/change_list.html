@@ -114,16 +114,28 @@
                   <a href="{{ value.url }}" target="_blank" rel="noopener">
                     <img class="avatar" src="{{ value.url }}" alt="{{ value.text }}">
                   </a>
+                {% elif value.type == "signature" %}
+                  <a href="{{ value.url }}" target="_blank" rel="noopener">
+                    <img
+                      src="{{ value.url }}"
+                      alt="Chữ ký"
+                      style="width:120px;height:52px;object-fit:contain;background:#fff;border:1px solid #dbe4f0;border-radius:10px;padding:6px;"
+                    >
+                  </a>
                 {% elif value.type == "bool" %}
                   <span class="bool-cell">
                     {% if value.value %}
                       <span class="bool-badge is-true" title="Có">✓</span>
                     {% else %}
-                      <span class="bool-badge is-false" title="Không">✗</span>
+                      <span class="bool-badge is-false" title="Không">✕</span>
                     {% endif %}
                   </span>
                 {% elif value.type == "money" %}
                   <strong>{{ value.text }}</strong>
+                {% elif value.type == "stock" %}
+                  <span class="chip {% if value.level == 'out' %}chip-danger{% elif value.level == 'low' %}chip-warn{% else %}chip-success{% endif %}">{{ value.text }}</span>
+                {% elif value.type == "stock_move" %}
+                  <span class="chip {% if value.level == 'import' %}chip-success{% else %}chip-info{% endif %}">{{ value.text }}</span>
                 {% elif value.type == "status" %}
                   <span class="chip {% if value.value == 'pending' %}chip-warn{% elif value.value == 'confirmed' %}chip-info{% elif value.value == 'shipping' %}chip-info{% elif value.value == 'delivered' or value.value == 'done' %}chip-success{% elif value.value == 'cancelled' %}chip-danger{% endif %}">{{ value.text }}</span>
                 {% else %}
@@ -137,17 +149,58 @@
                   <a class="btn btn-primary" href="{{ row.restore_url }}">{{ t.restore|default:"Khôi phục" }}</a>
                   <a class="btn btn-danger" href="{{ row.delete_url }}">{{ t.delete_permanently|default:"Xóa hẳn" }}</a>
                 {% else %}
-                  {% if row.status_actions %}
+                  {% if row.can_change_status and row.status_actions %}
                     {% for action in row.status_actions %}
-                      <a class="btn btn-light" href="{% url 'store:admin_order_status_action' row.object.pk action.value %}?{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ page_obj.number }}">{{ action.label }}</a>
+                      <form method="post" action="{% url 'store:admin_order_status_action' row.object.pk action.value %}" style="display:inline-flex;">
+                        {% csrf_token %}
+                        <input type="hidden" name="return_query" value="{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ page_obj.number }}">
+                        <button class="btn btn-light" type="submit">{{ action.label }}</button>
+                      </form>
                     {% endfor %}
                   {% endif %}
-                  <a class="btn btn-ghost btn-icon" href="{% url 'store:admin_update' model_slug row.object.pk %}" title="{{ t.edit|default:'Sửa' }}" aria-label="{{ t.edit|default:'Sửa' }}">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25Zm2.92 2.33H5v-.92l9.06-9.06.92.92L5.92 19.58ZM20.71 6.04a1 1 0 0 0 0-1.41L19.37 3.29a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75 1.13-1.13Z"/></svg>
-                  </a>
-                  <a class="btn btn-danger btn-icon" href="{% url 'store:admin_delete' model_slug row.object.pk %}" title="{{ t.delete|default:'Xóa' }}" aria-label="{{ t.delete|default:'Xóa' }}">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z"/></svg>
-                  </a>
+                  {% if row.can_change_payment_status and row.payment_actions %}
+                    {% for action in row.payment_actions %}
+                      <form method="post" action="{% url 'store:admin_order_payment_status_action' row.object.pk action.value %}" style="display:inline-flex;">
+                        {% csrf_token %}
+                        <input type="hidden" name="return_query" value="{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ page_obj.number }}">
+                        <button class="btn btn-light" type="submit">{{ action.label }}</button>
+                      </form>
+                    {% endfor %}
+                  {% endif %}
+                  {% if row.can_review_receipt and row.receipt_actions %}
+                    {% if row.receipt_preview_url %}
+                      <a class="btn btn-light" href="{{ row.receipt_preview_url }}" target="_blank" rel="noopener">Xem biên lai</a>
+                    {% endif %}
+                    {% for action in row.receipt_actions %}
+                      <form method="post" action="{% url 'store:admin_order_receipt_review_action' row.object.pk action.value %}" style="display:inline-flex;" {% if action.value == 'reject' %}data-receipt-reject-form{% endif %}>
+                        {% csrf_token %}
+                        <input type="hidden" name="return_query" value="{% if persisted_query %}{{ persisted_query }}&{% endif %}page={{ page_obj.number }}">
+                        {% if action.value == 'reject' %}
+                          <input type="hidden" name="rejection_note" value="" data-receipt-reject-note>
+                        {% endif %}
+                        <button class="btn {% if action.value == 'approve' %}btn-primary{% else %}btn-danger{% endif %}" type="submit">{{ action.label }}</button>
+                      </form>
+                    {% endfor %}
+                  {% endif %}
+                  {% if row.print_url %}
+                    <a class="btn btn-light" href="{{ row.print_url }}" target="_blank" rel="noopener">In phiếu</a>
+                  {% endif %}
+                  {% if row.pdf_url %}
+                    <a class="btn btn-light" href="{{ row.pdf_url }}">Tải PDF</a>
+                  {% endif %}
+                  {% if row.map_url %}
+                    <a class="btn btn-light" href="{{ row.map_url }}" target="_blank" rel="noopener">Mở Maps</a>
+                  {% endif %}
+                  {% if row.can_edit %}
+                    <a class="btn btn-ghost btn-icon" href="{% url 'store:admin_update' model_slug row.object.pk %}" title="{{ t.edit|default:'Sửa' }}" aria-label="{{ t.edit|default:'Sửa' }}">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25Zm2.92 2.33H5v-.92l9.06-9.06.92.92L5.92 19.58ZM20.71 6.04a1 1 0 0 0 0-1.41L19.37 3.29a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75 1.13-1.13Z"/></svg>
+                    </a>
+                  {% endif %}
+                  {% if row.can_delete %}
+                    <a class="btn btn-danger btn-icon" href="{% url 'store:admin_delete' model_slug row.object.pk %}" title="{{ t.delete|default:'Xóa' }}" aria-label="{{ t.delete|default:'Xóa' }}">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z"/></svg>
+                    </a>
+                  {% endif %}
                 {% endif %}
               </div>
             </td>
@@ -212,6 +265,25 @@
         });
 
         syncClearStatus();
+      })();
+      (function () {
+        document.querySelectorAll("[data-receipt-reject-form]").forEach((form) => {
+          form.addEventListener("submit", function (event) {
+            const noteInput = form.querySelector("[data-receipt-reject-note]");
+            if (!noteInput) return;
+            const note = window.prompt("Nhập ghi chú từ chối biên lai:", noteInput.value || "");
+            if (note === null) {
+              event.preventDefault();
+              return;
+            }
+            if (!note.trim()) {
+              event.preventDefault();
+              window.alert("Cần nhập ghi chú từ chối biên lai.");
+              return;
+            }
+            noteInput.value = note.trim();
+          });
+        });
       })();
     </script>
   {% endif %}

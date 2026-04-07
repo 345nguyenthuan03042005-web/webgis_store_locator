@@ -1,3 +1,4 @@
+{% extends "admin/base.html" %}
 {% block title %}{{ t.trash|default:"Thùng rác" }}{% endblock %}
 {% block page_title %}{{ t.trash|default:"Thùng rác" }}{% endblock %}
 {% block content %}
@@ -6,7 +7,7 @@
       <div class="trash-kicker">SmartGIS</div>
       <h2 class="trash-title">{{ t.trash|default:"Thùng rác" }}</h2>
       <p class="trash-sub">
-        Lưu tạm dữ liệu đã xóa trong 30 ngày. Bạn có thể khôi phục hoặc xóa hẳn ngay.
+        Lưu tạm dữ liệu đã xóa trong {{ trash_retention_days }} ngày. Bạn có thể khôi phục hoặc xóa hẳn ngay.
       </p>
     </div>
     <div class="trash-meta">
@@ -16,7 +17,7 @@
       </div>
       <div class="trash-stat">
         <div class="trash-stat-label">{{ t.expires_at|default:"Tự xóa sau" }}</div>
-        <div class="trash-stat-value">30 ngày</div>
+        <div class="trash-stat-value">{{ trash_retention_days }} ngày</div>
       </div>
     </div>
   </section>
@@ -45,10 +46,10 @@
           <div class="trash-countdown">{{ row.expires_at|timeuntil }}</div>
         </div>
         <div class="trash-cell trash-actions">
-          <a class="btn btn-primary" href="{% url 'store:admin_trash_restore' row.id %}">
+          <a class="btn btn-primary" href="{{ row.restore_url }}">
             {{ t.restore|default:"Khôi phục" }}
           </a>
-          <a class="btn btn-danger" href="{% url 'store:admin_trash_delete' row.id %}">
+          <a class="btn btn-danger" href="{{ row.delete_url }}">
             {{ t.delete_permanently|default:"Xóa hẳn" }}
           </a>
         </div>

@@ -1,6 +1,8 @@
 ﻿from django.shortcuts import render
 from django.views.decorators.cache import never_cache
 
+from modules.store.management.commands.restock_all_products import restock_products
+
 
 def home(request):
     featured_products = list(
@@ -463,6 +465,7 @@ def news_detail(request, slug):
 import json
 import os
 import re
+import unicodedata
 from urllib.parse import urlencode
 from datetime import timedelta
 from decimal import Decimal
@@ -481,20 +484,24 @@ from django.core.exceptions import ValidationError
 from django.core.files.images import get_image_dimensions
 from django.core.serializers.json import DjangoJSONEncoder
 from django import forms
-from django.db import models as dj_models
+from django.db import models as dj_models, transaction
 from django.db.models import Q
+from django.db.models.functions import Coalesce
 from django.forms import modelform_factory
 from django.forms.models import model_to_dict
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.decorators import method_decorator
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
+from django.views.decorators.http import require_POST
 
 from .models import (
     ChiTietDonHang,
     DiaChiKhachHang,
     DonHang,
+    GiaoDichKho,
     GopYKhachHang,
     HinhAnhSanPham,
     HoSoKhachHang,
@@ -507,7 +514,9 @@ from .models import (
     NhanVien,
     NhomSanPham,
     SanPham,
+    TonKhoCuaHang,
     ThuongHieu,
+    XacNhanThanhToan,
 )
 
 
@@ -516,6 +525,8 @@ MODEL_REGISTRY = {
     "nha-cung-cap": NhaCungCap,
     "nhom-san-pham": NhomSanPham,
     "san-pham": SanPham,
+    "giao-dich-kho": GiaoDichKho,
+    "ton-kho-cua-hang": TonKhoCuaHang,
     "chuoi-cua-hang": ChuoiCuaHang,
     "cua-hang": CuaHang,
     "nhan-vien": NhanVien,
@@ -528,18 +539,182 @@ MODEL_REGISTRY = {
 }
 
 User = get_user_model()
-ROLE_ADMIN = "Admin"
-ROLE_USER = "User"
+ROLE_SYSTEM_ADMIN = "SystemAdmin"
+ROLE_STOCK_MANAGER = "StockManager"
+ROLE_ORDER_MANAGER = "OrderManager"
+ROLE_CUSTOMER_SUPPORT = "CustomerSupport"
+ROLE_CUSTOMER = "Customer"
+ROLE_ADMIN = ROLE_SYSTEM_ADMIN
+ROLE_USER = ROLE_CUSTOMER
 ROLE_CHOICES = (
-    (ROLE_ADMIN, "Admin"),
-    (ROLE_USER, "User"),
+    (ROLE_SYSTEM_ADMIN, "Quản trị hệ thống"),
+    (ROLE_STOCK_MANAGER, "Quản lý kho"),
+    (ROLE_ORDER_MANAGER, "Quản lý đơn hàng"),
+    (ROLE_CUSTOMER_SUPPORT, "Nhân viên CSKH"),
+    (ROLE_CUSTOMER, "Khách hàng"),
 )
+ROLE_LABELS = dict(ROLE_CHOICES)
+INTERNAL_ROLES = {
+    ROLE_SYSTEM_ADMIN,
+    ROLE_STOCK_MANAGER,
+    ROLE_ORDER_MANAGER,
+    ROLE_CUSTOMER_SUPPORT,
+}
+LEGACY_ROLE_MAP = {
+    "Admin": ROLE_SYSTEM_ADMIN,
+    "User": ROLE_CUSTOMER,
+}
+MODULE_ROLE_ACTIONS = {
+    "thuong-hieu": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER, ROLE_ORDER_MANAGER},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "nha-cung-cap": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "nhom-san-pham": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER, ROLE_ORDER_MANAGER},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "san-pham": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "giao-dich-kho": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "delete": {ROLE_SYSTEM_ADMIN},
+        "print": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+    },
+    "ton-kho-cua-hang": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER, ROLE_ORDER_MANAGER},
+        "create": {ROLE_SYSTEM_ADMIN},
+        "update": {ROLE_SYSTEM_ADMIN},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "hinh-anh-san-pham": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "chuoi-cua-hang": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "cua-hang": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER, ROLE_ORDER_MANAGER},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "nhan-vien": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER, ROLE_CUSTOMER_SUPPORT},
+        "create": {ROLE_SYSTEM_ADMIN},
+        "update": {ROLE_SYSTEM_ADMIN},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "khuyen-mai": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "gop-y-khach-hang": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_CUSTOMER_SUPPORT},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_CUSTOMER_SUPPORT},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_CUSTOMER_SUPPORT},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "ho-so-khach-hang": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_CUSTOMER_SUPPORT},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_CUSTOMER_SUPPORT},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_CUSTOMER_SUPPORT},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "dia-chi-khach-hang": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_CUSTOMER_SUPPORT},
+        "create": {ROLE_SYSTEM_ADMIN, ROLE_CUSTOMER_SUPPORT},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_CUSTOMER_SUPPORT},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+    "don-hang": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
+        "create": {ROLE_SYSTEM_ADMIN},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
+        "delete": {ROLE_SYSTEM_ADMIN},
+        "status": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
+        "payment_status": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER},
+    },
+    "chi-tiet-don-hang": {
+        "view": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
+        "create": {ROLE_SYSTEM_ADMIN},
+        "update": {ROLE_SYSTEM_ADMIN},
+        "delete": {ROLE_SYSTEM_ADMIN},
+    },
+}
+ADMIN_PAGE_ROLE_ACTIONS = {
+    "dashboard": {"view": INTERNAL_ROLES},
+    "inventory_hub": {"view": {ROLE_SYSTEM_ADMIN, ROLE_STOCK_MANAGER}},
+    "settings": {"view": {ROLE_SYSTEM_ADMIN}},
+    "user_management": {"view": {ROLE_SYSTEM_ADMIN}},
+    "trash": {"view": {ROLE_SYSTEM_ADMIN}, "restore": {ROLE_SYSTEM_ADMIN}, "delete": {ROLE_SYSTEM_ADMIN}},
+    "notifications": {"view": INTERNAL_ROLES},
+}
+
+
+def _default_payment_status_for_method(method: str) -> str:
+    if method == "bank_transfer":
+        return "awaiting_confirmation"
+    return "unpaid"
+
+
+def _momo_demo_context(order):
+    qr_svg = ""
+    qr_payload = f"MOMO-DEMO|ORDER:{order.pk}|AMOUNT:{int(order.tong_tien or 0)}"
+    try:
+        from reportlab.graphics import renderSVG
+        from reportlab.graphics.barcode.qr import QrCodeWidget
+        from reportlab.graphics.shapes import Drawing
+
+        qr_widget = QrCodeWidget(qr_payload)
+        bounds = qr_widget.getBounds()
+        qr_width = bounds[2] - bounds[0]
+        qr_height = bounds[3] - bounds[1]
+        qr_drawing = Drawing(180, 180, transform=[180 / qr_width, 0, 0, 180 / qr_height, 0, 0])
+        qr_drawing.add(qr_widget)
+        qr_svg = renderSVG.drawToString(qr_drawing)
+        if isinstance(qr_svg, bytes):
+            qr_svg = qr_svg.decode("utf-8")
+    except Exception:
+        qr_svg = ""
+    return {
+        "order": order,
+        "order_amount_display": _format_currency(order.tong_tien),
+        "momo_demo_code": f"MOMO-DEMO-{order.pk}",
+        "momo_demo_qr_svg": qr_svg,
+        "momo_demo_qr_payload": qr_payload,
+    }
 
 MODULE_LABELS = {
     "thuong-hieu": {"vi_singular": "Thương hiệu", "vi_plural": "Thương hiệu", "en_singular": "Brand", "en_plural": "Brands"},
     "nha-cung-cap": {"vi_singular": "Nhà cung cấp", "vi_plural": "Nhà cung cấp", "en_singular": "Supplier", "en_plural": "Suppliers"},
     "nhom-san-pham": {"vi_singular": "Nhóm sản phẩm", "vi_plural": "Nhóm sản phẩm", "en_singular": "Product Group", "en_plural": "Product Groups"},
     "san-pham": {"vi_singular": "Sản phẩm", "vi_plural": "Sản phẩm", "en_singular": "Product", "en_plural": "Products"},
+    "giao-dich-kho": {"vi_singular": "Giao dịch kho", "vi_plural": "Giao dịch kho", "en_singular": "Stock Movement", "en_plural": "Stock Movements"},
+    "ton-kho-cua-hang": {"vi_singular": "Tồn kho cửa hàng", "vi_plural": "Tồn kho cửa hàng", "en_singular": "Store Stock", "en_plural": "Store Stocks"},
     "hinh-anh-san-pham": {"vi_singular": "Hình ảnh sản phẩm", "vi_plural": "Hình ảnh sản phẩm", "en_singular": "Product Image", "en_plural": "Product Images"},
     "chuoi-cua-hang": {"vi_singular": "Chuỗi cửa hàng", "vi_plural": "Chuỗi cửa hàng", "en_singular": "Store Chain", "en_plural": "Store Chains"},
     "cua-hang": {"vi_singular": "Cửa hàng", "vi_plural": "Cửa hàng", "en_singular": "Store", "en_plural": "Stores"},
@@ -556,6 +731,7 @@ CMS_TRANSLATIONS = {
     "vi": {
         "system_settings": "Cài đặt hệ thống",
         "dashboard": "Tổng quan",
+        "inventory_hub": "Kho",
         "navigation": "Điều hướng",
         "data": "Dữ liệu",
         "logout": "Đăng xuất",
@@ -687,10 +863,17 @@ CMS_TRANSLATIONS = {
         "pick_on_map": "Chọn trên bản đồ",
         "coord_saved_from_map": "Đã nhận tọa độ từ bản đồ. Hãy bấm Lưu thay đổi để chốt.",
         "coord_required_from_map": "Cần chốt tọa độ bằng cách click trên bản đồ trước khi lưu.",
+        "inventory_overview": "Tổng quan kho",
+        "stock_summary": "Tóm tắt tồn kho",
+        "suggest_import": "Đề xuất nhập thêm",
+        "suggest_export": "Đề xuất ưu tiên xuất",
+        "view_all_products": "Xem toàn bộ sản phẩm",
+        "view_stock_movements": "Xem giao dịch kho",
     },
     "en": {
         "system_settings": "System Settings",
         "dashboard": "Dashboard",
+        "inventory_hub": "Inventory",
         "navigation": "Navigation",
         "data": "Data",
         "logout": "Log Out",
@@ -813,6 +996,12 @@ CMS_TRANSLATIONS = {
         "pick_on_map": "Pick on map",
         "coord_saved_from_map": "Coordinates received from map. Click Save Changes to confirm.",
         "coord_required_from_map": "Please pick coordinates on map before saving.",
+        "inventory_overview": "Inventory Overview",
+        "stock_summary": "Stock Summary",
+        "suggest_import": "Suggested Restock",
+        "suggest_export": "Suggested Sell-Through",
+        "view_all_products": "View all products",
+        "view_stock_movements": "View stock movements",
     },
 }
 
@@ -862,6 +1051,19 @@ FIELD_LABELS = {
         "trang_thai": "Status",
         "tong_so_luong": "Total Quantity",
         "tong_tien": "Total Amount",
+        "giam_gia": "Discount",
+        "khuyen_mai": "Voucher",
+        "ma_voucher_ap_dung": "Voucher Code Applied",
+        "vi_do_giao_hang": "Delivery Latitude",
+        "kinh_do_giao_hang": "Delivery Longitude",
+        "ma_code": "Voucher Code",
+        "loai_giam": "Discount Type",
+        "gia_tri_giam": "Discount Value",
+        "gia_tri_don_hang_toi_thieu": "Minimum Order",
+        "giam_toi_da": "Maximum Discount",
+        "dang_ap_dung": "Active",
+        "ngay_bat_dau": "Start At",
+        "ngay_ket_thuc": "End At",
         "don_hang": "Order",
         "so_luong": "Quantity",
         "don_gia": "Unit Price",
@@ -870,20 +1072,125 @@ FIELD_LABELS = {
 }
 
 
+class MultipleImageInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleImageField(forms.FileField):
+    widget = MultipleImageInput
+
+    def clean(self, data, initial=None):
+        single_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            return [single_clean(item, initial) for item in data]
+        if not data:
+            return []
+        return [single_clean(data, initial)]
+
+
 class SanPhamAdminForm(forms.ModelForm):
-    image_1 = forms.ImageField(label="Ảnh 1", required=False)
-    image_2 = forms.ImageField(label="Ảnh 2", required=False)
-    image_3 = forms.ImageField(label="Ảnh 3", required=False)
+    product_images = MultipleImageField(
+        label="Ảnh sản phẩm",
+        required=False,
+        widget=MultipleImageInput(attrs={"multiple": True, "accept": "image/*"}),
+        help_text="Chọn một hoặc nhiều ảnh. Ảnh đầu tiên sẽ làm ảnh chính, các ảnh còn lại tự thêm vào gallery.",
+    )
 
     class Meta:
         model = SanPham
-        exclude = ("hinh_anh",)
+        exclude = ("hinh_anh", "ton_kho")
+
+
+class GiaoDichKhoAdminForm(forms.ModelForm):
+    class Meta:
+        model = GiaoDichKho
+        exclude = ("ton_truoc", "ton_sau", "created_by")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        store_field = self.fields.get("cua_hang")
+        if store_field is not None:
+            store_field.help_text = "Bắt buộc với phiếu xuất kho. Phiếu nhập sẽ tự lấy theo cửa hàng của nhân viên ký nếu để trống."
+        nhan_vien_field = self.fields.get("nhan_vien")
+        if nhan_vien_field is not None:
+            nhan_vien_field.help_text = "Bắt buộc với phiếu nhập kho."
+        chu_ky_field = self.fields.get("chu_ky")
+        if chu_ky_field is not None:
+            chu_ky_field.help_text = "Tải ảnh chữ ký của nhân viên khi nhập kho."
+
+
+class KhuyenMaiAdminForm(forms.ModelForm):
+    class Meta:
+        model = KhuyenMai
+        fields = "__all__"
+        widgets = {
+            "ma_code": forms.TextInput(
+                attrs={
+                    "placeholder": "Ví dụ: GIAM10 hoặc FREESHIP50",
+                    "style": "text-transform:uppercase;",
+                }
+            ),
+            "ten": forms.TextInput(attrs={"placeholder": "Ví dụ: Giảm 10% cho đơn online"}),
+            "mo_ta": forms.Textarea(
+                attrs={
+                    "rows": 3,
+                    "placeholder": "Giải thích ngắn: áp dụng cho đơn online, giới hạn theo thương hiệu hoặc thời gian...",
+                }
+            ),
+            "gia_tri_giam": forms.NumberInput(attrs={"placeholder": "Ví dụ: 10 hoặc 50000", "min": "0"}),
+            "gia_tri_don_hang_toi_thieu": forms.NumberInput(attrs={"placeholder": "Ví dụ: 100000", "min": "0"}),
+            "giam_toi_da": forms.NumberInput(attrs={"placeholder": "Để trống nếu không giới hạn", "min": "0"}),
+            "ngay_bat_dau": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "ngay_ket_thuc": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["ma_code"].help_text = "Mã khách hàng nhập ở checkout. Nên dùng chữ in hoa, không dấu, không khoảng trắng."
+        self.fields["loai_giam"].help_text = "Chọn 'Giảm theo phần trăm' nếu muốn nhập 10, 15, 20...; chọn 'Giảm số tiền' nếu muốn nhập trực tiếp số tiền."
+        self.fields["gia_tri_giam"].help_text = "Nếu giảm theo phần trăm: nhập từ 1 đến 100. Nếu giảm số tiền: nhập số tiền giảm theo VND."
+        self.fields["gia_tri_don_hang_toi_thieu"].help_text = "Chỉ cho phép áp dụng voucher khi đơn hàng đạt ít nhất số tiền này."
+        self.fields["giam_toi_da"].help_text = "Chỉ dùng khi giảm theo phần trăm để giới hạn số tiền giảm tối đa."
+        self.fields["dang_ap_dung"].help_text = "Bỏ chọn nếu muốn tạm khóa voucher mà không cần xóa."
+        self.fields["ngay_bat_dau"].help_text = "Để trống nếu voucher có hiệu lực ngay."
+        self.fields["ngay_ket_thuc"].help_text = "Để trống nếu voucher không có ngày hết hạn."
+        self.fields["thuong_hieu"].help_text = "Nếu chọn thương hiệu, voucher chỉ áp dụng cho các sản phẩm thuộc thương hiệu đó."
+        self.fields["cua_hang"].help_text = "Nếu chọn cửa hàng, voucher hiện được xem là ưu đãi mua tại cửa hàng và sẽ không áp dụng cho checkout online."
+
+    def clean_ma_code(self):
+        code = _normalize_voucher_code(self.cleaned_data.get("ma_code"))
+        if not code:
+            raise forms.ValidationError("Vui lòng nhập mã voucher.")
+        qs = KhuyenMai.objects.filter(ma_code__iexact=code)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("Mã voucher này đã tồn tại. Vui lòng dùng mã khác.")
+        return code
+
+    def clean(self):
+        cleaned_data = super().clean()
+        discount_type = cleaned_data.get("loai_giam")
+        discount_value = cleaned_data.get("gia_tri_giam") or Decimal("0")
+        max_discount = cleaned_data.get("giam_toi_da")
+        start_at = cleaned_data.get("ngay_bat_dau")
+        end_at = cleaned_data.get("ngay_ket_thuc")
+
+        if discount_value <= 0:
+            self.add_error("gia_tri_giam", "Giá trị giảm phải lớn hơn 0.")
+        if discount_type == "percent" and discount_value > 100:
+            self.add_error("gia_tri_giam", "Voucher phần trăm chỉ được nhập tối đa 100.")
+        if discount_type == "fixed" and max_discount:
+            self.add_error("giam_toi_da", "Giảm tối đa chỉ nên dùng cho voucher phần trăm.")
+        if start_at and end_at and end_at <= start_at:
+            self.add_error("ngay_ket_thuc", "Ngày kết thúc phải sau ngày bắt đầu.")
+        return cleaned_data
 
 
 def _is_admin_user(user):
     if not user.is_authenticated:
         return False
-    return _ensure_user_role(user) == ROLE_ADMIN
+    return _ensure_user_role(user) in INTERNAL_ROLES
 
 
 def _is_regular_user(user):
@@ -944,6 +1251,191 @@ def _format_currency(value):
     return f"{amount:,}".replace(",", ".") + " đ"
 
 
+def _parse_coordinate(raw_value):
+    text = (raw_value or "").strip()
+    if not text:
+        return None
+    try:
+        value = float(text)
+    except (TypeError, ValueError):
+        raise ValidationError("Tọa độ giao hàng không hợp lệ.")
+    return value
+
+
+def _parse_latitude(raw_value):
+    value = _parse_coordinate(raw_value)
+    if value is None:
+        return None
+    if value < -90 or value > 90:
+        raise ValidationError("Vĩ độ giao hàng phải nằm trong khoảng từ -90 đến 90.")
+    return value
+
+
+def _parse_longitude(raw_value):
+    value = _parse_coordinate(raw_value)
+    if value is None:
+        return None
+    if value < -180 or value > 180:
+        raise ValidationError("Kinh độ giao hàng phải nằm trong khoảng từ -180 đến 180.")
+    return value
+
+
+def _normalize_voucher_code(value):
+    return re.sub(r"\s+", "", (value or "").upper())
+
+
+def _line_total_for_item(item):
+    line_total = item.get("line_total")
+    if line_total is not None:
+        return Decimal(line_total)
+    return (item.get("unit_price") or Decimal("0")) * (item.get("quantity") or 0)
+
+
+VOUCHER_PRODUCT_RULES = {
+    "COMBO5K": {"all_keywords": ["mi tron", "pepsi"]},
+    "FROSTER33": {"any_keywords": ["froster"]},
+    "YOUUS50": {"any_keywords": ["youus"]},
+    "TOK10": {"any_keywords": ["tokbokki"]},
+}
+
+
+def _normalize_matching_text(value):
+    value = unicodedata.normalize("NFKD", str(value or ""))
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    value = re.sub(r"\s+", " ", value).strip().lower()
+    return value
+
+
+def _filter_voucher_eligible_items(voucher, items):
+    eligible_items = list(items)
+
+    allowed_brand_ids = list(voucher.thuong_hieu.values_list("pk", flat=True))
+    if allowed_brand_ids:
+        eligible_items = [
+            item for item in eligible_items if item["product"].thuong_hieu_id in allowed_brand_ids
+        ]
+
+    rule = VOUCHER_PRODUCT_RULES.get(_normalize_voucher_code(voucher.ma_code))
+    if not rule:
+        return eligible_items
+
+    normalized_items = [
+        (item, _normalize_matching_text(getattr(item["product"], "ten", "")))
+        for item in eligible_items
+    ]
+
+    any_keywords = [_normalize_matching_text(keyword) for keyword in rule.get("any_keywords", [])]
+    if any_keywords:
+        normalized_items = [
+            (item, normalized_name)
+            for item, normalized_name in normalized_items
+            if any(keyword in normalized_name for keyword in any_keywords)
+        ]
+
+    all_keywords = [_normalize_matching_text(keyword) for keyword in rule.get("all_keywords", [])]
+    if all_keywords:
+        matched_keywords = {
+            keyword
+            for _, normalized_name in normalized_items
+            for keyword in all_keywords
+            if keyword in normalized_name
+        }
+        if not all(keyword in matched_keywords for keyword in all_keywords):
+            return []
+        normalized_items = [
+            (item, normalized_name)
+            for item, normalized_name in normalized_items
+            if any(keyword in normalized_name for keyword in all_keywords)
+        ]
+
+    return [item for item, _ in normalized_items]
+
+
+def _resolve_checkout_voucher(raw_code, items, subtotal_amount):
+    code = _normalize_voucher_code(raw_code)
+    if not code:
+        return None, Decimal("0")
+
+    voucher = (
+        KhuyenMai.objects.prefetch_related("thuong_hieu", "cua_hang")
+        .filter(ma_code__iexact=code)
+        .order_by("-id")
+        .first()
+    )
+    if voucher is None:
+        raise ValidationError("Mã voucher không tồn tại.")
+    if not voucher.dang_ap_dung:
+        raise ValidationError("Voucher này hiện không còn áp dụng.")
+
+    now = timezone.now()
+    if voucher.ngay_bat_dau and voucher.ngay_bat_dau > now:
+        raise ValidationError("Voucher này chưa đến thời gian sử dụng.")
+    if voucher.ngay_ket_thuc and voucher.ngay_ket_thuc < now:
+        raise ValidationError("Voucher này đã hết hạn.")
+    if voucher.cua_hang.exists():
+        raise ValidationError("Voucher này chỉ áp dụng cho mua tại cửa hàng.")
+
+    subtotal_amount = Decimal(subtotal_amount or 0)
+    minimum_order = Decimal(voucher.gia_tri_don_hang_toi_thieu or 0)
+    if subtotal_amount < minimum_order:
+        raise ValidationError(
+            f"Đơn hàng cần tối thiểu {_format_currency(minimum_order)} để áp dụng voucher này."
+        )
+
+    eligible_items = _filter_voucher_eligible_items(voucher, items)
+    eligible_total = sum((_line_total_for_item(item) for item in eligible_items), Decimal("0"))
+    if eligible_total <= 0:
+        raise ValidationError("Voucher này không áp dụng cho sản phẩm đang có trong giỏ hàng.")
+
+    discount_value = Decimal(voucher.gia_tri_giam or 0)
+    if discount_value <= 0:
+        raise ValidationError("Voucher này chưa được cấu hình giá trị giảm hợp lệ.")
+
+    if voucher.loai_giam == "percent":
+        discount_amount = (eligible_total * discount_value) / Decimal("100")
+        if voucher.giam_toi_da:
+            discount_amount = min(discount_amount, Decimal(voucher.giam_toi_da))
+    else:
+        discount_amount = discount_value
+
+    discount_amount = min(discount_amount, eligible_total, subtotal_amount)
+    if discount_amount <= 0:
+        raise ValidationError("Voucher này không tạo ra giá trị giảm hợp lệ.")
+
+    return voucher, discount_amount
+
+
+def _get_checkout_available_vouchers(items, subtotal_amount):
+    vouchers = (
+        KhuyenMai.objects.prefetch_related("thuong_hieu", "cua_hang")
+        .exclude(ma_code__isnull=True)
+        .exclude(ma_code__exact="")
+        .filter(dang_ap_dung=True)
+        .order_by("-id")[:20]
+    )
+    available = []
+    for voucher in vouchers:
+        code = _normalize_voucher_code(voucher.ma_code)
+        if not code:
+            continue
+        try:
+            _, discount_amount = _resolve_checkout_voucher(code, items, subtotal_amount)
+        except ValidationError:
+            continue
+        available.append(
+            {
+                "code": code,
+                "title": voucher.ten,
+                "description": voucher.mo_ta,
+                "discount_amount": discount_amount,
+                "display_discount_amount": _format_currency(discount_amount),
+                "minimum_order_amount": Decimal(voucher.gia_tri_don_hang_toi_thieu or 0),
+                "display_minimum_order_amount": _format_currency(voucher.gia_tri_don_hang_toi_thieu or 0),
+            }
+        )
+    return available
+
+
 def _get_customer_profile(user):
     profile, _ = HoSoKhachHang.objects.get_or_create(user=user)
     return profile
@@ -953,7 +1445,7 @@ def _purge_expired_trash():
     TrashRecord.objects.filter(expires_at__lt=timezone.now()).delete()
 
 
-def _move_to_trash(obj):
+def _serialize_for_trash(obj):
     data = model_to_dict(obj)
     # Ensure file fields are stored as plain paths
     for field in obj._meta.fields:
@@ -962,11 +1454,17 @@ def _move_to_trash(obj):
             data[field.name] = str(value) if value else ""
     data = json.loads(json.dumps(data, cls=DjangoJSONEncoder))
     data.pop("id", None)
+    return data
+
+
+def _move_to_trash(obj, data=None):
+    payload = data if data is not None else _serialize_for_trash(obj)
+    retention_days = getattr(settings, "TRASH_RETENTION_DAYS", 15)
     TrashRecord.objects.create(
         model_label=obj._meta.label_lower,
         object_id=str(obj.pk),
-        data=data,
-        expires_at=timezone.now() + timedelta(days=30),
+        data=payload,
+        expires_at=timezone.now() + timedelta(days=retention_days),
     )
 
 
@@ -981,7 +1479,42 @@ def _model_slug_from_label(label: str) -> str:
     return model._meta.model_name
 
 
-def _trash_display_name(data: dict) -> str:
+def _trash_display_name(data: dict, model_label: str = "") -> str:
+    model_key = (model_label or "").split(".")[-1].lower()
+
+    if model_key == "giaodichkho":
+        movement_type = (data.get("loai") or "").strip().lower()
+        quantity = data.get("so_luong")
+        product_id = data.get("san_pham")
+        product_name = ""
+        if product_id not in (None, ""):
+            product_name = SanPham.objects.filter(pk=product_id).values_list("ten", flat=True).first() or f"SP #{product_id}"
+        type_label = "Nhập kho" if movement_type == "import" else "Xuất kho" if movement_type == "export" else "Giao dịch kho"
+        if product_name and quantity not in (None, ""):
+            return f"{type_label} - {product_name} x {quantity}"
+        if product_name:
+            return f"{type_label} - {product_name}"
+        if quantity not in (None, ""):
+            return f"{type_label} x {quantity}"
+        return type_label
+
+    if model_key == "donhang":
+        order_id = data.get("id") or data.get("object_id")
+        receiver = data.get("ho_ten_nguoi_nhan")
+        if order_id and receiver:
+            return f"Đơn hàng #{order_id} - {receiver}"
+        if order_id:
+            return f"Đơn hàng #{order_id}"
+
+    if model_key == "chitietdonhang":
+        quantity = data.get("so_luong")
+        product_id = data.get("san_pham")
+        product_name = ""
+        if product_id not in (None, ""):
+            product_name = SanPham.objects.filter(pk=product_id).values_list("ten", flat=True).first() or f"SP #{product_id}"
+        if product_name and quantity not in (None, ""):
+            return f"{product_name} x {quantity}"
+
     for key in ("ten", "ho_ten", "ho_ten_nguoi_nhan", "username", "email"):
         value = data.get(key)
         if value:
@@ -1084,7 +1617,7 @@ def _send_order_confirmation(order, items):
     customer_email = (order.khach_hang.email or "").strip()
     if not customer_email:
         return False
-    created_at = order.created_at or timezone.now()
+    created_at = timezone.localtime(order.created_at) if order.created_at else timezone.localtime(timezone.now())
     created_text = created_at.strftime("%d/%m/%Y %H:%M")
     item_lines = []
     for item in items:
@@ -1108,6 +1641,9 @@ def _send_order_confirmation(order, items):
         "Chi tiết đơn hàng:\n"
         f"{items_text}\n\n"
         f"Tổng số lượng: {order.tong_so_luong}\n"
+        f"Tạm tính: {_format_currency(order.tong_tien_truoc_giam or order.tong_tien)}\n"
+        f"Voucher: {order.ma_voucher_ap_dung or '-'}\n"
+        f"Giảm giá: {_format_currency(order.giam_gia)}\n"
         f"Tổng tiền: {_format_currency(order.tong_tien)}\n\n"
         "Chúng tôi sẽ liên hệ với bạn để xác nhận và giao hàng sớm nhất.\n"
         "Trân trọng."
@@ -1159,9 +1695,10 @@ def _cart_items(request):
 
 
 def _ensure_role_groups():
-    admin_group, _ = Group.objects.get_or_create(name=ROLE_ADMIN)
-    user_group, _ = Group.objects.get_or_create(name=ROLE_USER)
-    return {ROLE_ADMIN: admin_group, ROLE_USER: user_group}
+    groups = {}
+    for role_value, _role_label in ROLE_CHOICES:
+        groups[role_value], _ = Group.objects.get_or_create(name=role_value)
+    return groups
 
 
 def _ensure_user_role(user):
@@ -1170,18 +1707,24 @@ def _ensure_user_role(user):
         return None
 
     target_role = None
-    if user.groups.filter(name=ROLE_ADMIN).exists():
-        target_role = ROLE_ADMIN
-    elif user.groups.filter(name=ROLE_USER).exists():
-        target_role = ROLE_USER
-    elif user.is_superuser or user.is_staff:
-        target_role = ROLE_ADMIN
-    else:
-        target_role = ROLE_USER
+    for role_value, _role_label in ROLE_CHOICES:
+        if user.groups.filter(name=role_value).exists():
+            target_role = role_value
+            break
+    if target_role is None:
+        for legacy_name, mapped_role in LEGACY_ROLE_MAP.items():
+            if user.groups.filter(name=legacy_name).exists():
+                target_role = mapped_role
+                break
+    if target_role is None:
+        if user.is_superuser or user.is_staff:
+            target_role = ROLE_SYSTEM_ADMIN
+        else:
+            target_role = ROLE_CUSTOMER
 
     target_group = groups[target_role]
     needs_group_sync = not user.groups.filter(pk=target_group.pk).exists() or user.groups.exclude(pk=target_group.pk).exists()
-    expected_is_staff = target_role == ROLE_ADMIN
+    expected_is_staff = target_role in INTERNAL_ROLES
     needs_staff_sync = user.is_staff != expected_is_staff
 
     if needs_group_sync:
@@ -1194,15 +1737,65 @@ def _ensure_user_role(user):
 
 
 def _get_user_role(user):
-    return _ensure_user_role(user) or ROLE_USER
+    return _ensure_user_role(user) or ROLE_CUSTOMER
 
 
 def _sync_user_role(user, role: str):
     groups = _ensure_role_groups()
-    role = ROLE_ADMIN if role == ROLE_ADMIN else ROLE_USER
+    if role not in groups:
+        role = ROLE_CUSTOMER
     user.groups.set([groups[role]])
-    user.is_staff = role == ROLE_ADMIN
+    user.is_staff = role in INTERNAL_ROLES
     user.save(update_fields=["is_staff"])
+
+
+def _role_label(role: str) -> str:
+    return ROLE_LABELS.get(role, role)
+
+
+def _current_user_role(user):
+    return _get_user_role(user) if user and user.is_authenticated else ROLE_CUSTOMER
+
+
+def _has_admin_page_access(user, page_key: str, action: str = "view") -> bool:
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    role = _current_user_role(user)
+    allowed_roles = ADMIN_PAGE_ROLE_ACTIONS.get(page_key, {}).get(action, set())
+    return role in allowed_roles
+
+
+def _has_module_access(user, model_slug: str, action: str = "view") -> bool:
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    role = _current_user_role(user)
+    action_map = MODULE_ROLE_ACTIONS.get(model_slug, {})
+    allowed_roles = action_map.get(action, action_map.get("view", set()))
+    return role in allowed_roles
+
+
+def _require_admin_permission(request, page_key: str, action: str = "view"):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+    if _has_admin_page_access(request.user, page_key, action):
+        return None
+    messages.error(request, _admin_pref_context(request)["t"]["no_access"])
+    return redirect("store:admin_dashboard")
+
+
+def _require_module_permission(request, model_slug: str, action: str = "view"):
+    unauthorized = _require_admin_user(request)
+    if unauthorized:
+        return unauthorized
+    if _has_module_access(request.user, model_slug, action):
+        return None
+    messages.error(request, _admin_pref_context(request)["t"]["no_access"])
+    return redirect("store:admin_dashboard")
 
 
 def _clean_user_email(raw_email: str, exclude_user_id=None):
@@ -1326,12 +1919,12 @@ def _user_all_notifications(user, limit=None):
         notifications.append(
             {
                 "title": f"Đơn #{order.pk} đang {status_label.lower()}",
-                "body": f"{item_name} • {order.created_at.strftime('%d/%m/%Y %H:%M')}",
+                "body": f"{item_name} • {timezone.localtime(order.created_at).strftime('%d/%m/%Y %H:%M')}",
                 "message": f"Đơn hàng #{order.pk} với sản phẩm {item_name} hiện ở trạng thái {status_label.lower()}.",
                 "href": reverse("store:order_detail", args=[order.pk]),
                 "is_new": order.created_at >= timezone.now() - timedelta(days=2),
                 "created_at": order.created_at,
-                "created_text": order.created_at.strftime("%H:%M %d/%m/%Y"),
+                "created_text": timezone.localtime(order.created_at).strftime("%H:%M %d/%m/%Y"),
                 "thumbnail_url": thumb_url,
                 "status_label": status_label,
                 "action_label": action_label,
@@ -1456,6 +2049,13 @@ def _admin_pref_context(request):
         "admin_theme": theme,
         "admin_unread_notifications": unread_count,
         "show_admin_link": _is_admin_user(request.user),
+        "current_admin_role": _current_user_role(request.user),
+        "current_admin_role_label": _role_label(_current_user_role(request.user)),
+        "can_manage_settings": _has_admin_page_access(request.user, "settings"),
+        "can_manage_users": _has_admin_page_access(request.user, "user_management"),
+        "can_view_inventory_hub": _has_admin_page_access(request.user, "inventory_hub"),
+        "can_view_trash": _has_admin_page_access(request.user, "trash"),
+        "can_view_notifications": _has_admin_page_access(request.user, "notifications"),
         "t": CMS_TRANSLATIONS[lang],
     }
 
@@ -1466,15 +2066,347 @@ def _model_label(model_slug, lang, plural=True):
     return labels.get("vi_plural" if plural else "vi_singular", model_slug)
 
 
+def _inventory_hub_context():
+    cutoff_30d = timezone.now() - timedelta(days=30)
+    stock_qs = (
+        SanPham.objects.select_related("nhom_san_pham", "thuong_hieu").annotate(
+            import_30d=dj_models.Sum(
+                "giao_dich_kho__so_luong",
+                filter=Q(giao_dich_kho__loai="import", giao_dich_kho__created_at__gte=cutoff_30d),
+            ),
+            export_30d=dj_models.Sum(
+                "giao_dich_kho__so_luong",
+                filter=Q(giao_dich_kho__loai="export", giao_dich_kho__created_at__gte=cutoff_30d),
+            ),
+        )
+        .order_by("ten")
+    )
+
+    products = list(stock_qs)
+    total_skus = len(products)
+    total_units = sum(int(product.ton_kho or 0) for product in products)
+    out_of_stock_count = sum(1 for product in products if (product.ton_kho or 0) <= 0)
+    low_stock_count = sum(
+        1
+        for product in products
+        if 0 < (product.ton_kho or 0) <= SanPham.LOW_STOCK_THRESHOLD
+    )
+    overstock_count = sum(
+        1
+        for product in products
+        if (product.ton_kho or 0) >= max(SanPham.LOW_STOCK_THRESHOLD * 4, 20)
+    )
+
+    for product in products:
+        product.import_30d = int(product.import_30d or 0)
+        product.export_30d = int(product.export_30d or 0)
+        product.net_30d = product.import_30d - product.export_30d
+        product.stock_label_display = SanPham.stock_label.fget(product)
+        product.stock_hint_display = SanPham.stock_hint.fget(product)
+
+    import_suggestions = sorted(
+        [
+            product
+            for product in products
+            if (product.ton_kho or 0) <= SanPham.LOW_STOCK_THRESHOLD
+        ],
+        key=lambda item: (item.ton_kho, -(item.export_30d or 0), item.ten.lower()),
+    )[:8]
+
+    export_suggestions = sorted(
+        [
+            product
+            for product in products
+            if (product.ton_kho or 0) > SanPham.LOW_STOCK_THRESHOLD
+        ],
+        key=lambda item: (-(item.ton_kho or 0), item.export_30d or 0, item.ten.lower()),
+    )[:8]
+
+    movement_totals = GiaoDichKho.objects.aggregate(
+        import_30d=Coalesce(
+            dj_models.Sum("so_luong", filter=Q(loai="import", created_at__gte=cutoff_30d)),
+            0,
+        ),
+        export_30d=Coalesce(
+            dj_models.Sum("so_luong", filter=Q(loai="export", created_at__gte=cutoff_30d)),
+            0,
+        ),
+    )
+
+    recent_movements = list(
+        GiaoDichKho.objects.select_related("san_pham", "nhan_vien", "cua_hang")
+        .order_by("-created_at", "-id")[:10]
+    )
+
+    store_stock_rows = list(
+        CuaHang.objects.select_related("chuoi").annotate(
+            total_units=Coalesce(dj_models.Sum("ton_kho_san_pham__ton_kho"), 0),
+            sku_count=Coalesce(
+                dj_models.Count(
+                    "ton_kho_san_pham",
+                    filter=Q(ton_kho_san_pham__ton_kho__gt=0),
+                    distinct=True,
+                ),
+                0,
+            ),
+            low_stock_count=Coalesce(
+                dj_models.Count(
+                    "ton_kho_san_pham",
+                    filter=Q(
+                        ton_kho_san_pham__ton_kho__gt=0,
+                        ton_kho_san_pham__ton_kho__lte=SanPham.LOW_STOCK_THRESHOLD,
+                    ),
+                    distinct=True,
+                ),
+                0,
+            ),
+            empty_stock_count=Coalesce(
+                dj_models.Count(
+                    "ton_kho_san_pham",
+                    filter=Q(ton_kho_san_pham__ton_kho__lte=0),
+                    distinct=True,
+                ),
+                0,
+            ),
+        ).order_by("-total_units", "ten")[:8]
+    )
+
+    return {
+        "inventory_stats": {
+            "total_skus": total_skus,
+            "total_units": total_units,
+            "out_of_stock_count": out_of_stock_count,
+            "low_stock_count": low_stock_count,
+            "overstock_count": overstock_count,
+            "import_30d": int(movement_totals["import_30d"] or 0),
+            "export_30d": int(movement_totals["export_30d"] or 0),
+        },
+        "import_suggestions": import_suggestions,
+        "export_suggestions": export_suggestions,
+        "recent_stock_movements": recent_movements,
+        "store_stock_rows": store_stock_rows,
+    }
+
+
+def _dashboard_context():
+    now = timezone.now()
+    today = now.date()
+    paid_statuses = {"paid"}
+    zero_money = dj_models.Value(0, output_field=dj_models.DecimalField(max_digits=12, decimal_places=0))
+
+    order_qs = DonHang.objects.select_related("khach_hang", "cua_hang_xu_ly", "khuyen_mai")
+    total_orders = order_qs.count()
+    today_orders = order_qs.filter(created_at__date=today).count()
+    pending_orders = order_qs.filter(trang_thai="pending").count()
+    awaiting_transfer_orders = order_qs.filter(
+        phuong_thuc_thanh_toan="bank_transfer",
+        trang_thai_thanh_toan="awaiting_confirmation",
+    ).count()
+    paid_revenue = order_qs.filter(trang_thai_thanh_toan__in=paid_statuses).aggregate(
+        total=Coalesce(dj_models.Sum("tong_tien"), zero_money)
+    )["total"]
+    today_revenue = order_qs.filter(
+        created_at__date=today,
+        trang_thai_thanh_toan__in=paid_statuses,
+    ).aggregate(total=Coalesce(dj_models.Sum("tong_tien"), zero_money))["total"]
+
+    product_qs = SanPham.objects.all()
+    product_count = product_qs.count()
+    low_stock_count = product_qs.filter(
+        ton_kho__gt=0,
+        ton_kho__lte=SanPham.LOW_STOCK_THRESHOLD,
+    ).count()
+    out_stock_count = product_qs.filter(ton_kho__lte=0).count()
+
+    recent_orders = list(order_qs.order_by("-created_at")[:8])
+    for order in recent_orders:
+        order.display_total_amount = _format_currency(order.tong_tien)
+
+    payment_mix = []
+    payment_rows = (
+        order_qs.values("phuong_thuc_thanh_toan")
+        .annotate(total=dj_models.Count("id"))
+        .order_by("-total")
+    )
+    method_labels = dict(DonHang.PAYMENT_METHOD_CHOICES)
+    for row in payment_rows:
+        payment_mix.append(
+            {
+                "label": method_labels.get(row["phuong_thuc_thanh_toan"], row["phuong_thuc_thanh_toan"]),
+                "value": row["total"],
+            }
+        )
+
+    seven_day_series = []
+    revenue_points = []
+    order_points = []
+    max_revenue = Decimal("0")
+    max_orders = 0
+    for offset in range(6, -1, -1):
+        day = today - timedelta(days=offset)
+        day_orders = order_qs.filter(created_at__date=day)
+        order_count = day_orders.count()
+        day_revenue = day_orders.filter(trang_thai_thanh_toan__in=paid_statuses).aggregate(
+            total=Coalesce(dj_models.Sum("tong_tien"), zero_money)
+        )["total"]
+        if day_revenue > max_revenue:
+            max_revenue = day_revenue
+        if order_count > max_orders:
+            max_orders = order_count
+        seven_day_series.append(
+            {
+                "label": day.strftime("%d/%m"),
+                "day_name": day.strftime("%a"),
+                "order_count": order_count,
+                "revenue": day_revenue,
+                "display_revenue": _format_currency(day_revenue),
+            }
+        )
+
+    max_revenue = max_revenue or Decimal("1")
+    max_orders = max_orders or 1
+    for item in seven_day_series:
+        revenue_percent = float((Decimal(item["revenue"]) / Decimal(max_revenue)) * Decimal("100"))
+        order_percent = (int(item["order_count"]) / max_orders) * 100
+        item["revenue_percent"] = max(8, round(revenue_percent, 2)) if item["revenue"] else 8
+        item["order_percent"] = max(8, round(order_percent, 2)) if item["order_count"] else 8
+        revenue_points.append(str(round(item["revenue_percent"], 2)))
+        order_points.append(str(round(item["order_percent"], 2)))
+
+    store_leaderboard = list(
+        CuaHang.objects.select_related("chuoi").annotate(
+            total_orders=Coalesce(dj_models.Count("don_hang_xu_ly", distinct=True), 0),
+            total_revenue=Coalesce(
+                dj_models.Sum(
+                    "don_hang_xu_ly__tong_tien",
+                    filter=Q(don_hang_xu_ly__trang_thai_thanh_toan="paid"),
+                ),
+                zero_money,
+            ),
+            total_units=Coalesce(dj_models.Sum("ton_kho_san_pham__ton_kho"), 0),
+        ).order_by("-total_orders", "-total_revenue", "ten")[:8]
+    )
+    for store in store_leaderboard:
+        store.display_total_revenue = _format_currency(store.total_revenue)
+
+    return {
+        "dashboard_stats": {
+            "total_orders": total_orders,
+            "today_orders": today_orders,
+            "pending_orders": pending_orders,
+            "awaiting_transfer_orders": awaiting_transfer_orders,
+            "paid_revenue": _format_currency(paid_revenue),
+            "today_revenue": _format_currency(today_revenue),
+            "product_count": product_count,
+            "low_stock_count": low_stock_count,
+            "out_stock_count": out_stock_count,
+        },
+        "recent_orders_dashboard": recent_orders,
+        "payment_mix": payment_mix,
+        "store_leaderboard": store_leaderboard,
+        "seven_day_series": seven_day_series,
+        "dashboard_chart_meta": {
+            "max_revenue": _format_currency(max_revenue),
+            "max_orders": max_orders,
+            "revenue_points": ",".join(revenue_points),
+            "order_points": ",".join(order_points),
+        },
+    }
+
+
+def _select_fulfillment_store(items):
+    if not items:
+        return None
+
+    product_ids = sorted({item["product"].pk for item in items if item.get("product")})
+    if not product_ids:
+        return None
+
+    rows = (
+        TonKhoCuaHang.objects.filter(san_pham_id__in=product_ids)
+        .select_related("cua_hang")
+        .order_by("cua_hang__ten", "san_pham__ten")
+    )
+    store_map = {}
+    for row in rows:
+        store_bucket = store_map.setdefault(
+            row.cua_hang_id,
+            {"store": row.cua_hang, "stock": {}},
+        )
+        store_bucket["stock"][row.san_pham_id] = int(row.ton_kho or 0)
+
+    candidates = []
+    for data in store_map.values():
+        if all(data["stock"].get(item["product"].pk, 0) >= int(item["quantity"]) for item in items):
+            score = sum(data["stock"].get(item["product"].pk, 0) for item in items)
+            candidates.append((score, data["store"].ten.lower(), data["store"]))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: (-item[0], item[1]))
+    return candidates[0][2]
+
+
+def _admin_redirect_with_preserved_query(request, model_slug="don-hang"):
+    redirect_url = reverse("store:admin_list", kwargs={"model_slug": model_slug})
+    query = (request.POST.get("return_query") or request.GET.urlencode() or "").strip("&?")
+    if query:
+        redirect_url = f"{redirect_url}?{query}"
+    return redirect(redirect_url)
+
+
+def _release_order_inventory_if_needed(order, *, reason=""):
+    if order is None or order.trang_thai_thanh_toan == "paid":
+        return False
+
+    movements = list(
+        GiaoDichKho.objects.filter(don_hang=order, loai="export")
+        .select_related("san_pham")
+        .order_by("-created_at", "-id")
+    )
+    if not movements:
+        return False
+
+    for movement in movements:
+        product_name = movement.san_pham.ten if movement.san_pham_id else f"SP #{movement.pk}"
+        movement.delete()
+        _create_admin_notification(
+            f"Hoàn tồn kho cho đơn #{order.pk}",
+            (
+                f"Đã hoàn {movement.so_luong} sản phẩm của {product_name} "
+                f"về kho do {reason or 'đơn chưa thanh toán bị hủy'}."
+            ),
+            level="warning",
+            path=reverse("store:admin_list", kwargs={"model_slug": "giao-dich-kho"}),
+            method="PATCH",
+            status_code=200,
+        )
+    return True
+
+
+def _log_payment_confirmation(order, action, *, performed_by=None, note=""):
+    if order is None:
+        return None
+    return XacNhanThanhToan.objects.create(
+        don_hang=order,
+        hanh_dong=action,
+        ghi_chu=note or "",
+        performed_by=performed_by if getattr(performed_by, "is_authenticated", False) else None,
+    )
+
+
 def _field_label(field, lang):
     if lang != "en":
         return field.verbose_name
     return FIELD_LABELS.get("en", {}).get(field.name, field.verbose_name)
 
 
-def _menu_context(lang="vi"):
+def _menu_context(lang="vi", user=None):
     menu = []
     for slug, model in MODEL_REGISTRY.items():
+        if user is not None and not _has_module_access(user, slug, "view"):
+            continue
         menu.append(
             {
                 "slug": slug,
@@ -1515,55 +2447,77 @@ def _build_file_preview_context(model, obj=None):
 
 def _build_product_image_preview_context(obj=None):
     previews = {
-        "image_1": {"url": "", "is_image": True},
-        "image_2": {"url": "", "is_image": True},
-        "image_3": {"url": "", "is_image": True},
+        "product_images": {"url": "", "is_image": True},
+        "gallery_items": [],
     }
     if obj is None:
         return previews
 
     try:
         if obj.hinh_anh:
-            previews["image_1"]["url"] = obj.hinh_anh.url
+            previews["product_images"]["url"] = obj.hinh_anh.url
     except Exception:
         pass
 
-    related_images = list(obj.hinh_anh_phu.all().order_by("thu_tu", "id")[:2])
-    for index, image in enumerate(related_images, start=2):
-        try:
-            if image and image.hinh_anh:
-                previews[f"image_{index}"]["url"] = image.hinh_anh.url
-        except Exception:
-            continue
-
+    related_images = list(obj.hinh_anh_phu.all().order_by("thu_tu", "id"))
+    previews["gallery_items"] = [
+        {
+            "id": image.pk,
+            "url": image.hinh_anh.url,
+            "caption": image.chu_thich or f"Ảnh phụ {index}",
+            "order": index,
+        }
+        for index, image in enumerate(related_images, start=1)
+        if getattr(image, "hinh_anh", None)
+    ]
     return previews
 
 
-def _save_product_gallery(product, files):
-    uploaded_main = files.get("image_1")
-    if uploaded_main:
-        product.hinh_anh = uploaded_main
+def _save_product_gallery(product, files, post_data=None):
+    uploaded_images = list(files.getlist("product_images"))
+    post_data = post_data or {}
+    post_values = post_data.getlist if hasattr(post_data, "getlist") else lambda key: []
+
+    if uploaded_images and not product.hinh_anh:
+        product.hinh_anh = uploaded_images.pop(0)
         product.save(update_fields=["hinh_anh"])
 
-    related_images = list(product.hinh_anh_phu.all().order_by("thu_tu", "id"))
-    while len(related_images) < 2:
-        related = HinhAnhSanPham.objects.create(
-            san_pham=product,
-            thu_tu=len(related_images) + 1,
-            chu_thich=f"Ảnh phụ {len(related_images) + 1}",
-        )
-        related_images.append(related)
+    delete_ids = {value for value in post_values("delete_image_ids") if str(value).isdigit()}
+    if delete_ids:
+        product.hinh_anh_phu.filter(pk__in=delete_ids).delete()
 
-    for index, field_name in enumerate(("image_2", "image_3")):
-        uploaded = files.get(field_name)
-        if not uploaded:
-            continue
-        image_obj = related_images[index]
-        image_obj.hinh_anh = uploaded
-        image_obj.thu_tu = index + 1
-        if not image_obj.chu_thich:
-            image_obj.chu_thich = f"Ảnh phụ {index + 1}"
-        image_obj.save()
+    related_images = list(product.hinh_anh_phu.all().order_by("thu_tu", "id"))
+
+    order_map = {}
+    for image in related_images:
+        raw_order = (post_data.get(f"image_order_{image.pk}") or "").strip()
+        if raw_order.isdigit():
+            order_map[image.pk] = int(raw_order)
+    if order_map:
+        related_images.sort(key=lambda item: (order_map.get(item.pk, item.thu_tu or 9999), item.thu_tu, item.pk))
+        for index, image in enumerate(related_images, start=1):
+            if image.thu_tu != index:
+                image.thu_tu = index
+                image.save(update_fields=["thu_tu"])
+
+    if uploaded_images:
+        current_order = (
+            product.hinh_anh_phu.aggregate(max_order=dj_models.Max("thu_tu")).get("max_order") or 0
+        )
+        for uploaded in uploaded_images:
+            current_order += 1
+            HinhAnhSanPham.objects.create(
+                san_pham=product,
+                hinh_anh=uploaded,
+                thu_tu=current_order,
+                chu_thich=f"Ảnh phụ {current_order}",
+            )
+
+    normalized_images = list(product.hinh_anh_phu.all().order_by("thu_tu", "id"))
+    for index, image in enumerate(normalized_images, start=1):
+        if image.thu_tu != index:
+            image.thu_tu = index
+            image.save(update_fields=["thu_tu"])
 
 
 def _build_product_card_gallery(product):
@@ -1574,7 +2528,7 @@ def _build_product_card_gallery(product):
         except Exception:
             pass
 
-    for image in product.hinh_anh_phu.all()[:2]:
+    for image in product.hinh_anh_phu.all():
         try:
             if image.hinh_anh:
                 images.append(image.hinh_anh.url)
@@ -1583,7 +2537,28 @@ def _build_product_card_gallery(product):
 
     if not images:
         images.append("https://www.circlek.com/sites/default/files/2024-03/our_products_920x575.jpg")
-    return images[:3]
+    return images[:8]
+
+
+def _attach_stock_ui_fields(product):
+    product.catalog_stock_label = SanPham.stock_label.fget(product)
+    product.catalog_stock_hint = SanPham.stock_hint.fget(product)
+    product.stock_css = {
+        "out": "out-stock",
+        "low": "low-stock",
+        "ok": "in-stock",
+    }.get(product.stock_level, "in-stock")
+    return product
+
+
+def _admin_form_class_for_model(model_slug, model):
+    if model_slug == "san-pham":
+        return SanPhamAdminForm
+    if model_slug == "giao-dich-kho":
+        return GiaoDichKhoAdminForm
+    if model_slug == "khuyen-mai":
+        return KhuyenMaiAdminForm
+    return modelform_factory(model, fields="__all__")
 
 
 def _sanitize_admin_form(form):
@@ -1627,6 +2602,7 @@ def _validate_coord_from_map(request, form, instance=None):
     return True
 
 
+@method_decorator(never_cache, name="dispatch")
 class AdminLoginView(LoginView):
     template_name = "user/login.html"
     authentication_form = AuthenticationForm
@@ -1668,6 +2644,7 @@ class AdminLoginView(LoginView):
         return response
 
 
+@method_decorator(never_cache, name="dispatch")
 class UserLoginView(LoginView):
     template_name = "user/login.html"
     authentication_form = AuthenticationForm
@@ -1766,26 +2743,105 @@ def user_logout(request):
 
 
 def admin_dashboard(request):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_admin_permission(request, "dashboard")
     if unauthorized:
         return unauthorized
 
     pref = _admin_pref_context(request)
     lang = pref["admin_lang"]
-    modules = _menu_context(lang)
+    modules = _menu_context(lang, request.user)
     return render(
         request,
         "admin/index.html",
         {
             "modules": modules,
             "total_records": sum(item["count"] for item in modules),
+            **_dashboard_context(),
+            **pref,
+        },
+    )
+
+
+def admin_inventory_hub(request):
+    unauthorized = _require_admin_permission(request, "inventory_hub")
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    return render(
+        request,
+        "admin/inventory_hub.html",
+        {
+            "modules": _menu_context(lang, request.user),
+            **_inventory_hub_context(),
+            **pref,
+        },
+    )
+
+
+def admin_inventory_restock(request):
+    unauthorized = _require_module_permission(request, "giao-dich-kho", "create")
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    stores = list(CuaHang.objects.select_related("chuoi").order_by("chuoi__ten", "ten", "pk"))
+    selected_store_ids = [str(store.pk) for store in stores]
+    target_stock = 25
+    note = "Nhap kho dong loat de mo ban toan bo san pham"
+
+    if request.method == "POST":
+        selected_store_ids = [value for value in request.POST.getlist("store_ids") if value.strip()]
+        note = (request.POST.get("note") or note).strip()
+        try:
+            target_stock = int(request.POST.get("target_stock") or 25)
+        except (TypeError, ValueError):
+            target_stock = 0
+
+        if not selected_store_ids:
+            messages.error(request, "Vui l?ng ch?n ?t nh?t m?t c?a h?ng ?? nh?p kho.")
+        else:
+            try:
+                summary = restock_products(
+                    target_stock=target_stock,
+                    note=note,
+                    store_ids=[int(store_id) for store_id in selected_store_ids],
+                )
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            except LookupError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(
+                    request,
+                    (
+                        "?? nh?p kho th?nh c?ng cho "
+                        f"{summary['store_count']} c?a h?ng, "
+                        f"t?o {summary['created_movements']} phi?u nh?p v? "
+                        f"b? sung {summary['imported_units']} ??n v? h?ng."
+                    ),
+                )
+                return redirect("store:admin_inventory_restock")
+
+    return render(
+        request,
+        "admin/inventory_restock.html",
+        {
+            "modules": _menu_context(lang, request.user),
+            "stores": stores,
+            "selected_store_ids": selected_store_ids,
+            "target_stock": target_stock,
+            "note_value": note,
+            "model_slug": "giao-dich-kho",
             **pref,
         },
     )
 
 
 def admin_user_password(request, pk):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_admin_permission(request, "user_management")
     if unauthorized:
         return unauthorized
 
@@ -1806,7 +2862,7 @@ def admin_user_password(request, pk):
         request,
         "admin/password_form.html",
         {
-            "modules": _menu_context(pref["admin_lang"]),
+            "modules": _menu_context(pref["admin_lang"], request.user),
             "form": form,
             "page_heading": f'{pref["t"]["reset_password"]}: {user_obj.username}',
             "password_strength_value": password_strength,
@@ -1815,13 +2871,14 @@ def admin_user_password(request, pk):
     )
 
 
+@require_POST
 def admin_order_status_action(request, pk, status):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_module_permission(request, "don-hang", "status")
     if unauthorized:
         return unauthorized
 
     if status not in {"confirmed", "shipping", "delivered", "done", "cancelled"}:
-        return redirect("store:admin_list", model_slug="don-hang")
+        return _admin_redirect_with_preserved_query(request)
 
     order = get_object_or_404(DonHang, pk=pk)
     allowed_transitions = {
@@ -1833,14 +2890,13 @@ def admin_order_status_action(request, pk, status):
         "cancelled": set(),
     }
     if status not in allowed_transitions.get(order.trang_thai, set()):
-        redirect_url = reverse("store:admin_list", kwargs={"model_slug": "don-hang"})
-        query = request.GET.urlencode()
-        if query:
-            redirect_url = f"{redirect_url}?{query}"
-        return redirect(redirect_url)
+        return _admin_redirect_with_preserved_query(request)
 
-    order.trang_thai = status
-    order.save(update_fields=["trang_thai"])
+    with transaction.atomic():
+        order.trang_thai = status
+        order.save(update_fields=["trang_thai"])
+        if status == "cancelled":
+            _release_order_inventory_if_needed(order, reason="đơn hàng bị hủy")
     _create_admin_notification(
         f"Cập nhật đơn hàng #{order.pk}",
         (
@@ -1854,15 +2910,99 @@ def admin_order_status_action(request, pk, status):
     )
     messages.success(request, _admin_pref_context(request)["t"]["order_status_updated"])
 
-    redirect_url = reverse("store:admin_list", kwargs={"model_slug": "don-hang"})
-    query = request.GET.urlencode()
-    if query:
-        redirect_url = f"{redirect_url}?{query}"
-    return redirect(redirect_url)
+    return _admin_redirect_with_preserved_query(request)
+
+
+@require_POST
+def admin_order_payment_status_action(request, pk, status):
+    unauthorized = _require_module_permission(request, "don-hang", "payment_status")
+    if unauthorized:
+        return unauthorized
+
+    if status not in {"unpaid", "paid", "awaiting_confirmation", "refunded"}:
+        return _admin_redirect_with_preserved_query(request)
+
+    order = get_object_or_404(DonHang, pk=pk)
+    allowed_transitions = {
+        "unpaid": {"paid", "awaiting_confirmation"},
+        "awaiting_confirmation": {"paid", "unpaid", "refunded"},
+        "paid": {"refunded"},
+        "refunded": set(),
+    }
+    if status not in allowed_transitions.get(order.trang_thai_thanh_toan, set()):
+        return _admin_redirect_with_preserved_query(request)
+
+    with transaction.atomic():
+        order.trang_thai_thanh_toan = status
+        order.save(update_fields=["trang_thai_thanh_toan"])
+        if status == "unpaid" and order.trang_thai == "pending":
+            order.trang_thai = "cancelled"
+            order.save(update_fields=["trang_thai"])
+            _release_order_inventory_if_needed(order, reason="thanh toán bị trả về chưa thanh toán")
+    _create_admin_notification(
+        f"Cập nhật thanh toán đơn #{order.pk}",
+        (
+            f"Trạng thái thanh toán của đơn #{order.pk} "
+            f"đã chuyển sang {order.get_trang_thai_thanh_toan_display().lower()}."
+        ),
+        level="info",
+        path=reverse("store:admin_list", kwargs={"model_slug": "don-hang"}),
+        method="PATCH",
+        status_code=200,
+    )
+    messages.success(request, "Đã cập nhật trạng thái thanh toán.")
+
+    return _admin_redirect_with_preserved_query(request)
+
+
+@require_POST
+def admin_order_receipt_review_action(request, pk, action):
+    unauthorized = _require_module_permission(request, "don-hang", "payment_status")
+    if unauthorized:
+        return unauthorized
+
+    if action not in {"approve", "reject"}:
+        return _admin_redirect_with_preserved_query(request)
+
+    order = get_object_or_404(DonHang, pk=pk)
+    if order.phuong_thuc_thanh_toan != "bank_transfer" or not order.anh_bien_lai:
+        return _admin_redirect_with_preserved_query(request)
+
+    rejection_note = (request.POST.get("rejection_note") or "").strip()
+    if action == "reject" and not rejection_note:
+        messages.error(request, "Vui lòng nhập ghi chú từ chối biên lai.")
+        return _admin_redirect_with_preserved_query(request)
+
+    if order.trang_thai_thanh_toan not in {"awaiting_confirmation", "unpaid"}:
+        return _admin_redirect_with_preserved_query(request)
+
+    with transaction.atomic():
+        if action == "approve":
+            order.trang_thai_thanh_toan = "paid"
+            order.save(update_fields=["trang_thai_thanh_toan"])
+            _log_payment_confirmation(
+                order,
+                "approved",
+                performed_by=request.user,
+                note="Biên lai chuyển khoản đã được duyệt.",
+            )
+            messages.success(request, "Đã duyệt biên lai chuyển khoản.")
+        else:
+            order.trang_thai_thanh_toan = "unpaid"
+            order.save(update_fields=["trang_thai_thanh_toan"])
+            _log_payment_confirmation(
+                order,
+                "rejected",
+                performed_by=request.user,
+                note=rejection_note,
+            )
+            messages.warning(request, "Đã từ chối biên lai chuyển khoản.")
+
+    return _admin_redirect_with_preserved_query(request)
 
 
 def admin_user_management(request):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_admin_permission(request, "user_management")
     if unauthorized:
         return unauthorized
 
@@ -1872,7 +3012,7 @@ def admin_user_management(request):
     form = UserCreationForm()
     create_user_email = ""
     create_user_full_name = ""
-    create_user_role = ROLE_USER
+    create_user_role = ROLE_CUSTOMER
     create_user_is_active = True
     create_user_password_strength = ""
     query = request.GET.get("q", "").strip()
@@ -1884,7 +3024,7 @@ def admin_user_management(request):
             form = UserCreationForm(request.POST)
             create_user_email = (request.POST.get("email") or "").strip()
             create_user_full_name = (request.POST.get("full_name") or "").strip()
-            create_user_role = request.POST.get("role", ROLE_USER)
+            create_user_role = request.POST.get("role", ROLE_CUSTOMER)
             create_user_is_active = request.POST.get("is_active") == "on"
             create_user_password_strength = _password_strength(request.POST.get("password1") or "")
             email, email_error = _clean_user_email(create_user_email)
@@ -1930,7 +3070,7 @@ def admin_user_management(request):
                 user.save(update_fields=["first_name", "last_name", "email", "is_active"])
             else:
                 user.save(update_fields=["first_name", "last_name", "email"])
-            _sync_user_role(user, request.POST.get("role", ROLE_USER))
+            _sync_user_role(user, request.POST.get("role", ROLE_CUSTOMER))
             messages.success(request, pref["t"]["user_updated"])
             redirect_url = reverse("store:admin_user_management")
             query_params = []
@@ -1953,10 +3093,28 @@ def admin_user_management(request):
             user_qs = user_qs.filter(Q(first_name__icontains=query) | Q(last_name__icontains=query))
         elif filter_field == "role":
             role_value = query.strip().lower()
-            if role_value in {"admin", "administrator"}:
-                role_value = ROLE_ADMIN
-            elif role_value in {"user", "khach", "khách"}:
-                role_value = ROLE_USER
+            role_aliases = {
+                "admin": ROLE_SYSTEM_ADMIN,
+                "administrator": ROLE_SYSTEM_ADMIN,
+                "quan tri": ROLE_SYSTEM_ADMIN,
+                "quản trị": ROLE_SYSTEM_ADMIN,
+                "quan ly kho": ROLE_STOCK_MANAGER,
+                "quản lý kho": ROLE_STOCK_MANAGER,
+                "kho": ROLE_STOCK_MANAGER,
+                "quan ly don hang": ROLE_ORDER_MANAGER,
+                "quản lý đơn hàng": ROLE_ORDER_MANAGER,
+                "don hang": ROLE_ORDER_MANAGER,
+                "đơn hàng": ROLE_ORDER_MANAGER,
+                "cskh": ROLE_CUSTOMER_SUPPORT,
+                "nhan vien cskh": ROLE_CUSTOMER_SUPPORT,
+                "nhân viên cskh": ROLE_CUSTOMER_SUPPORT,
+                "support": ROLE_CUSTOMER_SUPPORT,
+                "customer": ROLE_CUSTOMER,
+                "user": ROLE_CUSTOMER,
+                "khach": ROLE_CUSTOMER,
+                "khách": ROLE_CUSTOMER,
+            }
+            role_value = role_aliases.get(role_value, role_value)
             user_qs = user_qs.filter(groups__name=role_value)
         elif filter_field == "status":
             q_lower = query.strip().lower()
@@ -1985,6 +3143,7 @@ def admin_user_management(request):
             {
                 "object": user,
                 "role": _get_user_role(user),
+                "role_label": _role_label(_get_user_role(user)),
                 "full_name": user.get_full_name().strip() or "-",
             }
         )
@@ -1993,7 +3152,7 @@ def admin_user_management(request):
         request,
         "admin/user_management.html",
         {
-            "modules": _menu_context(lang),
+            "modules": _menu_context(lang, request.user),
             "create_user_form": form,
             "create_user_email": create_user_email,
             "create_user_full_name": create_user_full_name,
@@ -2012,7 +3171,7 @@ def admin_user_management(request):
 
 
 def admin_settings(request):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_admin_permission(request, "settings")
     if unauthorized:
         return unauthorized
 
@@ -2029,7 +3188,7 @@ def admin_settings(request):
         return redirect("store:admin_settings")
 
     pref = _admin_pref_context(request)
-    return render(request, "admin/settings.html", {"modules": _menu_context(pref["admin_lang"]), **pref})
+    return render(request, "admin/settings.html", {"modules": _menu_context(pref["admin_lang"], request.user), **pref})
 
 
 def _infer_product_ai_category(product) -> str:
@@ -2080,6 +3239,11 @@ def _facet_specs_for_model(model_slug):
             {"param": "group", "label": "Nhóm sản phẩm", "expr": "nhom_san_pham__ten"},
             {"param": "supplier", "label": "Nhà cung cấp", "expr": "nha_cung_cap__ten"},
             {"param": "brand", "label": "Thương hiệu", "expr": "thuong_hieu__ten"},
+        ],
+        "giao-dich-kho": [
+            {"param": "product", "label": "Sản phẩm", "expr": "san_pham__ten"},
+            {"param": "type", "label": "Loại giao dịch", "expr": "loai"},
+            {"param": "staff", "label": "Nhân viên ký", "expr": "nhan_vien__ho_ten"},
         ],
         "chuoi-cua-hang": [
             {"param": "chain", "label": "Chuỗi cửa hàng", "expr": "ten"},
@@ -2215,7 +3379,7 @@ def _build_and_apply_facets(request, model_slug, qs, model):
 
 
 def admin_list(request, model_slug):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_module_permission(request, model_slug, "view")
     if unauthorized:
         return unauthorized
 
@@ -2324,6 +3488,13 @@ def admin_list(request, model_slug):
                 persisted_params.append((key, value))
     persisted_query = urlencode(persisted_params, doseq=True)
 
+    can_create = _has_module_access(request.user, model_slug, "create")
+    can_update = _has_module_access(request.user, model_slug, "update")
+    can_delete = _has_module_access(request.user, model_slug, "delete")
+    can_change_order_status = _has_module_access(request.user, model_slug, "status")
+    can_change_payment_status = _has_module_access(request.user, model_slug, "payment_status")
+    can_print_inventory = _has_module_access(request.user, model_slug, "print")
+
     rows = []
     for item in page_obj.object_list:
         values = []
@@ -2334,7 +3505,10 @@ def admin_list(request, model_slug):
             if field_type in {"ImageField", "FileField"}:
                 if raw_value:
                     try:
-                        values.append({"type": "image", "url": raw_value.url, "text": str(raw_value)})
+                        cell_type = "image"
+                        if model_slug == "giao-dich-kho" and field["name"] == "chu_ky":
+                            cell_type = "signature"
+                        values.append({"type": cell_type, "url": raw_value.url, "text": str(raw_value)})
                     except Exception:
                         values.append({"type": "text", "text": str(raw_value)})
                 else:
@@ -2348,30 +3522,132 @@ def admin_list(request, model_slug):
                 except Exception:
                     pass
                 values.append({"type": "status", "value": str(raw_value), "text": display})
+            elif model_slug == "don-hang" and field["name"] == "trang_thai_thanh_toan":
+                display = str(raw_value)
+                try:
+                    display = item.get_trang_thai_thanh_toan_display()
+                except Exception:
+                    pass
+                payment_level = "low"
+                if raw_value == "paid":
+                    payment_level = "ok"
+                elif raw_value == "refunded":
+                    payment_level = "out"
+                values.append({"type": "stock", "level": payment_level, "text": display})
             elif field["name"] in {"gia_ban", "tong_tien", "don_gia"}:
                 values.append({"type": "money", "text": _format_currency(raw_value)})
+            elif model_slug == "don-hang" and field["name"] == "giam_gia":
+                values.append({"type": "money", "text": _format_currency(raw_value)})
+            elif model_slug == "don-hang" and field["name"] == "ma_voucher_ap_dung":
+                values.append(
+                    {
+                        "type": "stock_move",
+                        "level": "import" if raw_value else "export",
+                        "text": str(raw_value) if raw_value else "Không áp dụng",
+                    }
+                )
+            elif model_slug == "don-hang" and field["name"] == "phuong_thuc_thanh_toan":
+                display = str(raw_value)
+                try:
+                    display = item.get_phuong_thuc_thanh_toan_display()
+                except Exception:
+                    pass
+                level = "info"
+                if raw_value == "cod":
+                    level = "export"
+                elif raw_value == "bank_transfer":
+                    level = "import"
+                elif raw_value == "momo":
+                    level = "low"
+                values.append({"type": "stock_move", "level": level, "text": display})
+            elif model_slug == "don-hang" and field["name"] in {"vi_do_giao_hang", "kinh_do_giao_hang"}:
+                if raw_value is None:
+                    values.append({"type": "text", "text": "-"})
+                else:
+                    values.append({"type": "text", "text": f"{float(raw_value):.6f}"})
+            elif model_slug == "san-pham" and field["name"] == "ton_kho":
+                stock_value = int(raw_value or 0)
+                if stock_value <= 0:
+                    values.append({"type": "stock", "level": "out", "text": "Hết hàng"})
+                elif stock_value <= SanPham.LOW_STOCK_THRESHOLD:
+                    values.append({"type": "stock", "level": "low", "text": f"Sắp hết ({stock_value})"})
+                else:
+                    values.append({"type": "stock", "level": "ok", "text": f"Còn {stock_value}"})
+            elif model_slug == "giao-dich-kho" and field["name"] == "loai":
+                values.append(
+                    {
+                        "type": "stock_move",
+                        "level": "import" if raw_value == "import" else "export",
+                        "text": "Nhập kho" if raw_value == "import" else "Xuất kho",
+                    }
+                )
             else:
                 values.append({"type": "text", "text": _strip_parenthetical_text(raw_value)})
-        row = {"object": item, "values": values}
+        row = {
+            "object": item,
+            "values": values,
+            "can_edit": can_update,
+            "can_delete": can_delete,
+            "can_change_status": can_change_order_status,
+            "can_change_payment_status": can_change_payment_status,
+            "can_review_receipt": False,
+        }
         if model_slug == "don-hang":
             status_actions = []
-            if item.trang_thai == "pending":
+            payment_actions = []
+            receipt_actions = []
+            if can_change_order_status and item.trang_thai == "pending":
                 status_actions.append({"value": "confirmed", "label": pref["t"]["confirm_order"]})
                 status_actions.append({"value": "cancelled", "label": pref["t"]["cancel_order"]})
-            elif item.trang_thai == "confirmed":
+            elif can_change_order_status and item.trang_thai == "confirmed":
                 status_actions.append({"value": "shipping", "label": pref["t"]["ship_order"]})
                 status_actions.append({"value": "cancelled", "label": pref["t"]["cancel_order"]})
-            elif item.trang_thai == "shipping":
+            elif can_change_order_status and item.trang_thai == "shipping":
                 status_actions.append({"value": "delivered", "label": pref["t"]["deliver_order"]})
                 status_actions.append({"value": "cancelled", "label": pref["t"]["cancel_order"]})
             row["status_actions"] = status_actions
+            if can_change_payment_status and item.trang_thai_thanh_toan == "unpaid":
+                payment_actions.append({"value": "paid", "label": "Đánh dấu đã thanh toán"})
+                if item.phuong_thuc_thanh_toan == "bank_transfer":
+                    payment_actions.append({"value": "awaiting_confirmation", "label": "Chờ xác nhận CK"})
+            elif can_change_payment_status and item.trang_thai_thanh_toan == "awaiting_confirmation":
+                payment_actions.append({"value": "paid", "label": "Xác nhận đã nhận tiền"})
+                payment_actions.append({"value": "unpaid", "label": "Trả về chưa thanh toán"})
+            elif can_change_payment_status and item.trang_thai_thanh_toan == "paid":
+                payment_actions.append({"value": "refunded", "label": "Hoàn tiền"})
+            row["payment_actions"] = payment_actions
+            if (
+                can_change_payment_status
+                and item.phuong_thuc_thanh_toan == "bank_transfer"
+                and bool(item.anh_bien_lai)
+                and item.trang_thai_thanh_toan in {"awaiting_confirmation", "unpaid"}
+            ):
+                receipt_actions = [
+                    {"value": "approve", "label": "Duyệt biên lai"},
+                    {"value": "reject", "label": "Từ chối biên lai"},
+                ]
+                row["receipt_preview_url"] = item.anh_bien_lai.url
+            row["receipt_actions"] = receipt_actions
+            row["can_review_receipt"] = bool(receipt_actions)
+        if model_slug == "giao-dich-kho" and can_print_inventory and item.loai == "import":
+            row["print_url"] = reverse("store:admin_inventory_print", args=[item.pk])
+            row["pdf_url"] = reverse("store:admin_inventory_pdf", args=[item.pk])
+        if (
+            model_slug == "don-hang"
+            and item.vi_do_giao_hang is not None
+            and item.kinh_do_giao_hang is not None
+        ):
+            row["map_url"] = (
+                "https://www.google.com/maps/search/?api=1"
+                f"&query={float(item.vi_do_giao_hang):.6f},{float(item.kinh_do_giao_hang):.6f}"
+            )
         rows.append(row)
 
     return render(
         request,
         "admin/change_list.html",
         {
-            "modules": _menu_context(lang),
+            "modules": _menu_context(lang, request.user),
             "model_slug": model_slug,
             "model_name": _model_label(model_slug, lang, plural=True),
             "fields": fields,
@@ -2385,13 +3661,14 @@ def admin_list(request, model_slug):
             "paginator": paginator,
             "facet_filters": facet_filters,
             "persisted_query": persisted_query,
+            "show_create": can_create,
             **pref,
         },
     )
 
 
 def admin_create(request, model_slug):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_module_permission(request, model_slug, "create")
     if unauthorized:
         return unauthorized
 
@@ -2399,15 +3676,18 @@ def admin_create(request, model_slug):
     lang = pref["admin_lang"]
 
     model = _resolve_model(model_slug)
-    form_cls = SanPhamAdminForm if model_slug == "san-pham" else modelform_factory(model, fields="__all__")
+    form_cls = _admin_form_class_for_model(model_slug, model)
     coord_picker_enabled = model_slug == "cua-hang"
     if request.method == "POST":
         form = _sanitize_admin_form(form_cls(request.POST, request.FILES))
         valid = _validate_coord_from_map(request, form) if coord_picker_enabled else form.is_valid()
         if valid:
-            obj = form.save()
+            obj = form.save(commit=False) if model_slug == "giao-dich-kho" else form.save()
+            if model_slug == "giao-dich-kho":
+                obj.created_by = request.user
+                obj.save()
             if model_slug == "san-pham":
-                _save_product_gallery(obj, request.FILES)
+                _save_product_gallery(obj, request.FILES, request.POST)
             messages.success(request, pref["t"]["saved_successfully"])
             return redirect("store:admin_list", model_slug=model_slug)
     else:
@@ -2417,7 +3697,7 @@ def admin_create(request, model_slug):
         request,
         "admin/change_form.html",
         {
-            "modules": _menu_context(lang),
+            "modules": _menu_context(lang, request.user),
             "form": form,
             "model_slug": model_slug,
             "model_name": _model_label(model_slug, lang, plural=False),
@@ -2430,7 +3710,7 @@ def admin_create(request, model_slug):
 
 
 def admin_update(request, model_slug, pk):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_module_permission(request, model_slug, "update")
     if unauthorized:
         return unauthorized
 
@@ -2439,16 +3719,20 @@ def admin_update(request, model_slug, pk):
 
     model = _resolve_model(model_slug)
     obj = get_object_or_404(model, pk=pk)
-    form_cls = SanPhamAdminForm if model_slug == "san-pham" else modelform_factory(model, fields="__all__")
+    form_cls = _admin_form_class_for_model(model_slug, model)
     coord_picker_enabled = model_slug == "cua-hang"
 
     if request.method == "POST":
         form = _sanitize_admin_form(form_cls(request.POST, request.FILES, instance=obj))
         valid = _validate_coord_from_map(request, form, instance=obj) if coord_picker_enabled else form.is_valid()
         if valid:
-            obj = form.save()
+            obj = form.save(commit=False) if model_slug == "giao-dich-kho" else form.save()
+            if model_slug == "giao-dich-kho":
+                if not obj.created_by_id:
+                    obj.created_by = request.user
+                obj.save()
             if model_slug == "san-pham":
-                _save_product_gallery(obj, request.FILES)
+                _save_product_gallery(obj, request.FILES, request.POST)
             messages.success(request, pref["t"]["saved_successfully"])
             return redirect("store:admin_list", model_slug=model_slug)
     else:
@@ -2458,7 +3742,7 @@ def admin_update(request, model_slug, pk):
         request,
         "admin/change_form.html",
         {
-            "modules": _menu_context(lang),
+            "modules": _menu_context(lang, request.user),
             "form": form,
             "model_slug": model_slug,
             "model_name": _model_label(model_slug, lang, plural=False),
@@ -2472,7 +3756,7 @@ def admin_update(request, model_slug, pk):
 
 
 def admin_delete(request, model_slug, pk):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_module_permission(request, model_slug, "delete")
     if unauthorized:
         return unauthorized
 
@@ -2484,16 +3768,21 @@ def admin_delete(request, model_slug, pk):
     model = _resolve_model(model_slug)
     obj = get_object_or_404(model, pk=pk)
     if request.method == "POST":
-        _move_to_trash(obj)
-        obj.delete()
-        messages.success(request, pref["t"]["deleted_successfully"])
+        try:
+            trash_data = _serialize_for_trash(obj)
+            obj.delete()
+            _move_to_trash(obj, data=trash_data)
+            messages.success(request, pref["t"]["deleted_successfully"])
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages) or "Không thể xóa bản ghi này.")
+            return redirect("store:admin_list", model_slug=model_slug)
         return redirect("store:admin_list", model_slug=model_slug)
 
     return render(
         request,
         "admin/delete_confirmation.html",
         {
-            "modules": _menu_context(lang),
+            "modules": _menu_context(lang, request.user),
             "model_slug": model_slug,
             "model_name": _model_label(model_slug, lang, plural=False),
             "object": obj,
@@ -2503,7 +3792,7 @@ def admin_delete(request, model_slug, pk):
 
 
 def admin_trash_list(request):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_admin_permission(request, "trash")
     if unauthorized:
         return unauthorized
 
@@ -2521,7 +3810,7 @@ def admin_trash_list(request):
                 "id": item.pk,
                 "object_id": str(item.object_id),
                 "model_name": _model_label(model_slug, lang, plural=False),
-                "display_name": _trash_display_name(item.data or {}) or "-",
+                "display_name": _trash_display_name(item.data or {}, item.model_label) or "-",
                 "deleted_at": item.deleted_at,
                 "expires_at": item.expires_at,
             }
@@ -2558,16 +3847,14 @@ def admin_trash_list(request):
 
     rows = []
     for item in page_obj.object_list:
-        values = [
-            {"type": "text", "text": item["model_name"]},
-            {"type": "text", "text": item["display_name"]},
-            {"type": "text", "text": item["deleted_at"].strftime("%d/%m/%Y %H:%M")},
-            {"type": "text", "text": item["expires_at"].strftime("%d/%m/%Y %H:%M")},
-        ]
         rows.append(
             {
-                "object": {"pk": item["object_id"]},
-                "values": values,
+                "id": item["id"],
+                "object_id": item["object_id"],
+                "model_name": item["model_name"],
+                "display_name": item["display_name"],
+                "deleted_at": item["deleted_at"],
+                "expires_at": item["expires_at"],
                 "restore_url": reverse("store:admin_trash_restore", args=[item["id"]]),
                 "delete_url": reverse("store:admin_trash_delete", args=[item["id"]]),
             }
@@ -2575,19 +3862,19 @@ def admin_trash_list(request):
 
     return render(
         request,
-        "admin/change_list.html",
+        "admin/trash_list.html",
         {
-            "modules": _menu_context(lang),
+            "modules": _menu_context(lang, request.user),
             "model_slug": "trash",
             "model_name": pref["t"]["trash"],
             "fields": fields,
             "rows": rows,
-            "query": "",
             "query": query,
             "filter_field": filter_field,
             "status_filter": "",
             "page_obj": page_obj,
             "paginator": paginator,
+            "trash_retention_days": getattr(settings, "TRASH_RETENTION_DAYS", 15),
             "show_create": False,
             **pref,
         },
@@ -2595,7 +3882,7 @@ def admin_trash_list(request):
 
 
 def admin_trash_restore(request, pk):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_admin_permission(request, "trash", "restore")
     if unauthorized:
         return unauthorized
 
@@ -2669,7 +3956,7 @@ def admin_trash_restore(request, pk):
 
 
 def admin_trash_delete(request, pk):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_admin_permission(request, "trash", "delete")
     if unauthorized:
         return unauthorized
 
@@ -2682,7 +3969,7 @@ def admin_trash_delete(request, pk):
 
 
 def admin_notifications(request):
-    unauthorized = _require_admin_user(request)
+    unauthorized = _require_admin_permission(request, "notifications")
     if unauthorized:
         return unauthorized
 
@@ -2708,12 +3995,290 @@ def admin_notifications(request):
         request,
         "admin/notifications.html",
         {
-            "modules": _menu_context(lang),
+            "modules": _menu_context(lang, request.user),
             "page_obj": page_obj,
             "paginator": paginator,
             **pref,
         },
     )
+
+
+def admin_inventory_print(request, pk):
+    unauthorized = _require_module_permission(request, "giao-dich-kho", "print")
+    if unauthorized:
+        return unauthorized
+
+    movement = get_object_or_404(
+        GiaoDichKho.objects.select_related(
+            "san_pham",
+            "nhan_vien",
+            "nhan_vien__cua_hang",
+            "nhan_vien__cua_hang__chuoi",
+            "created_by",
+        ),
+        pk=pk,
+        loai="import",
+    )
+    document_code = f"PNK-{movement.pk}"
+    barcode_svg = ""
+    qr_svg = ""
+    lookup_url = request.build_absolute_uri(reverse("store:admin_inventory_print", args=[movement.pk]))
+    try:
+        from reportlab.graphics import renderSVG
+        from reportlab.graphics.barcode import createBarcodeDrawing
+        from reportlab.graphics.shapes import Drawing
+        from reportlab.graphics.barcode.qr import QrCodeWidget
+
+        barcode_svg = renderSVG.drawToString(
+            createBarcodeDrawing(
+                "Code128",
+                value=document_code,
+                barHeight=42,
+                barWidth=1.1,
+                humanReadable=True,
+            )
+        )
+        if isinstance(barcode_svg, bytes):
+            barcode_svg = barcode_svg.decode("utf-8")
+        qr_widget = QrCodeWidget(lookup_url)
+        bounds = qr_widget.getBounds()
+        qr_width = bounds[2] - bounds[0]
+        qr_height = bounds[3] - bounds[1]
+        qr_drawing = Drawing(88, 88, transform=[88 / qr_width, 0, 0, 88 / qr_height, 0, 0])
+        qr_drawing.add(qr_widget)
+        qr_svg = renderSVG.drawToString(qr_drawing)
+        if isinstance(qr_svg, bytes):
+            qr_svg = qr_svg.decode("utf-8")
+    except Exception:
+        barcode_svg = ""
+        qr_svg = ""
+
+    return render(
+        request,
+        "admin/inventory_print.html",
+        {
+            "movement": movement,
+            "document_code": document_code,
+            "barcode_svg": barcode_svg,
+            "qr_svg": qr_svg,
+            "lookup_url": lookup_url,
+            "generated_at": timezone.now(),
+        },
+    )
+
+
+def admin_inventory_pdf(request, pk):
+    unauthorized = _require_module_permission(request, "giao-dich-kho", "print")
+    if unauthorized:
+        return unauthorized
+
+    movement = get_object_or_404(
+        GiaoDichKho.objects.select_related(
+            "san_pham",
+            "nhan_vien",
+            "nhan_vien__cua_hang",
+            "created_by",
+        ),
+        pk=pk,
+        loai="import",
+    )
+
+    try:
+        from reportlab.graphics import renderPDF
+        from reportlab.graphics.barcode import createBarcodeDrawing
+        from reportlab.graphics.barcode.qr import QrCodeWidget
+        from reportlab.graphics.shapes import Drawing
+        from reportlab.lib.colors import HexColor
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.utils import ImageReader, simpleSplit
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.pdfgen import canvas
+    except Exception:
+        messages.error(request, "Chưa cài thư viện xuất PDF. Hãy cài reportlab để dùng tính năng này.")
+        return redirect("store:admin_inventory_print", pk=movement.pk)
+
+    def resolve_font_names():
+        regular_name = "InventoryUnicode"
+        bold_name = "InventoryUnicodeBold"
+        registered = set(pdfmetrics.getRegisteredFontNames())
+        if regular_name in registered and bold_name in registered:
+            return regular_name, bold_name
+
+        candidates = [
+            ("C:\\Windows\\Fonts\\arial.ttf", "C:\\Windows\\Fonts\\arialbd.ttf"),
+            ("C:\\Windows\\Fonts\\tahoma.ttf", "C:\\Windows\\Fonts\\tahomabd.ttf"),
+            ("C:\\Windows\\Fonts\\segoeui.ttf", "C:\\Windows\\Fonts\\segoeuib.ttf"),
+        ]
+        for regular_path, bold_path in candidates:
+            if not (os.path.exists(regular_path) and os.path.exists(bold_path)):
+                continue
+            if regular_name not in registered:
+                pdfmetrics.registerFont(TTFont(regular_name, regular_path))
+                registered.add(regular_name)
+            if bold_name not in registered:
+                pdfmetrics.registerFont(TTFont(bold_name, bold_path))
+                registered.add(bold_name)
+            return regular_name, bold_name
+        return "Helvetica", "Helvetica-Bold"
+
+    font_regular, font_bold = resolve_font_names()
+
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="phieu-nhap-kho-{movement.pk}.pdf"'
+
+    pdf = canvas.Canvas(response, pagesize=A4)
+    width, height = A4
+    margin = 40
+    cursor_y = height - margin
+
+    def line(text, x, y, font=None, size=11, color="#102a43"):
+        pdf.setFillColor(HexColor(color))
+        pdf.setFont(font or font_regular, size)
+        pdf.drawString(x, y, text)
+
+    def draw_block(x, y_top, w, h, *, title="", fill="#ffffff", stroke="#d9e2ec", title_color="#0f766e"):
+        pdf.setStrokeColor(HexColor(stroke))
+        pdf.setFillColor(HexColor(fill))
+        pdf.roundRect(x, y_top - h, w, h, 14, stroke=1, fill=1)
+        if title:
+            line(title, x + 14, y_top - 18, font=font_bold, size=11, color=title_color)
+
+    def draw_label_value(x, y, label, value, *, value_font=None, value_size=11):
+        line(label, x, y, font=font_bold, size=10, color="#627d98")
+        wrapped = simpleSplit(str(value or "-"), value_font or font_regular, value_size, 210)
+        cursor = y - 16
+        for item in wrapped[:3]:
+            line(item, x, cursor, font=value_font or font_regular, size=value_size, color="#102a43")
+            cursor -= 14
+        return cursor
+
+    def draw_table_row(x, y_top, col_widths, values, *, fill="#ffffff", stroke="#d9e2ec", bold=False, text_color="#102a43"):
+        row_height = 34
+        current_x = x
+        pdf.setStrokeColor(HexColor(stroke))
+        for idx, width_item in enumerate(col_widths):
+            pdf.setFillColor(HexColor(fill))
+            pdf.rect(current_x, y_top - row_height, width_item, row_height, stroke=1, fill=1)
+            cell_text = str(values[idx])
+            text_width = width_item - 16
+            wrapped = simpleSplit(cell_text, font_bold if bold else font_regular, 10, text_width)
+            text_y = y_top - 14
+            for part in wrapped[:2]:
+                line(part, current_x + 8, text_y, font=font_bold if bold else font_regular, size=10, color=text_color)
+                text_y -= 11
+            current_x += width_item
+        return y_top - row_height
+
+    pdf.setTitle(f"Phiếu nhập kho #{movement.pk}")
+    document_code = f"PNK-{movement.pk}"
+    lookup_url = request.build_absolute_uri(reverse("store:admin_inventory_print", args=[movement.pk]))
+
+    header_height = 88
+    pdf.setFillColor(HexColor("#0f766e"))
+    pdf.roundRect(margin, cursor_y - header_height, width - (margin * 2), header_height, 18, stroke=0, fill=1)
+    line("SMARTGIS", margin + 18, cursor_y - 28, font=font_bold, size=24, color="#ffffff")
+    line("PHIEU NHAP KHO NOI BO", margin + 18, cursor_y - 50, font=font_bold, size=12, color="#d1fae5")
+    line(f"So phieu: {document_code}", width - 180, cursor_y - 28, font=font_bold, size=13, color="#ffffff")
+    line(f"Ngay in: {timezone.now().strftime('%d/%m/%Y %H:%M')}", width - 180, cursor_y - 48, size=10, color="#d1fae5")
+    cursor_y -= header_height + 20
+
+    draw_block(margin, cursor_y, width - (margin * 2), 110, title="Thong tin chung", fill="#f8fbfc")
+    left_x = margin + 16
+    right_x = margin + 280
+    left_cursor = draw_label_value(left_x, cursor_y - 38, "San pham", movement.san_pham.ten, value_font=font_bold, value_size=12)
+    left_cursor = draw_label_value(left_x, left_cursor - 4, "Nhan vien ky", movement.nhan_vien.ho_ten if movement.nhan_vien else "-")
+    draw_label_value(left_x, left_cursor - 4, "Cua hang", movement.nhan_vien.cua_hang.ten if movement.nhan_vien and movement.nhan_vien.cua_hang else "-")
+    right_cursor = draw_label_value(right_x, cursor_y - 38, "Nguoi tao", movement.created_by.username if movement.created_by else "-")
+    right_cursor = draw_label_value(right_x, right_cursor - 4, "Thoi gian tao", movement.created_at.strftime("%d/%m/%Y %H:%M"))
+    draw_label_value(right_x, right_cursor - 4, "Loai giao dich", "Nhap kho")
+    cursor_y -= 130
+
+    draw_block(margin, cursor_y, width - (margin * 2), 92, title="Tong hop so lieu", fill="#fff7ed", stroke="#fdba74", title_color="#c2410c")
+    table_x = margin + 16
+    table_y = cursor_y - 30
+    col_widths = [150, 110, 110, 110]
+    table_y = draw_table_row(table_x, table_y, col_widths, ["Chi muc", "So luong", "Ton truoc", "Ton sau"], fill="#ffedd5", stroke="#fdba74", bold=True, text_color="#9a3412")
+    draw_table_row(
+        table_x,
+        table_y,
+        col_widths,
+        ["Nhap kho", str(movement.so_luong), str(movement.ton_truoc), str(movement.ton_sau)],
+        fill="#ffffff",
+        stroke="#fed7aa",
+    )
+    cursor_y -= 112
+
+    barcode_block_height = 94
+    draw_block(margin, cursor_y, width - (margin * 2), barcode_block_height, title="Ma tra cuu", fill="#f8fbfc")
+    line("Nhap ma nay de tra cuu nhanh phieu trong he thong.", margin + 16, cursor_y - 34, size=10, color="#627d98")
+    try:
+        barcode = createBarcodeDrawing(
+            "Code128",
+            value=document_code,
+            barHeight=28,
+            barWidth=1.05,
+            humanReadable=True,
+        )
+        renderPDF.draw(barcode, pdf, margin + 16, cursor_y - 84)
+    except Exception:
+        line(document_code, margin + 16, cursor_y - 64, font=font_bold, size=16, color="#0f172a")
+    cursor_y -= barcode_block_height + 18
+
+    qr_block_height = 120
+    draw_block(margin, cursor_y, width - (margin * 2), qr_block_height, title="QR mo phieu", fill="#f8fbfc")
+    line("Quet QR de mo thang phieu in trong he thong.", margin + 16, cursor_y - 34, size=10, color="#627d98")
+    try:
+        qr_widget = QrCodeWidget(lookup_url)
+        bounds = qr_widget.getBounds()
+        qr_width = bounds[2] - bounds[0]
+        qr_height = bounds[3] - bounds[1]
+        qr_drawing = Drawing(78, 78, transform=[78 / qr_width, 0, 0, 78 / qr_height, 0, 0])
+        qr_drawing.add(qr_widget)
+        renderPDF.draw(qr_drawing, pdf, margin + 18, cursor_y - 104)
+    except Exception:
+        line("Khong tao duoc QR", margin + 20, cursor_y - 72, size=10, color="#9b1c1c")
+    wrapped_lookup = simpleSplit(lookup_url, font_regular, 9, width - (margin * 2) - 130)
+    qr_text_y = cursor_y - 54
+    for lookup_line in wrapped_lookup[:3]:
+        line(lookup_line, margin + 118, qr_text_y, size=9, color="#334e68")
+        qr_text_y -= 13
+    cursor_y -= qr_block_height + 18
+
+    note_height = 94
+    draw_block(margin, cursor_y, width - (margin * 2), note_height, title="Ghi chu", fill="#fbfdff")
+    note = (movement.ghi_chu or "Khong co ghi chu.").strip()
+    note_lines = simpleSplit(note, font_regular, 11, width - (margin * 2) - 32)
+    note_y = cursor_y - 36
+    for note_line in note_lines[:4]:
+        line(note_line, margin + 16, note_y, size=11)
+        note_y -= 15
+    cursor_y -= note_height + 18
+
+    signature_top = cursor_y
+    draw_block(margin, signature_top, 250, 150, title="Chu ky nhan vien", fill="#fcfdff")
+    pdf.roundRect(margin + 16, signature_top - 128, 218, 90, 10, stroke=1, fill=0)
+    if movement.chu_ky:
+        try:
+            signature = ImageReader(movement.chu_ky.path)
+            pdf.drawImage(signature, margin + 24, signature_top - 120, width=200, height=74, preserveAspectRatio=True, mask="auto")
+        except Exception:
+            line("Khong the tai anh chu ky", margin + 28, signature_top - 82, size=10, color="#9b1c1c")
+    else:
+        line("Chua co chu ky", margin + 28, signature_top - 82, size=10, color="#627d98")
+
+    draw_block(margin + 268, signature_top, width - margin - (margin + 268), 150, title="Xac nhan", fill="#f8fafc")
+    line("Nhan vien ky", margin + 286, signature_top - 48, font=font_bold, size=11, color="#334e68")
+    line(movement.nhan_vien.ho_ten if movement.nhan_vien else "-", margin + 286, signature_top - 66, size=11)
+    line("Nguoi lap phieu", margin + 286, signature_top - 96, font=font_bold, size=11, color="#334e68")
+    line(movement.created_by.username if movement.created_by else "-", margin + 286, signature_top - 114, size=11)
+
+    line("Chung tu duoc tao tu he thong SmartGIS.", margin, 32, size=9, color="#627d98")
+    line("Vui long doi chieu thong tin hang hoa va luu kem chu ky khi can.", width - 245, 32, size=9, color="#627d98")
+
+    pdf.showPage()
+    pdf.save()
+    return response
 
 
 def user_dashboard(request):
@@ -2962,6 +4527,7 @@ def product_catalog(request):
     for product in products:
         product.display_price = _format_currency(product.gia_ban)
         product.card_gallery = _build_product_card_gallery(product)
+        _attach_stock_ui_fields(product)
     _, cart_total_quantity, _ = _cart_items(request)
     return render(
         request,
@@ -2992,7 +4558,7 @@ def product_detail(request, pk):
                 "caption": product.ten,
             }
         )
-    for image in product.hinh_anh_phu.all()[:2]:
+    for image in product.hinh_anh_phu.all():
         if not image.hinh_anh:
             continue
         gallery_images.append(
@@ -3003,12 +4569,7 @@ def product_detail(request, pk):
             }
         )
     product.gallery_images = gallery_images
-    product.stock_label = "Còn hàng" if product.ton_kho > 0 else "Hết hàng"
-    product.stock_hint = (
-        f"Còn {product.ton_kho} sản phẩm trong kho."
-        if product.ton_kho > 0
-        else "Sản phẩm này đang tạm hết hàng."
-    )
+    _attach_stock_ui_fields(product)
     related_products = list(
         SanPham.objects.select_related("nhom_san_pham", "thuong_hieu")
         .exclude(pk=product.pk)
@@ -3223,6 +4784,19 @@ def checkout_view(request):
     initial_email = request.user.email or ""
     initial_phone = default_address.so_dien_thoai if default_address else (profile.so_dien_thoai or "")
     initial_address = _format_customer_address(default_address) if default_address else (profile.dia_chi or "")
+    note_value = ""
+    subtotal_amount = Decimal(total_amount or 0)
+    discount_amount = Decimal("0")
+    final_amount = subtotal_amount
+    voucher_code = ""
+    applied_voucher = None
+    available_vouchers = _get_checkout_available_vouchers(items, subtotal_amount)
+    delivery_lat = ""
+    delivery_lng = ""
+    payment_method = "cod"
+    transfer_code = ""
+    transfer_receipt = None
+    payment_method_choices = DonHang.PAYMENT_METHOD_CHOICES
     if request.method == "POST":
         for item in items:
             if item["quantity"] > item["product"].ton_kho:
@@ -3235,36 +4809,166 @@ def checkout_view(request):
         phone = (request.POST.get("phone") or "").strip()
         address = (request.POST.get("address") or "").strip()
         note = (request.POST.get("note") or "").strip()
-        if receiver_name and phone and address:
-            order = DonHang.objects.create(
-                khach_hang=request.user,
-                ho_ten_nguoi_nhan=receiver_name,
-                so_dien_thoai=phone,
-                dia_chi_giao_hang=address,
-                ghi_chu=note,
-                tong_so_luong=total_quantity,
-                tong_tien=total_amount,
-            )
-            _create_admin_notification(
-                f"Đơn hàng mới #{order.pk}",
-                (
-                    f"Khách hàng {request.user.username} vừa đặt đơn #{order.pk} "
-                    f"gồm {total_quantity} sản phẩm, tổng tiền {_format_currency(total_amount)}."
-                ),
-                level="info",
-                path=f"{reverse('store:admin_list', kwargs={'model_slug': 'don-hang'})}?status=pending",
-                method="ORDER",
-                status_code=201,
-            )
-            for item in items:
-                ChiTietDonHang.objects.create(
-                    don_hang=order,
-                    san_pham=item["product"],
-                    so_luong=item["quantity"],
-                    don_gia=item["unit_price"],
+        payment_method = (request.POST.get("payment_method") or "cod").strip()
+        transfer_code = (request.POST.get("transfer_code") or "").strip()
+        transfer_receipt = request.FILES.get("transfer_receipt")
+        initial_name = receiver_name
+        initial_phone = phone
+        initial_address = address
+        note_value = note
+        voucher_code = _normalize_voucher_code(request.POST.get("voucher_code"))
+        delivery_lat = (request.POST.get("delivery_lat") or "").strip()
+        delivery_lng = (request.POST.get("delivery_lng") or "").strip()
+        preview_only = request.POST.get("preview_voucher") == "1"
+
+        form_has_error = False
+        try:
+            lat_value = _parse_latitude(delivery_lat)
+            lng_value = _parse_longitude(delivery_lng)
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+            lat_value = None
+            lng_value = None
+            form_has_error = True
+
+        if (lat_value is None) ^ (lng_value is None):
+            messages.error(request, "Vui lòng chọn đủ cả vĩ độ và kinh độ giao hàng trên bản đồ, hoặc để trống cả hai.")
+            form_has_error = True
+
+        if payment_method not in dict(DonHang.PAYMENT_METHOD_CHOICES):
+            messages.error(request, "Phương thức thanh toán không hợp lệ.")
+            form_has_error = True
+        if payment_method == "bank_transfer" and not preview_only and not transfer_receipt:
+            messages.error(request, "Vui lòng tải ảnh biên lai chuyển khoản trước khi đặt đơn.")
+            form_has_error = True
+
+        if voucher_code and not form_has_error:
+            try:
+                applied_voucher, discount_amount = _resolve_checkout_voucher(voucher_code, items, subtotal_amount)
+            except ValidationError as exc:
+                messages.error(request, "; ".join(exc.messages))
+                form_has_error = True
+
+        final_amount = max(subtotal_amount - discount_amount, Decimal("0"))
+        if preview_only and not form_has_error:
+            if applied_voucher is not None:
+                messages.success(
+                    request,
+                    f"Đã áp dụng voucher {applied_voucher.ma_code}. Đơn hàng đang được giảm {_format_currency(discount_amount)}.",
                 )
-                item["product"].ton_kho = max(item["product"].ton_kho - item["quantity"], 0)
-                item["product"].save(update_fields=["ton_kho"])
+            return render(
+                request,
+                "store/checkout.html",
+                {
+                    "cart_items": items,
+                    "cart_total_quantity": total_quantity,
+                    "cart_total_amount": total_amount,
+                    "display_cart_total_amount": _format_currency(total_amount),
+                    "subtotal_amount": subtotal_amount,
+                    "display_subtotal_amount": _format_currency(subtotal_amount),
+                    "discount_amount": discount_amount,
+                    "display_discount_amount": _format_currency(discount_amount),
+                    "final_amount": final_amount,
+                    "display_final_amount": _format_currency(final_amount),
+                    "initial_name": initial_name,
+                    "initial_email": initial_email,
+                    "initial_phone": initial_phone,
+                    "initial_address": initial_address,
+                    "note_value": note_value,
+                    "saved_addresses": saved_addresses,
+                    "voucher_code": voucher_code,
+                    "applied_voucher": applied_voucher,
+                    "available_vouchers": available_vouchers,
+                    "delivery_lat": delivery_lat,
+                    "delivery_lng": delivery_lng,
+                    "payment_method": payment_method,
+                    "transfer_code": transfer_code,
+                    "has_transfer_receipt": bool(transfer_receipt),
+                    "payment_method_choices": payment_method_choices,
+                    **pref,
+                },
+            )
+        if receiver_name and phone and address and not form_has_error:
+            with transaction.atomic():
+                product_ids = sorted({item["product"].pk for item in items})
+                locked_products = {
+                    product.pk: product
+                    for product in SanPham.objects.select_for_update().filter(pk__in=product_ids).order_by("pk")
+                }
+                for item in items:
+                    locked_product = locked_products.get(item["product"].pk)
+                    if locked_product is None:
+                        messages.error(request, "Một sản phẩm trong giỏ hàng không còn tồn tại. Vui lòng kiểm tra lại giỏ hàng.")
+                        return redirect("store:cart")
+                    if item["quantity"] > locked_product.ton_kho:
+                        messages.error(
+                            request,
+                            f"{locked_product.ten} chỉ còn {locked_product.ton_kho} sản phẩm trong kho. Vui lòng cập nhật lại giỏ hàng.",
+                        )
+                        return redirect("store:cart")
+                fulfillment_store = _select_fulfillment_store(items)
+                if fulfillment_store is None:
+                    messages.error(
+                        request,
+                        "Hiện chưa có cửa hàng nào đủ tồn kho để xử lý trọn bộ đơn hàng này. Vui lòng giảm số lượng hoặc liên hệ quản trị kho.",
+                    )
+                    return redirect("store:cart")
+                order = DonHang.objects.create(
+                    khach_hang=request.user,
+                    ho_ten_nguoi_nhan=receiver_name,
+                    so_dien_thoai=phone,
+                    dia_chi_giao_hang=address,
+                    vi_do_giao_hang=lat_value,
+                    kinh_do_giao_hang=lng_value,
+                    ghi_chu=note,
+                    tong_so_luong=total_quantity,
+                    phuong_thuc_thanh_toan=payment_method,
+                    trang_thai_thanh_toan=_default_payment_status_for_method(payment_method),
+                    tong_tien_truoc_giam=subtotal_amount,
+                    giam_gia=discount_amount,
+                    tong_tien=final_amount,
+                    cua_hang_xu_ly=fulfillment_store,
+                    khuyen_mai=applied_voucher,
+                    ma_voucher_ap_dung=applied_voucher.ma_code if applied_voucher else "",
+                    anh_bien_lai=transfer_receipt,
+                    ma_giao_dich_thanh_toan=transfer_code,
+                    thoi_gian_gui_bien_lai=timezone.now() if transfer_receipt else None,
+                )
+                _create_admin_notification(
+                    f"Đơn hàng mới #{order.pk}",
+                    (
+                        f"Khách hàng {request.user.username} vừa đặt đơn #{order.pk} "
+                        f"gồm {total_quantity} sản phẩm, tổng tiền {_format_currency(final_amount)}. "
+                        f"Cửa hàng xử lý: {fulfillment_store.ten}."
+                    ),
+                    level="info",
+                    path=f"{reverse('store:admin_list', kwargs={'model_slug': 'don-hang'})}?status=pending",
+                    method="ORDER",
+                    status_code=201,
+                )
+                if payment_method == "bank_transfer" and transfer_receipt:
+                    _log_payment_confirmation(
+                        order,
+                        "submitted",
+                        performed_by=request.user,
+                        note=f"Khách đã tải biên lai chuyển khoản. Mã giao dịch: {transfer_code or '-'}",
+                    )
+                for item in items:
+                    locked_product = locked_products[item["product"].pk]
+                    ChiTietDonHang.objects.create(
+                        don_hang=order,
+                        san_pham=locked_product,
+                        so_luong=item["quantity"],
+                        don_gia=item["unit_price"],
+                    )
+                    GiaoDichKho.objects.create(
+                        san_pham=locked_product,
+                        cua_hang=fulfillment_store,
+                        loai="export",
+                        so_luong=item["quantity"],
+                        don_hang=order,
+                        ghi_chu=f"Xuất kho cho đơn hàng #{order.pk} từ {fulfillment_store.ten}",
+                    )
             profile.so_dien_thoai = phone
             profile.save(update_fields=["so_dien_thoai"])
             if not saved_addresses:
@@ -3290,8 +4994,12 @@ def checkout_view(request):
                     request,
                     "Đã tạo đơn hàng nhưng chưa gửi được email. Hãy kiểm tra lại cấu hình Mailtrap trong .env.",
                 )
+            if payment_method == "momo":
+                messages.info(request, "Đơn hàng đã tạo. Hãy hoàn tất bước thanh toán MoMo demo.")
+                return redirect("store:momo_demo_payment", pk=order.pk)
             return redirect("store:my_orders")
-        messages.error(request, "Vui lòng điền đầy đủ thông tin nhận hàng.")
+        if not form_has_error:
+            messages.error(request, "Vui lòng điền đầy đủ thông tin nhận hàng.")
     return render(
         request,
         "store/checkout.html",
@@ -3300,11 +5008,27 @@ def checkout_view(request):
             "cart_total_quantity": total_quantity,
             "cart_total_amount": total_amount,
             "display_cart_total_amount": _format_currency(total_amount),
+            "subtotal_amount": subtotal_amount,
+            "display_subtotal_amount": _format_currency(subtotal_amount),
+            "discount_amount": discount_amount,
+            "display_discount_amount": _format_currency(discount_amount),
+            "final_amount": final_amount,
+            "display_final_amount": _format_currency(final_amount),
             "initial_name": initial_name,
             "initial_email": initial_email,
             "initial_phone": initial_phone,
             "initial_address": initial_address,
+            "note_value": note_value,
             "saved_addresses": saved_addresses,
+            "voucher_code": voucher_code,
+            "applied_voucher": applied_voucher,
+            "available_vouchers": available_vouchers,
+            "delivery_lat": delivery_lat,
+            "delivery_lng": delivery_lng,
+            "payment_method": payment_method,
+            "transfer_code": transfer_code,
+            "has_transfer_receipt": bool(transfer_receipt),
+            "payment_method_choices": payment_method_choices,
             **pref,
         },
     )
@@ -3314,12 +5038,15 @@ def my_orders(request):
     unauthorized = _require_customer_account(request)
     if unauthorized:
         return unauthorized
-    qs = DonHang.objects.filter(khach_hang=request.user).prefetch_related("items__san_pham")
+    qs = DonHang.objects.filter(khach_hang=request.user).select_related("cua_hang_xu_ly").prefetch_related("items__san_pham")
     paginator = Paginator(qs, 10)
     page_obj = paginator.get_page(request.GET.get("page"))
     orders = list(page_obj.object_list)
     for order in orders:
         order.display_total_amount = _format_currency(order.tong_tien)
+        order.display_payment_method = order.get_phuong_thuc_thanh_toan_display()
+        order.display_payment_status = order.get_trang_thai_thanh_toan_display()
+        order.display_store_name = order.cua_hang_xu_ly.ten if order.cua_hang_xu_ly_id else "-"
         for item in order.items.all():
             item.display_unit_price = _format_currency(item.don_gia)
     _, cart_total_quantity, _ = _cart_items(request)
@@ -3333,6 +5060,49 @@ def my_orders(request):
             "cart_total_quantity": cart_total_quantity,
             "user_notifications": _user_header_notifications(request.user),
             **_admin_pref_context(request),
+        },
+    )
+
+
+def momo_demo_payment(request, pk):
+    unauthorized = _require_customer_account(request)
+    if unauthorized:
+        return unauthorized
+
+    order = get_object_or_404(DonHang, pk=pk, khach_hang=request.user)
+    if order.phuong_thuc_thanh_toan != "momo":
+        return redirect("store:order_detail", pk=order.pk)
+
+    pref = _admin_pref_context(request)
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+        if action == "success":
+            if order.trang_thai_thanh_toan != "paid":
+                order.trang_thai_thanh_toan = "paid"
+                order.save(update_fields=["trang_thai_thanh_toan"])
+            messages.success(request, "Thanh toán MoMo demo thành công.")
+            return redirect("store:order_detail", pk=order.pk)
+        if action == "fail":
+            with transaction.atomic():
+                if order.trang_thai_thanh_toan != "unpaid":
+                    order.trang_thai_thanh_toan = "unpaid"
+                    order.save(update_fields=["trang_thai_thanh_toan"])
+                if order.trang_thai != "cancelled":
+                    order.trang_thai = "cancelled"
+                    order.save(update_fields=["trang_thai"])
+                _release_order_inventory_if_needed(order, reason="thanh toán MoMo demo thất bại")
+            messages.error(request, "Thanh toán MoMo demo thất bại hoặc đã bị hủy.")
+            return redirect("store:order_detail", pk=order.pk)
+
+    _, cart_total_quantity, _ = _cart_items(request)
+    return render(
+        request,
+        "store/momo_demo.html",
+        {
+            **_momo_demo_context(order),
+            "cart_total_quantity": cart_total_quantity,
+            "user_notifications": _user_header_notifications(request.user),
+            **pref,
         },
     )
 
@@ -3368,7 +5138,9 @@ def order_detail(request, pk):
         return unauthorized
 
     order = get_object_or_404(
-        DonHang.objects.filter(khach_hang=request.user).prefetch_related("items__san_pham"),
+        DonHang.objects.filter(khach_hang=request.user)
+        .select_related("cua_hang_xu_ly")
+        .prefetch_related("items__san_pham", "lich_su_xac_nhan_thanh_toan__performed_by"),
         pk=pk,
     )
     for item in order.items.all():
@@ -3376,8 +5148,14 @@ def order_detail(request, pk):
         item.display_line_total = _format_currency((item.don_gia or Decimal("0")) * item.so_luong)
 
     timeline = _order_status_timeline(order)
+    order.display_subtotal_amount = _format_currency(order.tong_tien_truoc_giam or order.tong_tien)
+    order.display_discount_amount = _format_currency(order.giam_gia)
     order.display_total_amount = _format_currency(order.tong_tien)
-    order.created_text = order.created_at.strftime("%d/%m/%Y %H:%M")
+    order.display_payment_method = order.get_phuong_thuc_thanh_toan_display()
+    order.display_payment_status = order.get_trang_thai_thanh_toan_display()
+    order.display_store_name = order.cua_hang_xu_ly.ten if order.cua_hang_xu_ly_id else "-"
+    order.created_text = timezone.localtime(order.created_at).strftime("%d/%m/%Y %H:%M")
+    payment_review_logs = list(order.lich_su_xac_nhan_thanh_toan.all())
 
     _, cart_total_quantity, _ = _cart_items(request)
     return render(
@@ -3386,6 +5164,7 @@ def order_detail(request, pk):
         {
             "order": order,
             "timeline": timeline,
+            "payment_review_logs": payment_review_logs,
             "cart_total_quantity": cart_total_quantity,
             "user_notifications": _user_header_notifications(request.user),
             **_admin_pref_context(request),
