@@ -6,7 +6,7 @@
     <form method="get" class="search-box" id="admin-list-filter-form" style="flex:1; min-width:220px; margin:0; display:flex; gap:10px; flex-wrap:nowrap; align-items:center;">
       <input type="text" name="q" value="{{ query }}" placeholder="{{ t.search_placeholder|default:'Tìm theo nội dung...' }}" style="flex:1; min-width:220px; height:44px;">
 
-      {% if model_slug == 'don-hang' %}
+      {% if model_slug == order_module_slug %}
         <div class="dd dd-filter" data-filter-dropdown style="width:260px;">
           <button class="dd-trigger" type="button">
             {% if status_filters %}
@@ -86,19 +86,19 @@
         </div>
       {% endfor %}
 
-      {% if model_slug != 'don-hang' and status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+      {% if model_slug != order_module_slug and status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
     </form>
     {% if show_create|default:True %}
       <a class="btn btn-primary" href="{% url 'store:admin_create' model_slug %}">{{ t.add_new|default:"Thêm mới" }}</a>
     {% endif %}
   </section>
 
-  <section class="panel card table-wrap {% if model_slug == 'don-hang' %}order-table-wrap{% endif %}">
-    <table class="table table-striped table-hover {% if model_slug == 'don-hang' %}order-table{% endif %}">
+  <section class="panel card table-wrap {% if model_slug == order_module_slug %}order-table-wrap{% endif %}">
+    <table class="table table-striped table-hover {% if model_slug == order_module_slug %}order-table{% endif %}">
       <thead>
         <tr>
           <th>ID</th>
-          {% for field in fields %}
+          {% for field in display_fields %}
             <th>{{ field.verbose_name }}</th>
           {% endfor %}
           <th class="action-col-head"><span class="action-head-inner">{{ t.actions|default:"Thao tác" }}</span></th>
@@ -137,9 +137,9 @@
                 {% elif value.type == "stock_move" %}
                   <span class="chip {% if value.level == 'import' %}chip-success{% else %}chip-info{% endif %}">{{ value.text }}</span>
                 {% elif value.type == "status" %}
-                  <span class="chip {% if value.value == 'pending' %}chip-warn{% elif value.value == 'confirmed' %}chip-info{% elif value.value == 'shipping' %}chip-info{% elif value.value == 'delivered' or value.value == 'done' %}chip-success{% elif value.value == 'cancelled' %}chip-danger{% endif %}">{{ value.text }}</span>
+                  <span class="chip {% if value.value == 'pending' %}chip-warn{% elif value.value == 'confirmed' or value.value == 'shipping' %}chip-info{% elif value.value == 'delivered' or value.value == 'done' or value.value == 'pay_paid' or value.value == 'feedback_done' %}chip-success{% elif value.value == 'cancelled' or value.value == 'pay_refunded' %}chip-danger{% elif value.value == 'pay_awaiting_confirmation' %}chip-warn{% elif value.value == 'pay_unpaid' or value.value == 'feedback_pending' %}chip-muted{% endif %}">{{ value.text }}</span>
                 {% else %}
-                  {{ value.text|truncatechars:120 }}
+                  <span class="{% if model_slug == order_module_slug and value.type == 'text' %}order-ellipsis{% endif %}" title="{{ value.text }}">{{ value.text|truncatechars:120 }}</span>
                 {% endif %}
               </td>
             {% endfor %}
@@ -149,6 +149,9 @@
                   <a class="btn btn-primary" href="{{ row.restore_url }}">{{ t.restore|default:"Khôi phục" }}</a>
                   <a class="btn btn-danger" href="{{ row.delete_url }}">{{ t.delete_permanently|default:"Xóa hẳn" }}</a>
                 {% else %}
+                  {% if compact_detail_mode %}
+                    <button class="btn btn-light" type="button" data-detail-toggle="{{ row.object.pk }}" aria-expanded="false">Chi tiet</button>
+                  {% endif %}
                   {% if row.can_change_status and row.status_actions %}
                     {% for action in row.status_actions %}
                       <form method="post" action="{% url 'store:admin_order_status_action' row.object.pk action.value %}" style="display:inline-flex;">
@@ -205,6 +208,35 @@
               </div>
             </td>
           </tr>
+          {% if compact_detail_mode %}
+            <tr data-detail-row="{{ row.object.pk }}" hidden>
+              <td colspan="{{ display_fields|length|add:"2" }}" style="background:#f7fafc;">
+                <div style="padding:14px 16px; border:1px solid #dbe4f0; border-radius:12px; background:#ffffff;">
+                  <div style="font-weight:700; margin-bottom:10px;">Chi tiet don hang #{{ row.object.pk }}</div>
+                  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px 14px;">
+                    {% for detail in row.detail_values %}
+                      <div style="padding:8px 10px; border:1px dashed #dbe4f0; border-radius:10px;">
+                        <div style="font-size:12px; color:#64748b; margin-bottom:4px;">{{ detail.label }}</div>
+                        <div style="font-weight:600; color:#0f172a; word-break:break-word;">
+                          {% if detail.type == "image" or detail.type == "signature" %}
+                            {% if detail.url %}
+                              <a href="{{ detail.url }}" target="_blank" rel="noopener">Xem tep dinh kem</a>
+                            {% else %}
+                              -
+                            {% endif %}
+                          {% else %}
+                            {{ detail.text|default:"-" }}
+                          {% endif %}
+                        </div>
+                      </div>
+                    {% empty %}
+                      <div style="color:#64748b;">Khong co thong tin bo sung.</div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </td>
+            </tr>
+          {% endif %}
         {% empty %}
           <tr>
             <td colspan="99">{{ t.no_data|default:"Chưa có dữ liệu." }}</td>
@@ -234,7 +266,7 @@
 {% endblock %}
 {% block extra_js %}
   {{ block.super }}
-  {% if model_slug == 'don-hang' %}
+  {% if model_slug == order_module_slug %}
     <script>
       (function () {
         const form = document.getElementById("admin-list-filter-form");
@@ -282,6 +314,27 @@
               return;
             }
             noteInput.value = note.trim();
+          });
+        });
+      })();
+      (function () {
+        const toggles = Array.from(document.querySelectorAll("[data-detail-toggle]"));
+        if (!toggles.length) return;
+        toggles.forEach((btn) => {
+          btn.addEventListener("click", function () {
+            const rowId = btn.getAttribute("data-detail-toggle");
+            const detailRow = document.querySelector('[data-detail-row="' + rowId + '"]');
+            if (!detailRow) return;
+            const isOpen = !detailRow.hasAttribute("hidden");
+            if (isOpen) {
+              detailRow.setAttribute("hidden", "hidden");
+              btn.setAttribute("aria-expanded", "false");
+              btn.textContent = "Chi tiet";
+            } else {
+              detailRow.removeAttribute("hidden");
+              btn.setAttribute("aria-expanded", "true");
+              btn.textContent = "Thu gon";
+            }
           });
         });
       })();

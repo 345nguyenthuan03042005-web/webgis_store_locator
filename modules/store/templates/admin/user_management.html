@@ -2,6 +2,91 @@
 {% block title %}{{ t.user_management|default:"Quản lý người dùng" }}{% endblock %}
 {% block page_title %}{{ t.user_management|default:"Quản lý người dùng" }}{% endblock %}
 {% block content %}
+  <style>
+    .user-admin-grid {
+      grid-template-columns: minmax(320px, 1fr) minmax(0, 2.2fr);
+      align-items: start;
+    }
+    .user-list-card {
+      min-width: 0;
+      overflow: hidden;
+    }
+    .user-table-wrap {
+      max-width: 100%;
+      overflow: visible !important;
+    }
+    .user-table-wrap table,
+    .user-table-wrap .table {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      table-layout: fixed !important;
+    }
+    .user-table-wrap th,
+    .user-table-wrap td {
+      white-space: normal !important;
+      word-break: break-word !important;
+      overflow-wrap: anywhere !important;
+      vertical-align: top;
+      padding: 10px 8px;
+      font-size: 14px;
+    }
+    .user-table-wrap th:nth-child(1),
+    .user-table-wrap td:nth-child(1) { width: 5%; }
+    .user-table-wrap th:nth-child(2),
+    .user-table-wrap td:nth-child(2) { width: 12%; }
+    .user-table-wrap th:nth-child(3),
+    .user-table-wrap td:nth-child(3) { width: 18%; }
+    .user-table-wrap th:nth-child(4),
+    .user-table-wrap td:nth-child(4) { width: 20%; }
+    .user-table-wrap th:nth-child(5),
+    .user-table-wrap td:nth-child(5) { width: 14%; }
+    .user-table-wrap th:nth-child(6),
+    .user-table-wrap td:nth-child(6) { width: 11%; }
+    .user-table-wrap th:nth-child(7),
+    .user-table-wrap td:nth-child(7) { width: 20%; min-width: 0; }
+    .user-table-wrap td input[type="text"],
+    .user-table-wrap td input[type="email"],
+    .user-table-wrap td select {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    .user-row-form {
+      display: grid;
+      gap: 8px;
+      align-items: start;
+      min-width: 0;
+      width: 100%;
+    }
+    .user-row-form select,
+    .user-row-form .btn {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      font-size: 13px;
+    }
+    .user-row-form .btn {
+      min-height: 38px;
+      white-space: normal;
+      text-align: center;
+      line-height: 1.25;
+      padding: 8px 10px;
+    }
+    .user-row-form label {
+      margin: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    @media (max-width: 1280px) {
+      .user-admin-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
   <div class="grid user-admin-grid">
     <section class="panel card user-form-card">
       <div class="user-card-head">
@@ -128,7 +213,7 @@
                 <td>{{ item.role_label|default:item.role }}</td>
                 <td>{% if item.object.is_active %}{{ t.active|default:"Hoạt động" }}{% else %}{{ t.inactive|default:"Ngưng" }}{% endif %}</td>
                 <td>
-                  <form id="user-form-{{ item.object.pk }}" method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <form id="user-form-{{ item.object.pk }}" method="post" class="user-row-form">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="update_role">
                     <input type="hidden" name="user_id" value="{{ item.object.pk }}">

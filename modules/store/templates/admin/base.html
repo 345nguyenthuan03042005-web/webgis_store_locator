@@ -102,7 +102,7 @@
 
       {% if messages %}
         {% for message in messages %}
-          <div class="msg">{{ message }}</div>
+          <div class="msg msg-{{ message.tags|default:"info" }}">{{ message }}</div>
         {% endfor %}
       {% endif %}
 
