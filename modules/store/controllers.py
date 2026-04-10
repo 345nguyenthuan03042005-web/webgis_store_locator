@@ -1,4 +1,4 @@
-﻿from django.shortcuts import render
+from django.shortcuts import render
 from django.views.decorators.cache import never_cache
 
 from modules.store.management.commands.restock_all_products import restock_products
@@ -534,9 +534,12 @@ MODEL_REGISTRY = {
     "gop-y-khach-hang": GopYKhachHang,
     "ho-so-khach-hang": HoSoKhachHang,
     "dia-chi-khach-hang": DiaChiKhachHang,
-    "don-hang": DonHang,
     "chi-tiet-don-hang": ChiTietDonHang,
+    "don-hang": DonHang,
 }
+
+ORDER_MODULE_SLUG = "chi-tiet-don-hang"
+ORDER_ITEM_MODULE_SLUG = "don-hang"
 
 User = get_user_model()
 ROLE_SYSTEM_ADMIN = "SystemAdmin"
@@ -653,16 +656,16 @@ MODULE_ROLE_ACTIONS = {
     "don-hang": {
         "view": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
         "create": {ROLE_SYSTEM_ADMIN},
-        "update": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
+        "update": {ROLE_SYSTEM_ADMIN},
         "delete": {ROLE_SYSTEM_ADMIN},
-        "status": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
-        "payment_status": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER},
     },
     "chi-tiet-don-hang": {
         "view": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
         "create": {ROLE_SYSTEM_ADMIN},
-        "update": {ROLE_SYSTEM_ADMIN},
+        "update": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
         "delete": {ROLE_SYSTEM_ADMIN},
+        "status": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER, ROLE_CUSTOMER_SUPPORT},
+        "payment_status": {ROLE_SYSTEM_ADMIN, ROLE_ORDER_MANAGER},
     },
 }
 ADMIN_PAGE_ROLE_ACTIONS = {
@@ -2041,6 +2044,12 @@ def _require_admin_user(request):
 
 
 def _resolve_model(model_slug):
+    # Swapped per admin requirement: order list <-> order detail pages.
+    if model_slug == ORDER_MODULE_SLUG:
+        return DonHang
+    if model_slug == ORDER_ITEM_MODULE_SLUG:
+        return ChiTietDonHang
+
     model = MODEL_REGISTRY.get(model_slug)
     if model is None:
         raise Http404("Không tìm thấy model.")
@@ -2359,7 +2368,7 @@ def _select_fulfillment_store(items):
     return candidates[0][2]
 
 
-def _admin_redirect_with_preserved_query(request, model_slug="don-hang"):
+def _admin_redirect_with_preserved_query(request, model_slug=ORDER_MODULE_SLUG):
     redirect_url = reverse("store:admin_list", kwargs={"model_slug": model_slug})
     query = (request.POST.get("return_query") or request.GET.urlencode() or "").strip("&?")
     if query:
@@ -2884,7 +2893,7 @@ def admin_user_password(request, pk):
 
 @require_POST
 def admin_order_status_action(request, pk, status):
-    unauthorized = _require_module_permission(request, "don-hang", "status")
+    unauthorized = _require_module_permission(request, ORDER_MODULE_SLUG, "status")
     if unauthorized:
         return unauthorized
 
@@ -2915,7 +2924,7 @@ def admin_order_status_action(request, pk, status):
             f"đã được chuyển sang trạng thái {order.get_trang_thai_display().lower()}."
         ),
         level="info",
-        path=reverse("store:admin_list", kwargs={"model_slug": "don-hang"}),
+        path=reverse("store:admin_list", kwargs={"model_slug": ORDER_MODULE_SLUG}),
         method="PATCH",
         status_code=200,
     )
@@ -2926,7 +2935,7 @@ def admin_order_status_action(request, pk, status):
 
 @require_POST
 def admin_order_payment_status_action(request, pk, status):
-    unauthorized = _require_module_permission(request, "don-hang", "payment_status")
+    unauthorized = _require_module_permission(request, ORDER_MODULE_SLUG, "payment_status")
     if unauthorized:
         return unauthorized
 
@@ -2957,7 +2966,7 @@ def admin_order_payment_status_action(request, pk, status):
             f"đã chuyển sang {order.get_trang_thai_thanh_toan_display().lower()}."
         ),
         level="info",
-        path=reverse("store:admin_list", kwargs={"model_slug": "don-hang"}),
+        path=reverse("store:admin_list", kwargs={"model_slug": ORDER_MODULE_SLUG}),
         method="PATCH",
         status_code=200,
     )
@@ -2968,7 +2977,7 @@ def admin_order_payment_status_action(request, pk, status):
 
 @require_POST
 def admin_order_receipt_review_action(request, pk, action):
-    unauthorized = _require_module_permission(request, "don-hang", "payment_status")
+    unauthorized = _require_module_permission(request, ORDER_MODULE_SLUG, "payment_status")
     if unauthorized:
         return unauthorized
 
@@ -3279,11 +3288,11 @@ def _facet_specs_for_model(model_slug):
             {"param": "user", "label": "Tài khoản", "expr": "user__username"},
             {"param": "district", "label": "Quận/Huyện", "custom": "district_from_address", "address_expr": "dia_chi"},
         ],
-        "don-hang": [],
-        "chi-tiet-don-hang": [
+        "don-hang": [
             {"param": "order", "label": "Đơn hàng", "expr": "don_hang__id"},
             {"param": "group", "label": "Nhóm sản phẩm", "expr": "san_pham__nhom_san_pham__ten"},
         ],
+        "chi-tiet-don-hang": [],
     }.get(model_slug, [])
 
 
@@ -3410,7 +3419,7 @@ def admin_list(request, model_slug):
     status_filter = status_filters[0] if len(status_filters) == 1 else ""
     qs = model.objects.all().order_by("-pk")
     qs, facet_filters = _build_and_apply_facets(request, model_slug, qs, model)
-    if model_slug == "don-hang" and status_filters:
+    if model_slug == ORDER_MODULE_SLUG and status_filters:
         selected_statuses = set(status_filters)
         final_statuses = set()
         if "done" in selected_statuses:
@@ -3483,6 +3492,24 @@ def admin_list(request, model_slug):
         for f in model._meta.fields
         if f.name != "id"
     ]
+    compact_detail_mode = model_slug == "chi-tiet-don-hang"
+    compact_primary_field_names = []
+    if compact_detail_mode:
+        preferred_names = [
+            "khach_hang",
+            "ho_ten_nguoi_nhan",
+            "so_dien_thoai",
+            "trang_thai",
+            "trang_thai_thanh_toan",
+            "tong_tien",
+        ]
+        field_names = [field["name"] for field in fields]
+        compact_primary_field_names = [name for name in preferred_names if name in field_names]
+        if not compact_primary_field_names:
+            compact_primary_field_names = field_names[: min(5, len(field_names))]
+    display_fields = [
+        field for field in fields if (not compact_detail_mode or field["name"] in compact_primary_field_names)
+    ]
     filter_fields = [
         {"name": f["name"], "verbose_name": f["verbose_name"]}
         for f in fields
@@ -3524,6 +3551,14 @@ def admin_list(request, model_slug):
                         values.append({"type": "text", "text": str(raw_value)})
                 else:
                     values.append({"type": "text", "text": ""})
+            elif model_slug == "gop-y-khach-hang" and field["name"] == "da_phan_hoi":
+                values.append(
+                    {
+                        "type": "status",
+                        "value": "feedback_done" if bool(raw_value) else "feedback_pending",
+                        "text": "Đã phản hồi" if bool(raw_value) else "Chưa phản hồi",
+                    }
+                )
             elif field_type == "BooleanField":
                 values.append({"type": "bool", "value": bool(raw_value)})
             elif field["name"] in {"trang_thai"}:
@@ -3533,23 +3568,18 @@ def admin_list(request, model_slug):
                 except Exception:
                     pass
                 values.append({"type": "status", "value": str(raw_value), "text": display})
-            elif model_slug == "don-hang" and field["name"] == "trang_thai_thanh_toan":
+            elif model_slug == ORDER_MODULE_SLUG and field["name"] == "trang_thai_thanh_toan":
                 display = str(raw_value)
                 try:
                     display = item.get_trang_thai_thanh_toan_display()
                 except Exception:
                     pass
-                payment_level = "low"
-                if raw_value == "paid":
-                    payment_level = "ok"
-                elif raw_value == "refunded":
-                    payment_level = "out"
-                values.append({"type": "stock", "level": payment_level, "text": display})
+                values.append({"type": "status", "value": f"pay_{raw_value}", "text": display})
             elif field["name"] in {"gia_ban", "tong_tien", "don_gia"}:
                 values.append({"type": "money", "text": _format_currency(raw_value)})
-            elif model_slug == "don-hang" and field["name"] == "giam_gia":
+            elif model_slug == ORDER_MODULE_SLUG and field["name"] == "giam_gia":
                 values.append({"type": "money", "text": _format_currency(raw_value)})
-            elif model_slug == "don-hang" and field["name"] == "ma_voucher_ap_dung":
+            elif model_slug == ORDER_MODULE_SLUG and field["name"] == "ma_voucher_ap_dung":
                 values.append(
                     {
                         "type": "stock_move",
@@ -3557,7 +3587,7 @@ def admin_list(request, model_slug):
                         "text": str(raw_value) if raw_value else "Không áp dụng",
                     }
                 )
-            elif model_slug == "don-hang" and field["name"] == "phuong_thuc_thanh_toan":
+            elif model_slug == ORDER_MODULE_SLUG and field["name"] == "phuong_thuc_thanh_toan":
                 display = str(raw_value)
                 try:
                     display = item.get_phuong_thuc_thanh_toan_display()
@@ -3571,7 +3601,7 @@ def admin_list(request, model_slug):
                 elif raw_value == "momo":
                     level = "low"
                 values.append({"type": "stock_move", "level": level, "text": display})
-            elif model_slug == "don-hang" and field["name"] in {"vi_do_giao_hang", "kinh_do_giao_hang"}:
+            elif model_slug == ORDER_MODULE_SLUG and field["name"] in {"vi_do_giao_hang", "kinh_do_giao_hang"}:
                 if raw_value is None:
                     values.append({"type": "text", "text": "-"})
                 else:
@@ -3603,7 +3633,7 @@ def admin_list(request, model_slug):
             "can_change_payment_status": can_change_payment_status,
             "can_review_receipt": False,
         }
-        if model_slug == "don-hang":
+        if model_slug == ORDER_MODULE_SLUG:
             status_actions = []
             payment_actions = []
             receipt_actions = []
@@ -3646,7 +3676,7 @@ def admin_list(request, model_slug):
             row["print_url"] = reverse("store:admin_inventory_print", args=[item.pk])
             row["pdf_url"] = reverse("store:admin_inventory_pdf", args=[item.pk])
         if (
-            model_slug == "don-hang"
+            model_slug == ORDER_MODULE_SLUG
             and item.vi_do_giao_hang is not None
             and item.kinh_do_giao_hang is not None
         ):
@@ -3654,6 +3684,30 @@ def admin_list(request, model_slug):
                 "https://www.google.com/maps/search/?api=1"
                 f"&query={float(item.vi_do_giao_hang):.6f},{float(item.kinh_do_giao_hang):.6f}"
             )
+        if compact_detail_mode:
+            compact_values = []
+            detail_values = []
+            for field_meta, cell in zip(fields, values):
+                cell_type = cell.get("type", "text")
+                text_value = cell.get("text", "")
+                if cell_type == "bool":
+                    text_value = "Co" if cell.get("value") else "Khong"
+                elif cell_type in {"image", "signature"}:
+                    text_value = cell.get("url") or text_value or "Co tep dinh kem"
+                elif not text_value:
+                    text_value = "-"
+                payload = {
+                    "label": field_meta["verbose_name"],
+                    "text": text_value,
+                    "type": cell_type,
+                    "url": cell.get("url", ""),
+                }
+                if field_meta["name"] in compact_primary_field_names:
+                    compact_values.append(cell)
+                else:
+                    detail_values.append(payload)
+            row["values"] = compact_values
+            row["detail_values"] = detail_values
         rows.append(row)
 
     return render(
@@ -3664,6 +3718,8 @@ def admin_list(request, model_slug):
             "model_slug": model_slug,
             "model_name": _model_label(model_slug, lang, plural=True),
             "fields": fields,
+            "display_fields": display_fields,
+            "compact_detail_mode": compact_detail_mode,
             "filter_fields": filter_fields,
             "rows": rows,
             "query": query,
@@ -3675,6 +3731,7 @@ def admin_list(request, model_slug):
             "facet_filters": facet_filters,
             "persisted_query": persisted_query,
             "show_create": can_create,
+            "order_module_slug": ORDER_MODULE_SLUG,
             **pref,
         },
     )
@@ -3881,6 +3938,8 @@ def admin_trash_list(request):
             "model_slug": "trash",
             "model_name": pref["t"]["trash"],
             "fields": fields,
+            "display_fields": display_fields,
+            "compact_detail_mode": compact_detail_mode,
             "rows": rows,
             "query": query,
             "filter_field": filter_field,
@@ -4963,7 +5022,7 @@ def checkout_view(request):
                         f"Cửa hàng xử lý: {fulfillment_store.ten}."
                     ),
                     level="info",
-                    path=f"{reverse('store:admin_list', kwargs={'model_slug': 'don-hang'})}?status=pending",
+                    path=f"{reverse('store:admin_list', kwargs={'model_slug': ORDER_MODULE_SLUG})}?status=pending",
                     method="ORDER",
                     status_code=201,
                 )

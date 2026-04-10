@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chi tiết Mã đơn: {{ order.pk }}</title>
+  <title>Chi tiết Mã đơn: #{{ order.pk }}</title>
   <link rel="stylesheet" href="{% static 'admin/css/style.css' %}">
   <style>
     body {
@@ -216,7 +216,7 @@
           <div class="hero-head">
             <div>
               <p class="stat-title">Theo dõi đơn hàng</p>
-              <h1 class="top-title" style="margin:6px 0 0;">Mã đơn: {{ order.pk }}</h1>
+              <h1 class="top-title" style="margin:6px 0 0;">Mã đơn: #{{ order.pk }}</h1>
               <p class="top-sub" style="margin:8px 0 0;">Đặt lúc {{ order.created_text }}. Bạn có thể xem trạng thái, địa chỉ nhận và toàn bộ sản phẩm trong đơn tại đây.</p>
             </div>
             <div style="display:grid;gap:10px;justify-items:end;">

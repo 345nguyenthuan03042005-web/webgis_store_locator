@@ -16,10 +16,10 @@
               <input type="checkbox" data-select-all data-select-target="notif">
             </th>
             <th>ID</th>
-            <th>Level</th>
-            <th>Title</th>
-            <th>Path</th>
-            <th>Status</th>
+            <th>Mức</th>
+            <th>Tiêu đề</th>
+            <th>Đường dẫn</th>
+            <th>Trạng thái</th>
             <th>Time</th>
           </tr>
         </thead>
@@ -30,10 +30,21 @@
                 <input type="checkbox" name="selected_ids" value="{{ n.id }}" data-select-item="notif">
               </td>
               <td>{{ n.id }}</td>
-              <td>{{ n.level }}</td>
-              <td>{{ n.title }}</td>
-              <td>{{ n.path }}</td>
-              <td>{{ n.status_code }}</td>
+              <td>
+                <span class="chip {% if n.level == "error" %}chip-danger{% elif n.level == "warning" %}chip-warn{% elif n.level == "success" %}chip-success{% else %}chip-info{% endif %}">
+                  {{ n.level }}
+                </span>
+              </td>
+              <td><span class="order-ellipsis" title="{{ n.title }}">{{ n.title }}</span></td>
+              <td><span class="order-ellipsis" title="{{ n.path|default:"" }}">{{ n.path|default:"-" }}</span></td>
+              <td>
+                {% if n.status_code %}
+                  <span class="chip {% if n.status_code >= 500 %}chip-danger{% elif n.status_code >= 400 %}chip-warn{% elif n.status_code >= 200 %}chip-success{% else %}chip-info{% endif %}">{{ n.status_code }}</span>
+                {% else %}
+                  <span class="chip chip-muted">N/A</span>
+                {% endif %}
+                <span class="chip {% if n.resolved %}chip-success{% else %}chip-warn{% endif %}">{% if n.resolved %}Đã đọc{% else %}Chưa đọc{% endif %}</span>
+              </td>
               <td>{{ n.created_at|date:"Y-m-d H:i" }}</td>
             </tr>
           {% empty %}
