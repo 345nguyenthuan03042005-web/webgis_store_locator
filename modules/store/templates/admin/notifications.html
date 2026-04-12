@@ -25,7 +25,7 @@
         </thead>
         <tbody>
           {% for n in page_obj %}
-            <tr>
+            <tr class="{% if not n.resolved %}notice-unread{% else %}notice-read{% endif %}">
               <td>
                 <input type="checkbox" name="selected_ids" value="{{ n.id }}" data-select-item="notif">
               </td>

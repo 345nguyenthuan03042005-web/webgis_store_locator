@@ -61,6 +61,7 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <a class="btn btn-primary" href="{% url 'store:admin_inventory_restock' %}">Nh&#7853;p kho theo c&#7917;a h&#224;ng</a>
           <a class="btn btn-light" href="{% url 'store:admin_list' 'giao-dich-kho' %}">{{ t.view_stock_movements|default:"Xem giao d?ch kho" }}</a>
+          <a class="btn btn-light" href="{% url 'store:admin_inventory_report' %}">Báo cáo nhập/xuất</a>
         </div>
       </div>
 

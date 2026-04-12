@@ -27,6 +27,7 @@ from .models import (
     DonHang,
     ChiTietDonHang,
     TonKhoCuaHang,
+    TonKhoAudit,
 )
 
 
@@ -254,6 +255,18 @@ class KhuyenMaiAdminForm(forms.ModelForm):
         js = ("store/js/voucher_admin_preview.js",)
 
 
+class NhanVienAdminForm(forms.ModelForm):
+    class Meta:
+        model = NhanVien
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        field = self.fields.get("co_quyen_nhap_kho")
+        if field is not None:
+            field.help_text = "Bật để nhân viên được quyền ký phiếu nhập kho."
+
+
 @admin.register(ThuongHieu)
 class ThuongHieuAdmin(admin.ModelAdmin):
     list_display = ("id", "ten")
@@ -360,8 +373,60 @@ class GiaoDichKhoAdmin(admin.ModelAdmin):
     list_select_related = ("san_pham", "cua_hang", "don_hang", "created_by", "nhan_vien", "nhan_vien__cua_hang")
     ordering = ("-created_at", "-id")
     autocomplete_fields = ("san_pham", "cua_hang", "don_hang", "created_by", "nhan_vien")
-    readonly_fields = ("ton_truoc", "ton_sau", "created_at")
+    readonly_fields = (
+        "ton_truoc",
+        "ton_sau",
+        "created_at",
+        "signed_at",
+        "signed_by",
+        "signed_ip",
+        "signed_user_agent",
+        "otp_recipient_email",
+        "otp_expires_at",
+        "otp_verified_at",
+        "otp_verified_by",
+        "otp_verified_ip",
+        "otp_verified_user_agent",
+    )
     list_per_page = 25
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "san_pham",
+                    "cua_hang",
+                    "nhan_vien",
+                    "loai",
+                    "so_luong",
+                    "don_hang",
+                    "ghi_chu",
+                    "chu_ky",
+                )
+            },
+        ),
+        (
+            "Log ký & OTP",
+            {
+                "fields": (
+                    "signed_at",
+                    "signed_by",
+                    "signed_ip",
+                    "signed_user_agent",
+                    "otp_recipient_email",
+                    "otp_expires_at",
+                    "otp_verified_at",
+                    "otp_verified_by",
+                    "otp_verified_ip",
+                    "otp_verified_user_agent",
+                    "ton_truoc",
+                    "ton_sau",
+                    "created_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
 
     @admin.display(description="Chữ ký")
     def signature_thumb(self, obj):
@@ -375,6 +440,41 @@ class TonKhoCuaHangAdmin(admin.ModelAdmin):
     search_fields = ("cua_hang__ten", "cua_hang__chuoi__ten", "san_pham__ten")
     list_select_related = ("cua_hang", "cua_hang__chuoi", "san_pham")
     ordering = ("cua_hang__ten", "san_pham__ten")
+
+
+@admin.register(TonKhoAudit)
+class TonKhoAuditAdmin(admin.ModelAdmin):
+    list_display = ("id", "created_at", "hanh_dong", "loai", "san_pham", "cua_hang", "so_luong", "ton_truoc", "ton_sau", "created_by", "ly_do_short")
+    list_filter = ("hanh_dong", "loai", "cua_hang")
+    search_fields = ("san_pham__ten", "cua_hang__ten", "created_by__username", "ly_do")
+    list_select_related = ("san_pham", "cua_hang", "created_by")
+    ordering = ("-created_at", "-id")
+    readonly_fields = (
+        "giao_dich",
+        "san_pham",
+        "cua_hang",
+        "loai",
+        "so_luong",
+        "ton_truoc",
+        "ton_sau",
+        "hanh_dong",
+        "ly_do",
+        "created_by",
+        "created_at",
+    )
+
+    @admin.display(description="Lý do")
+    def ly_do_short(self, obj):
+        return (obj.ly_do[:80] + "...") if obj.ly_do and len(obj.ly_do) > 80 else (obj.ly_do or "-")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ChuoiCuaHang)
@@ -446,9 +546,10 @@ class CuaHangAdmin(admin.ModelAdmin):
 
 @admin.register(NhanVien)
 class NhanVienAdmin(admin.ModelAdmin):
-    list_display = ("id", "avatar_thumb", "ho_ten", "chuc_vu", "cua_hang", "so_dien_thoai", "email")
+    form = NhanVienAdminForm
+    list_display = ("id", "avatar_thumb", "ho_ten", "chuc_vu", "co_quyen_nhap_kho", "cua_hang", "so_dien_thoai", "email")
     list_display_links = ("id", "ho_ten")
-    list_filter = ("cua_hang__chuoi", "cua_hang", "chuc_vu")
+    list_filter = ("cua_hang__chuoi", "cua_hang", "chuc_vu", "co_quyen_nhap_kho")
     search_fields = ("ho_ten", "chuc_vu", "so_dien_thoai", "email", "cua_hang__ten", "cua_hang__chuoi__ten")
     list_select_related = ("cua_hang", "cua_hang__chuoi")
     ordering = ("ho_ten",)
