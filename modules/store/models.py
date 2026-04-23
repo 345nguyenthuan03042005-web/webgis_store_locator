@@ -1,4 +1,6 @@
-﻿from django.conf import settings
+﻿from xml.parsers.expat import errors
+
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -205,6 +207,7 @@ class NhanVien(models.Model):
 
     ho_ten = models.CharField("Họ và tên", max_length=120)
     chuc_vu = models.CharField("Chức vụ", max_length=50, blank=True)
+    co_quyen_nhap_kho = models.BooleanField("Được nhập kho", default=True)
 
     so_dien_thoai = models.CharField(
         "Số điện thoại",
@@ -340,6 +343,66 @@ class HoSoKhachHang(models.Model):
         return f"Hồ sơ {self.user.username}"
 
 
+class DanhGiaCuaHang(models.Model):
+    SO_SAO_VALIDATORS = [MinValueValidator(1), MaxValueValidator(5)]
+
+    cua_hang = models.ForeignKey(
+        "CuaHang",
+        on_delete=models.CASCADE,
+        related_name="danh_gia",
+        verbose_name="Cửa hàng",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="danh_gia_cua_hang",
+        verbose_name="Người dùng",
+    )
+    so_sao = models.PositiveSmallIntegerField("Số sao", validators=SO_SAO_VALIDATORS)
+    binh_luan = models.TextField("Bình luận", blank=True)
+    created_at = models.DateTimeField("Thời gian tạo", auto_now_add=True)
+    updated_at = models.DateTimeField("Cập nhật lúc", auto_now=True)
+
+    class Meta:
+        verbose_name = "Đánh giá cửa hàng"
+        verbose_name_plural = "Đánh giá cửa hàng"
+        ordering = ["-created_at", "-id"]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "cua_hang"],
+                name="unique_user_store_review"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.cua_hang.ten} - {self.user.username} - {self.so_sao} sao"
+
+class TepDanhGiaCuaHang(models.Model):
+    LOAI_CHOICES = (
+        ("image", "Hình ảnh"),
+        ("video", "Video"),
+    )
+
+    danh_gia = models.ForeignKey(
+        "DanhGiaCuaHang",
+        on_delete=models.CASCADE,
+        related_name="tep_dinh_kem",
+        verbose_name="Đánh giá",
+    )
+    tep = models.FileField("Tệp", upload_to="reviews/")
+    loai = models.CharField("Loại tệp", max_length=10, choices=LOAI_CHOICES)
+    created_at = models.DateTimeField("Thời gian tạo", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Tệp đánh giá cửa hàng"
+        verbose_name_plural = "Tệp đánh giá cửa hàng"
+        ordering = ["created_at", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.get_loai_display()} - đánh giá {self.danh_gia_id}"
+
+
 class DiaChiKhachHang(models.Model):
     LOAI_DIA_CHI_CHOICES = (
         ("home", "Nhà riêng"),
@@ -357,8 +420,20 @@ class DiaChiKhachHang(models.Model):
     so_dien_thoai = models.CharField("Số điện thoại", max_length=20)
     tinh_thanh = models.CharField("Tỉnh/Thành phố", max_length=120, blank=True)
     quan_huyen = models.CharField("Quận/Huyện", max_length=120, blank=True)
-    phuong_xa = models.CharField("Phường/Xã", max_length=120, blank=True)
+    phuong_xa = models.CharField("Khu vực", max_length=120, blank=True)
     dia_chi_cu_the = models.CharField("Địa chỉ cụ thể", max_length=255)
+    vi_do = models.FloatField(
+        "Vĩ độ giao hàng",
+        null=True,
+        blank=True,
+        validators=CuaHang.LATITUDE_VALIDATORS,
+    )
+    kinh_do = models.FloatField(
+        "Kinh độ giao hàng",
+        null=True,
+        blank=True,
+        validators=CuaHang.LONGITUDE_VALIDATORS,
+    )
     loai_dia_chi = models.CharField(
         "Loại địa chỉ",
         max_length=20,
@@ -385,6 +460,10 @@ class DiaChiKhachHang(models.Model):
             (self.tinh_thanh or "").strip(),
         ]
         return ", ".join(part for part in parts if part)
+
+    @property
+    def has_coordinates(self) -> bool:
+        return self.vi_do is not None and self.kinh_do is not None
 
 
 class GopYKhachHang(models.Model):
@@ -764,6 +843,31 @@ class GiaoDichKho(models.Model):
         null=True,
         blank=True,
     )
+    signed_at = models.DateTimeField("Thời gian ký", null=True, blank=True)
+    signed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="giao_dich_kho_da_ky",
+        verbose_name="Người ký",
+    )
+    signed_ip = models.CharField("IP ký", max_length=45, blank=True)
+    signed_user_agent = models.CharField("Trình duyệt ký", max_length=255, blank=True)
+    otp_code_hash = models.CharField("Mã OTP (hash)", max_length=128, blank=True)
+    otp_expires_at = models.DateTimeField("Hết hạn OTP", null=True, blank=True)
+    otp_verified_at = models.DateTimeField("Xác nhận OTP lúc", null=True, blank=True)
+    otp_verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="giao_dich_kho_xac_nhan_otp",
+        verbose_name="Người xác nhận OTP",
+    )
+    otp_verified_ip = models.CharField("IP xác nhận OTP", max_length=45, blank=True)
+    otp_verified_user_agent = models.CharField("Trình duyệt xác nhận OTP", max_length=255, blank=True)
+    otp_recipient_email = models.EmailField("Email nhận OTP", blank=True)
     created_at = models.DateTimeField("Thời gian tạo", auto_now_add=True)
 
     class Meta:
@@ -793,7 +897,9 @@ class GiaoDichKho(models.Model):
             errors = {}
             if not self.nhan_vien_id:
                 errors["nhan_vien"] = "Phiếu nhập kho cần chọn nhân viên ký."
-            if not self.chu_ky:
+            elif self.nhan_vien and not self.nhan_vien.co_quyen_nhap_kho:
+                errors["nhan_vien"] = "Nhân viên này không được quyền nhập kho."
+            if not self.chu_ky and not getattr(self, "_skip_signature", False):
                 errors["chu_ky"] = "Phiếu nhập kho cần có chữ ký nhân viên."
             if errors:
                 raise ValidationError(errors)
@@ -841,3 +947,60 @@ class GiaoDichKho(models.Model):
         if store is not None:
             sync_store_stock(product, store)
         return result
+
+
+class TonKhoAudit(models.Model):
+    ACTION_CHOICES = (
+        ("create", "Tạo giao dịch"),
+        ("update", "Cập nhật giao dịch"),
+        ("delete", "Xóa giao dịch"),
+    )
+
+    giao_dich = models.ForeignKey(
+        "GiaoDichKho",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_logs",
+        verbose_name="Giao dịch kho",
+    )
+    san_pham = models.ForeignKey(
+        "SanPham",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_logs",
+        verbose_name="Sản phẩm",
+    )
+    cua_hang = models.ForeignKey(
+        "CuaHang",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_logs",
+        verbose_name="Cửa hàng",
+    )
+    loai = models.CharField("Loại giao dịch", max_length=20, choices=GiaoDichKho.TYPE_CHOICES)
+    so_luong = models.PositiveIntegerField("Số lượng", default=0)
+    ton_truoc = models.IntegerField("Tồn trước", default=0)
+    ton_sau = models.IntegerField("Tồn sau", default=0)
+    hanh_dong = models.CharField("Hành động", max_length=20, choices=ACTION_CHOICES)
+    ly_do = models.TextField("Lý do", blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ton_kho_audit_logs",
+        verbose_name="Người thao tác",
+    )
+    created_at = models.DateTimeField("Thời gian", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Nhật ký tồn kho"
+        verbose_name_plural = "Nhật ký tồn kho"
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        target = self.san_pham.ten if self.san_pham_id else "Sản phẩm"
+        return f"{self.get_hanh_dong_display()} - {target}"

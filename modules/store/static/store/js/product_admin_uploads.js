@@ -31,7 +31,7 @@
       block.style.display = "block";
       block.style.width = "auto";
       block.style.maxWidth = "none";
-      block.innerHTML = '<div class="multi-image-empty">Chua co anh nao duoc chon.</div>';
+      block.innerHTML = '<div class="multi-image-empty">Chưa có ảnh nào được chọn.</div>';
     }
 
     function renderPreview() {
@@ -66,7 +66,7 @@
         const url = URL.createObjectURL(file);
         objectUrls.push(url);
         image.src = url;
-        image.alt = file.name || ("Anh " + (index + 1));
+        image.alt = file.name || ("Ảnh " + (index + 1));
         image.style.width = "88px";
         image.style.height = "88px";
         image.style.objectFit = "cover";
@@ -75,7 +75,7 @@
         const removeBtn = document.createElement("button");
         removeBtn.type = "button";
         removeBtn.className = "multi-image-remove";
-        removeBtn.setAttribute("aria-label", "Bo anh");
+        removeBtn.setAttribute("aria-label", "Bỏ ảnh");
         removeBtn.textContent = "x";
         removeBtn.style.position = "absolute";
         removeBtn.style.top = "6px";
@@ -88,7 +88,7 @@
 
         const badge = document.createElement("div");
         badge.className = "multi-image-badge";
-        badge.textContent = index === 0 ? "Anh chinh" : "Anh phu";
+        badge.textContent = index === 0 ? "Ảnh chính" : "Ảnh phụ";
         badge.style.position = "absolute";
         badge.style.left = "6px";
         badge.style.bottom = "6px";

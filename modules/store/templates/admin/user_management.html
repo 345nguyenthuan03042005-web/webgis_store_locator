@@ -215,7 +215,6 @@
                 <td>
                   <form id="user-form-{{ item.object.pk }}" method="post" class="user-row-form">
                     {% csrf_token %}
-                    <input type="hidden" name="action" value="update_role">
                     <input type="hidden" name="user_id" value="{{ item.object.pk }}">
                     {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
                     {% if filter_field %}<input type="hidden" name="f" value="{{ filter_field }}">{% endif %}
@@ -232,7 +231,12 @@
                         <input type="checkbox" name="is_active" {% if item.object.is_active %}checked{% endif %}>
                         <span>{{ t.active|default:"Hoạt động" }}</span>
                       </label>
-                      <button class="btn btn-primary" type="submit">{{ t.update_role|default:"Cập nhật quyền" }}</button>
+                      <button class="btn btn-primary" type="submit" name="action" value="update_role">{{ t.update_role|default:"Cập nhật quyền" }}</button>
+                      {% if item.role == "SystemAdmin" %}
+                        <button class="btn btn-light" type="submit" name="action" value="toggle_lock">
+                          {% if item.object.is_active %}Khóa admin{% else %}Mở khóa admin{% endif %}
+                        </button>
+                      {% endif %}
                     {% endif %}
                   </form>
                 </td>

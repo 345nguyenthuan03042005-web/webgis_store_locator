@@ -9,7 +9,7 @@
 </head>
 <body data-theme="{{ admin_theme|default:'light' }}">
   <div class="cms-layout">
-    <aside class="sidebar">
+    <aside class="sidebar" id="cms-sidebar" aria-label="Menu quản trị">
       <a class="brand" href="{% url 'store:admin_dashboard' %}">SmartGIS</a>
       <div class="brand-sub">{{ t.custom_internal_management|default:"Hệ thống quản trị nội bộ tự tạo" }}</div>
 
@@ -37,8 +37,10 @@
           </a>
         {% endif %}
 
-        <div class="menu-label">{{ t.data|default:"Dữ liệu" }}</div>
         {% for module in modules %}
+          {% ifchanged module.section_label %}
+            <div class="menu-label">{{ module.section_label }}</div>
+          {% endifchanged %}
           <a href="{% url 'store:admin_list' module.slug %}" class="{% if module.slug == model_slug %}active{% endif %}">
             {{ module.name }} <span class="chip">{{ module.count }}</span>
           </a>
@@ -46,11 +48,29 @@
       </div>
     </aside>
 
+    <div class="sidebar-backdrop" data-sidebar-backdrop aria-hidden="true"></div>
+
     <main class="content">
       <div class="topbar">
-        <div>
-          <h1 class="top-title">{% block page_title %}{{ t.dashboard|default:"Tổng quan" }}{% endblock %}</h1>
-          <div class="top-sub">{{ t.logged_in_as|default:"Đăng nhập bởi" }} {{ request.user.username }} | {{ current_admin_role_label }} | {{ t.internal_cms|default:"Hệ thống nội bộ" }}</div>
+        <div class="topbar-left">
+          <button
+            type="button"
+            class="sidebar-toggle icon-btn"
+            data-sidebar-toggle
+            aria-label="Mở menu"
+            aria-controls="cms-sidebar"
+            aria-expanded="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 6h16"></path>
+              <path d="M4 12h16"></path>
+              <path d="M4 18h16"></path>
+            </svg>
+          </button>
+          <div class="topbar-titles">
+            <h1 class="top-title">{% block page_title %}{{ t.dashboard|default:"Tổng quan" }}{% endblock %}</h1>
+            <div class="top-sub">{{ t.logged_in_as|default:"Đăng nhập bởi" }} {{ request.user.username }} | {{ current_admin_role_label }} | {{ t.internal_cms|default:"Hệ thống nội bộ" }}</div>
+          </div>
         </div>
         <div class="top-actions">
           <a class="icon-btn" href="{% url 'store:admin_logout' %}" title="{{ t.logout|default:'Đăng xuất' }}" aria-label="{{ t.logout|default:'Đăng xuất' }}">

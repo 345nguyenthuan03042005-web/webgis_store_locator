@@ -41,6 +41,27 @@
     font-weight: 700;
     font-size: 15px;
   }
+  .shared-nav-toggle {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.22);
+    background: rgba(255,255,255,.10);
+    color: #f8fafc;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .shared-nav-toggle svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   .shared-header-actions {
     display: flex;
     gap: 10px;
@@ -241,7 +262,26 @@
   }
   @media (max-width: 900px) {
     .shared-site-nav {
-      gap: 16px;
+      display: none;
+      width: 100%;
+      flex-direction: column;
+      gap: 10px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,.18);
+    }
+    .shared-site-header.is-nav-open .shared-site-nav {
+      display: flex;
+    }
+    .shared-nav-toggle {
+      display: inline-flex;
+    }
+    .shared-site-nav a {
+      padding: 10px 8px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.08);
+    }
+    .shared-site-nav a:active {
+      background: rgba(255,255,255,.14);
     }
   }
 </style>
@@ -249,6 +289,13 @@
 <header class="shared-site-header">
   <div class="wrap">
     <a class="shared-logo" href="{% url 'store:home' %}">CIRCLE <span>K &amp; GS25</span></a>
+    <button class="shared-nav-toggle" type="button" aria-label="Mở menu" aria-expanded="false" data-shared-nav-toggle>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 6h16"></path>
+        <path d="M4 12h16"></path>
+        <path d="M4 18h16"></path>
+      </svg>
+    </button>
     <nav class="shared-site-nav">
       <a href="{% url 'store:home' %}#about">Giới thiệu</a>
       <a href="{% url 'store:product_catalog' %}">Sản phẩm</a>
@@ -331,6 +378,39 @@
 
 <script>
   (function () {
+    const header = document.querySelector(".shared-site-header");
+    const navToggle = document.querySelector("[data-shared-nav-toggle]");
+    const mq = window.matchMedia("(max-width: 900px)");
+
+    const setNavOpen = (open) => {
+      if (!header || !navToggle) return;
+      header.classList.toggle("is-nav-open", !!open);
+      navToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+
+    if (header && navToggle) {
+      navToggle.addEventListener("click", () => {
+        if (!mq.matches) return;
+        const open = !header.classList.contains("is-nav-open");
+        setNavOpen(open);
+      });
+
+      header.querySelectorAll(".shared-site-nav a").forEach((a) => {
+        a.addEventListener("click", () => setNavOpen(false));
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!mq.matches) return;
+        if (!header.contains(event.target)) setNavOpen(false);
+      });
+
+      if (typeof mq.addEventListener === "function") {
+        mq.addEventListener("change", () => setNavOpen(false));
+      } else if (typeof mq.addListener === "function") {
+        mq.addListener(() => setNavOpen(false));
+      }
+    }
+
     const hoverMenus = document.querySelectorAll(".shared-notify-menu, .shared-account-menu");
     hoverMenus.forEach((menu) => {
       let closeTimer = null;

@@ -161,6 +161,7 @@
 
       <div class="login-links">
         <a href="{% url 'store:user_register' %}">{{ t.register|default:"Đăng ký" }}</a>
+        <a href="{% url 'store:user_password_reset' %}">Quên mật khẩu?</a>
         <a href="{% url 'store:home' %}">{{ t.store_front|default:"Cửa hàng" }}</a>
       </div>
     </form>

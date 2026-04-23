@@ -22,7 +22,7 @@ from modules.store.controllers import (
     _ensure_role_groups,
 )
 from modules.spatial.controllers import _store_dict
-from modules.store.models import ChiTietDonHang, ChuoiCuaHang, CuaHang, DonHang, GiaoDichKho, GopYKhachHang, HinhAnhSanPham, KhuyenMai, NhanVien, SanPham, ThuongHieu, TonKhoCuaHang, TrashRecord, XacNhanThanhToan
+from modules.store.models import ChiTietDonHang, ChuoiCuaHang, CuaHang, DanhGiaCuaHang, DonHang, GiaoDichKho, GopYKhachHang, HinhAnhSanPham, KhuyenMai, NhanVien, Notification, SanPham, TepDanhGiaCuaHang, ThuongHieu, TonKhoCuaHang, TrashRecord, XacNhanThanhToan
 
 
 def _gif_file(name="signature.gif"):
@@ -32,6 +32,14 @@ def _gif_file(name="signature.gif"):
         b"\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00"
         b"\x00\x02\x02D\x01\x00;",
         content_type="image/gif",
+    )
+
+
+def _video_file(name="clip.mp4"):
+    return SimpleUploadedFile(
+        name,
+        b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom",
+        content_type="video/mp4",
     )
 
 
@@ -150,6 +158,150 @@ class StorePayloadTests(TestCase):
         self.assertEqual(payload["is_24h"], True)
         self.assertEqual(payload["business_hours"], "24/7")
         self.assertEqual(payload["is_open_now"], True)
+
+
+class StoreReviewApiTests(TestCase):
+    def setUp(self):
+        self.chain = ChuoiCuaHang.objects.create(ten="CIRCLEK")
+        self.store = CuaHang.objects.create(
+            chuoi=self.chain,
+            ten="CK Review",
+            dia_chi="1 Review Street",
+            quan_huyen="Quan 1",
+            vi_do=10.77,
+            kinh_do=106.70,
+            hoat_dong_24h=True,
+        )
+        self.user = User.objects.create_user(username="review_user", password="Abc12345!")
+
+    def test_store_reviews_api_returns_summary(self):
+        review = DanhGiaCuaHang.objects.create(
+            cua_hang=self.store,
+            user=self.user,
+            so_sao=5,
+            binh_luan="Rat tot",
+        )
+        TepDanhGiaCuaHang.objects.create(
+            danh_gia=review,
+            tep=_gif_file("review.gif"),
+            loai="image",
+        )
+
+        response = self.client.get(f"/stores/{self.store.pk}/reviews/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["summary"]["total_reviews"], 1)
+        self.assertEqual(data["summary"]["total_media"], 1)
+        self.assertEqual(data["reviews"][0]["stars"], 5)
+
+    def test_authenticated_user_can_create_review_with_media(self):
+        self.client.login(username="review_user", password="Abc12345!")
+
+        response = self.client.post(
+            f"/stores/{self.store.pk}/reviews/create/",
+            data={
+                "stars": "4",
+                "comment": "On ap, sach se",
+                "media": [_gif_file("photo.gif"), _video_file("clip.mp4")],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(DanhGiaCuaHang.objects.filter(cua_hang=self.store, user=self.user).count(), 1)
+        self.assertEqual(TepDanhGiaCuaHang.objects.filter(danh_gia__cua_hang=self.store).count(), 2)
+        self.assertEqual(data["summary"]["total_reviews"], 1)
+        notice = Notification.objects.order_by("-created_at").first()
+        self.assertIsNotNone(notice)
+        self.assertIn("Đánh giá mới", notice.title)
+        self.assertIn(self.store.ten, notice.title)
+        self.assertIn(self.user.username, notice.message)
+        self.assertIn("focus_review=", notice.path)
+
+    def test_create_review_requires_regular_user_login(self):
+        response = self.client.post(
+            f"/stores/{self.store.pk}/reviews/create/",
+            data={"stars": "5", "comment": "Tot"},
+        )
+        self.assertEqual(response.status_code, 401)
+
+
+class StoreReviewAdminCustomTests(TestCase):
+    def setUp(self):
+        groups = _ensure_role_groups()
+        self.support_user = User.objects.create_user(
+            username="support_reviews",
+            password="Abc12345!",
+            is_staff=True,
+        )
+        self.support_user.groups.add(groups[ROLE_CUSTOMER_SUPPORT])
+        self.customer = User.objects.create_user(
+            username="customer_reviews",
+            password="Abc12345!",
+        )
+        self.chain = ChuoiCuaHang.objects.create(ten="REVIEW CHAIN")
+        self.store = CuaHang.objects.create(
+            chuoi=self.chain,
+            ten="Store Review Admin",
+            dia_chi="1 Review Admin",
+            quan_huyen="Quan 1",
+            vi_do=10.77,
+            kinh_do=106.70,
+            hoat_dong_24h=True,
+        )
+        self.review = DanhGiaCuaHang.objects.create(
+            cua_hang=self.store,
+            user=self.customer,
+            so_sao=5,
+            binh_luan="Nhan vien than thien va cua hang sach se.",
+        )
+        self.media = TepDanhGiaCuaHang.objects.create(
+            danh_gia=self.review,
+            tep=_gif_file("review-admin.gif"),
+            loai="image",
+        )
+
+    def test_admin_review_module_list_renders_with_filters_and_detail(self):
+        self.client.force_login(self.support_user)
+
+        response = self.client.get("/admin/danh-gia-cua-hang/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Store Review Admin")
+        self.assertContains(response, "5 sao")
+        self.assertContains(response, "Nhan vien than thien va cua hang sach se.")
+        self.assertContains(response, self.media.tep.url)
+        facet_params = {facet["param"] for facet in response.context["facet_filters"]}
+        self.assertTrue({"store", "stars", "user", "created_at_range"}.issubset(facet_params))
+
+    def test_admin_review_module_supports_filtering(self):
+        other_customer = User.objects.create_user(username="other_reviews", password="Abc12345!")
+        DanhGiaCuaHang.objects.create(
+            cua_hang=self.store,
+            user=other_customer,
+            so_sao=2,
+            binh_luan="Tam on",
+        )
+        self.client.force_login(self.support_user)
+
+        response = self.client.get(
+            f"/admin/danh-gia-cua-hang/?stars=5&user={self.customer.username}&store={self.store.ten}&created_at_range_from={self.review.created_at.date().isoformat()}&created_at_range_to={self.review.created_at.date().isoformat()}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["rows"]), 1)
+        self.assertContains(response, "5 sao")
+        self.assertNotContains(response, "2 sao")
+
+    def test_admin_review_update_page_shows_attached_media(self):
+        self.client.force_login(self.support_user)
+
+        response = self.client.get(f"/admin/danh-gia-cua-hang/{self.review.pk}/edit/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ảnh / video đã gửi")
+        self.assertContains(response, self.media.tep.url)
 
 
 class SmartSearchTests(TestCase):
@@ -1354,6 +1506,38 @@ class InventoryAdminUiTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertIn(f'phieu-nhap-kho-{self.movement.pk}.pdf', response["Content-Disposition"])
         self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_inventory_hub_shows_system_total_and_per_store_average(self):
+        second_store = CuaHang.objects.create(
+            chuoi=self.chain,
+            ten="Cua hang inv ui 2",
+            dia_chi="2 Test",
+            quan_huyen="Quan 3",
+            vi_do=10.78,
+            kinh_do=106.71,
+            hoat_dong_24h=True,
+        )
+        second_employee = NhanVien.objects.create(cua_hang=second_store, ho_ten="Nhan Vien In Phieu 2")
+        GiaoDichKho.objects.create(
+            san_pham=self.product,
+            nhan_vien=second_employee,
+            chu_ky=_gif_file("print-2.gif"),
+            loai="import",
+            so_luong=45,
+            ghi_chu="Nhap them cho cua hang 2",
+            created_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/admin/inventory/")
+
+        self.assertEqual(response.status_code, 200)
+        product = next(item for item in response.context["export_suggestions"] if item.pk == self.product.pk)
+        self.assertEqual(product.ton_kho, 50)
+        self.assertEqual(product.avg_store_stock_display, 25)
+        self.assertEqual(product.stores_with_stock_count, 2)
+        self.assertContains(response, "Tổng tồn toàn hệ thống")
+        self.assertContains(response, "TB / cửa hàng còn hàng")
 
 
 @override_settings(

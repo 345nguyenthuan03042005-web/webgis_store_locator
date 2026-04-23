@@ -186,15 +186,19 @@
                         <tr>
                           <td>
                             <div class="item-name">{{ item.product.ten }}</div>
-                            <div class="item-meta">{{ item.product.nhom_san_pham|default:"Sản phẩm tiện lợi" }}</div>
+                            <div class="item-meta">
+                              {{ item.product.nhom_san_pham|default:"Sản phẩm tiện lợi" }}<br>
+                              Chi nhánh: {{ item.store.ten }}{% if item.store.chuoi %} - {{ item.store.chuoi.ten }}{% endif %}<br>
+                              {{ item.store.dia_chi }}
+                            </div>
                           </td>
                           <td><strong>{{ item.display_unit_price }}</strong></td>
                           <td>
-                            <input class="qty-input" type="number" min="0" name="qty_{{ item.product.pk }}" value="{{ item.quantity }}">
+                            <input class="qty-input" type="number" min="0" name="qty_{{ item.cart_key }}" value="{{ item.quantity }}">
                           </td>
                           <td><strong>{{ item.display_line_total }}</strong></td>
                           <td>
-                            <button class="btn btn-light" type="submit" form="remove-item-{{ item.product.pk }}">Xóa</button>
+                            <button class="btn btn-light" type="submit" form="remove-item-{{ forloop.counter }}">Xóa</button>
                           </td>
                         </tr>
                       {% endfor %}
@@ -209,8 +213,9 @@
               </form>
 
               {% for item in cart_items %}
-                <form id="remove-item-{{ item.product.pk }}" method="post" action="{% url 'store:cart_remove' item.product.pk %}">
+                <form id="remove-item-{{ forloop.counter }}" method="post" action="{% url 'store:cart_remove' item.product.pk %}">
                   {% csrf_token %}
+                  <input type="hidden" name="cart_key" value="{{ item.cart_key }}">
                 </form>
               {% endfor %}
             </section>
@@ -222,6 +227,7 @@
                   <div class="summary-item">
                     <strong>{{ item.product.ten }}</strong>
                     <div class="top-sub">{{ item.quantity }} x {{ item.display_unit_price }}</div>
+                    <div class="top-sub">{{ item.store.ten }}</div>
                   </div>
                 {% endfor %}
               </div>

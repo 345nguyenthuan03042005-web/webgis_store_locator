@@ -243,6 +243,79 @@
       font-weight: 800;
       color: #1f2937;
     }
+    .branch-stock-panel {
+      margin-top: 4px;
+      padding: 16px;
+      border-radius: 20px;
+      background: rgba(248, 250, 252, .9);
+      border: 1px solid rgba(15, 23, 42, .08);
+    }
+    .branch-stock-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .branch-stock-title {
+      font-size: 15px;
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .branch-stock-sub {
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .branch-stock-list {
+      display: grid;
+      gap: 10px;
+    }
+    .branch-stock-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(148, 163, 184, .18);
+    }
+    .branch-stock-name {
+      font-size: 14px;
+      font-weight: 900;
+      color: #1f2937;
+    }
+    .branch-stock-meta {
+      margin-top: 4px;
+      color: #64748b;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .branch-stock-qty {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 92px;
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      font-weight: 900;
+      font-size: 14px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .branch-stock-qty.in-stock {
+      background: rgba(16,185,129,.12);
+      color: #047857;
+      border-color: rgba(16,185,129,.24);
+    }
+    .branch-stock-qty.out-stock {
+      background: rgba(239,68,68,.1);
+      color: #b91c1c;
+      border-color: rgba(239,68,68,.2);
+    }
     .actions {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -445,16 +518,56 @@
             </div>
             <div class="hero-summary">
               <div class="price">{{ product.display_price }}</div>
-              <div class="stock-row">
-                <span class="stock-badge {% if product.ton_kho > 0 %}in-stock{% else %}out-stock{% endif %}">
-                  {{ product.stock_label }}
-                </span>
-                <span class="stock-hint">{{ product.stock_hint }}</span>
-              </div>
               <p class="desc">
                 {{ product.ten }} là lựa chọn phù hợp cho nhu cầu mua nhanh tại cửa hàng tiện lợi.
                 Bạn có thể xem ảnh sản phẩm, thông tin cơ bản và thêm trực tiếp vào giỏ hàng ngay tại đây.
               </p>
+
+              {% if branch_stock and not selected_store %}
+                <div class="branch-stock-panel">
+                  <div class="branch-stock-header">
+                    <div class="branch-stock-title">Tồn kho theo từng chi nhánh</div>
+                    <div class="branch-stock-sub">Có hàng tại {{ product.available_store_count }}/{{ branch_stock|length }} cửa hàng</div>
+                  </div>
+                  <div class="branch-stock-list">
+                    {% for item in branch_stock %}
+                      <div class="branch-stock-item">
+                        <div>
+                          <div class="branch-stock-name">{{ item.store_name }}</div>
+                          <div class="branch-stock-meta">
+                            {{ item.chain_name }}{% if item.district %} · {{ item.district }}{% endif %}<br>
+                            {{ item.address }}
+                          </div>
+                        </div>
+                        <span class="branch-stock-qty {% if item.is_out %}out-stock{% else %}in-stock{% endif %}">
+                          {{ item.stock_label }}
+                        </span>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% elif selected_store and branch_stock %}
+                <div class="branch-stock-panel">
+                  <div class="branch-stock-header">
+                    <div class="branch-stock-title">Chi nhánh đang mua</div>
+                    <div class="branch-stock-sub">{{ selected_store.ten }}{% if selected_store.chuoi %} - {{ selected_store.chuoi.ten }}{% endif %}</div>
+                  </div>
+                  <div class="branch-stock-list">
+                    <div class="branch-stock-item">
+                      <div>
+                        <div class="branch-stock-name">{{ selected_store.ten }}</div>
+                        <div class="branch-stock-meta">
+                          {% if selected_store.quan_huyen %}{{ selected_store.quan_huyen }}<br>{% endif %}
+                          {{ selected_store.dia_chi }}
+                        </div>
+                      </div>
+                      <span class="branch-stock-qty {% if branch_stock.0.is_out %}out-stock{% else %}in-stock{% endif %}">
+                        {{ branch_stock.0.stock_label }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
 
               <div class="detail-grid">
                 <div class="detail-item">
@@ -466,28 +579,57 @@
                   <div class="value">SP-{{ product.pk }}</div>
                 </div>
                 <div class="detail-item">
-                  <div class="label">Tồn kho</div>
-                  <div class="value">{{ product.ton_kho }} sản phẩm</div>
+                  <div class="label">{% if selected_store %}Tồn kho cửa hàng{% else %}Tồn kho tổng{% endif %}</div>
+                  <div class="value">{% if selected_store %}{{ selected_store_stock }} sản phẩm{% else %}{{ product.ton_kho }} sản phẩm{% endif %}</div>
                 </div>
                 <div class="detail-item">
                   <div class="label">Thương hiệu</div>
                   <div class="value">{{ product.thuong_hieu|default:"-" }}</div>
                 </div>
               </div>
-
+              
               <div class="actions">
-                {% if product.ton_kho <= 0 %}
+                {% if not branch_stock %}
                   <button class="cta-btn cta-secondary is-out-stock" type="button" disabled>Hết hàng</button>
                 {% else %}
+                  {% if not selected_store %}
+                    <div style="display:grid;gap:10px;width:100%;margin-bottom:12px;">
+                      <label for="selected-store" style="font-size:13px;font-weight:800;color:#475569;">
+                         Chọn chi nhánh mua hàng
+                      </label>
+
+                      <select id="selected-store"
+                        style="width:100%;padding:14px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.3);font-weight:700;background:#fff;">
+    
+                        {% for stock in branch_stock %}
+                       <option value="{{ stock.store.pk }}"
+                        {% if selected_store and selected_store.pk == stock.store.pk %}selected{% endif %}>
+        
+                         {{ stock.store.ten }}
+                          {% if stock.store.chuoi %} - {{ stock.store.chuoi.ten }}{% endif %}
+                          |Còn {{ stock.stock }}
+        
+                        </option>
+                        {% endfor %}
+
+                      </select>
+                    </div>
+                  {% endif %}
                   <form method="post" action="{% url 'store:cart_add' product.pk %}">
                     {% csrf_token %}
-                    <input type="hidden" name="next" value="{% url 'store:product_detail' product.pk %}">
-                    <button class="cta-btn cta-secondary" type="submit">{{ t.add_to_cart|default:"Thêm vào giỏ" }}</button>
+                    <input type="hidden" name="store_id" value="{{ selected_store.pk }}">
+                    <input type="hidden" name="next" value="{% url 'store:product_detail' product.pk %}{% if selected_store %}?store_id={{ selected_store.pk }}{% endif %}">
+                    <button class="cta-btn cta-secondary" type="submit">
+                      {{ t.add_to_cart|default:"Thêm vào giỏ" }}
+                    </button>
                   </form>
                   <form method="post" action="{% url 'store:cart_add' product.pk %}">
                     {% csrf_token %}
+                    <input type="hidden" name="store_id" value="{{ selected_store.pk }}">
                     <input type="hidden" name="next" value="{% url 'store:checkout' %}">
-                    <button class="cta-btn cta-primary" type="submit">{{ t.buy_now|default:"Mua ngay" }}</button>
+                    <button class="cta-btn cta-primary" type="submit">
+                      {{ t.buy_now|default:"Mua ngay" }}
+                    </button>
                   </form>
                 {% endif %}
               </div>
@@ -526,5 +668,19 @@
   </div>
 
   <script src="/static/store/js/product_gallery.js"></script>
+  <script>
+    (function () {
+      const storeSelect = document.getElementById("selected-store");
+      if (!storeSelect) return;
+      function syncStore() {
+        const storeId = storeSelect.value || "";
+        document.querySelectorAll('input[name="store_id"]').forEach((input) => {
+            input.value = storeId;
+        });
+      }
+      storeSelect.addEventListener("change", syncStore);
+      syncStore();
+    })();
+  </script>
 </body>
 </html>

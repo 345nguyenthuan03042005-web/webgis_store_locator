@@ -29,6 +29,8 @@ def _ensure_signature_file() -> str:
 def restock_products(*, target_stock: int, note: str, store_ids=None):
     if target_stock <= 0:
         raise ValueError("--target-stock must be greater than 0.")
+    if not (note or "").strip():
+        raise ValueError("Vui lòng nhập lý do điều chỉnh tồn kho.")
 
     requested_store_ids = sorted({int(store_id) for store_id in (store_ids or [])})
     stores_qs = CuaHang.objects.order_by("pk")
@@ -81,7 +83,7 @@ def restock_products(*, target_stock: int, note: str, store_ids=None):
                 continue
             employee = NhanVien.objects.create(
                 cua_hang=store,
-                ho_ten=f"Nhan vien nhap kho {store.ten}",
+                ho_ten=f"Nhân viên nhập kho {store.ten}",
                 chuc_vu="Kho",
             )
             employee_map[store.pk] = employee
@@ -189,8 +191,8 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--note",
-            default="Nhap kho dong loat de mo ban toan bo san pham",
-            help="Inventory note attached to generated import movements.",
+            default="Nhập kho đồng loạt để mở bán toàn bộ sản phẩm",
+            help="Lý do điều chỉnh tồn kho cho các phiếu nhập tự động.",
         )
 
     def handle(self, *args, **options):
@@ -218,10 +220,10 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                "Da nhap kho xong: "
-                f"{summary['store_count']} cua hang, "
-                f"{summary['created_movements']} phieu nhap, "
-                f"{summary['imported_units']} don vi hang, "
-                f"{summary['created_employees']} nhan vien kho duoc tao bo sung."
+                "Đã nhập kho xong: "
+                f"{summary['store_count']} cửa hàng, "
+                f"{summary['created_movements']} phiếu nhập, "
+                f"{summary['imported_units']} đơn vị hàng, "
+                f"{summary['created_employees']} nhân viên kho được tạo bổ sung."
             )
         )
