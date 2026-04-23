@@ -743,7 +743,7 @@ import random
 import unicodedata
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.apps import apps
@@ -763,7 +763,7 @@ from django.core.files.images import get_image_dimensions
 from django.core.serializers.json import DjangoJSONEncoder
 from django import forms
 from django.db import models as dj_models, transaction
-from django.db.models import Q
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import Coalesce
 from django.forms import modelform_factory
 from django.forms.models import model_to_dict
@@ -2102,12 +2102,16 @@ def _serialize_for_trash(obj):
     return data
 
 
-def _move_to_trash(obj, data=None):
+def _move_to_trash(obj, data=None, *, object_id=None):
     payload = data if data is not None else _serialize_for_trash(obj)
     retention_days = getattr(settings, "TRASH_RETENTION_DAYS", 15)
+    resolved_object_id = object_id
+    if resolved_object_id in ("", None):
+        resolved_object_id = getattr(obj, "pk", None)
+    resolved_object_id = "" if resolved_object_id in ("", None) else str(resolved_object_id)
     TrashRecord.objects.create(
         model_label=obj._meta.label_lower,
-        object_id=str(obj.pk),
+        object_id=resolved_object_id,
         data=payload,
         expires_at=timezone.now() + timedelta(days=retention_days),
     )
@@ -3392,6 +3396,18 @@ def _inventory_hub_context():
     )
 
     products = list(stock_qs)
+    product_ids = [product.pk for product in products]
+    store_stock_totals = {}
+    if product_ids:
+        store_stock_totals = {
+            row["san_pham_id"]: int(row["total_stock"] or 0)
+            for row in TonKhoCuaHang.objects.filter(san_pham_id__in=product_ids)
+            .values("san_pham_id")
+            .annotate(total_stock=Coalesce(dj_models.Sum("ton_kho"), 0))
+        }
+    for product in products:
+        product.ton_kho = store_stock_totals.get(product.pk, 0)
+
     product_store_stats = {
         row["san_pham_id"]: row
         for row in TonKhoCuaHang.objects.values("san_pham_id").annotate(
@@ -3525,14 +3541,21 @@ def _inventory_hub_context():
 
 
 def _dashboard_context():
-    now = timezone.now()
-    today = now.date()
+    today = timezone.localdate()
+    tz = timezone.get_current_timezone()
+
+    def _day_bounds(day):
+        start = timezone.make_aware(datetime.combine(day, time.min), tz)
+        end = start + timedelta(days=1)
+        return start, end
+
+    today_start, tomorrow_start = _day_bounds(today)
     paid_statuses = {"paid"}
     zero_money = dj_models.Value(0, output_field=dj_models.DecimalField(max_digits=12, decimal_places=0))
 
     order_qs = DonHang.objects.select_related("khach_hang", "cua_hang_xu_ly", "khuyen_mai")
     total_orders = order_qs.count()
-    today_orders = order_qs.filter(created_at__date=today).count()
+    today_orders = order_qs.filter(created_at__gte=today_start, created_at__lt=tomorrow_start).count()
     pending_orders = order_qs.filter(trang_thai="pending").count()
     awaiting_transfer_orders = order_qs.filter(
         phuong_thuc_thanh_toan="bank_transfer",
@@ -3542,7 +3565,8 @@ def _dashboard_context():
         total=Coalesce(dj_models.Sum("tong_tien"), zero_money)
     )["total"]
     today_revenue = order_qs.filter(
-        created_at__date=today,
+        created_at__gte=today_start,
+        created_at__lt=tomorrow_start,
         trang_thai_thanh_toan__in=paid_statuses,
     ).aggregate(total=Coalesce(dj_models.Sum("tong_tien"), zero_money))["total"]
 
@@ -3580,7 +3604,8 @@ def _dashboard_context():
     max_orders = 0
     for offset in range(6, -1, -1):
         day = today - timedelta(days=offset)
-        day_orders = order_qs.filter(created_at__date=day)
+        day_start, day_end = _day_bounds(day)
+        day_orders = order_qs.filter(created_at__gte=day_start, created_at__lt=day_end)
         order_count = day_orders.count()
         day_revenue = day_orders.filter(trang_thai_thanh_toan__in=paid_statuses).aggregate(
             total=Coalesce(dj_models.Sum("tong_tien"), zero_money)
@@ -4724,6 +4749,123 @@ def admin_inventory_report(request):
     )
 
 
+def admin_store_stock_list(request):
+    unauthorized = _require_module_permission(request, "ton-kho-cua-hang", "view")
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    q = (request.GET.get("q") or "").strip()
+
+    store_qs = CuaHang.objects.select_related("chuoi").annotate(
+        total_units=Coalesce(dj_models.Sum("ton_kho_san_pham__ton_kho"), 0),
+        sku_count=Coalesce(
+            dj_models.Count(
+                "ton_kho_san_pham",
+                filter=Q(ton_kho_san_pham__ton_kho__gt=0),
+                distinct=True,
+            ),
+            0,
+        ),
+        last_updated=dj_models.Max("ton_kho_san_pham__updated_at"),
+    )
+
+    if q:
+        store_qs = store_qs.filter(
+            Q(ten__icontains=q)
+            | Q(dia_chi__icontains=q)
+            | Q(quan_huyen__icontains=q)
+            | Q(chuoi__ten__icontains=q)
+        )
+
+    store_qs = store_qs.order_by("-total_units", "ten", "pk")
+
+    paginator = Paginator(store_qs, 15)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    persisted_params = []
+    for key in request.GET.keys():
+        if key == "page":
+            continue
+        for value in request.GET.getlist(key):
+            if value != "":
+                persisted_params.append((key, value))
+    persisted_query = urlencode(persisted_params, doseq=True)
+
+    return render(
+        request,
+        "admin/store_stock_list.html",
+        {
+            "model_slug": "ton-kho-cua-hang",
+            "model_name": "Tồn kho cửa hàng",
+            "query_value": q,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "persisted_query": persisted_query,
+            "modules": _menu_context(lang, request.user),
+            **pref,
+        },
+    )
+
+
+def admin_store_stock_detail(request, store_id: int):
+    unauthorized = _require_module_permission(request, "ton-kho-cua-hang", "view")
+    if unauthorized:
+        return unauthorized
+
+    pref = _admin_pref_context(request)
+    lang = pref["admin_lang"]
+    store = get_object_or_404(CuaHang.objects.select_related("chuoi"), pk=store_id)
+
+    q = (request.GET.get("q") or "").strip()
+
+    qs = (
+        TonKhoCuaHang.objects.filter(cua_hang=store)
+        .select_related("san_pham", "san_pham__nhom_san_pham", "san_pham__thuong_hieu")
+        .order_by("-ton_kho", "san_pham__ten", "pk")
+    )
+    if q:
+        qs = qs.filter(
+            Q(san_pham__ten__icontains=q)
+            | Q(san_pham__nhom_san_pham__ten__icontains=q)
+            | Q(san_pham__thuong_hieu__ten__icontains=q)
+        )
+
+    paginator = Paginator(qs, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    persisted_params = []
+    for key in request.GET.keys():
+        if key == "page":
+            continue
+        for value in request.GET.getlist(key):
+            if value != "":
+                persisted_params.append((key, value))
+    persisted_query = urlencode(persisted_params, doseq=True)
+
+    back_url = (request.GET.get("back") or "").strip()
+    if not back_url or not back_url.startswith("/") or back_url.startswith("//"):
+        back_url = reverse("store:admin_list", args=["ton-kho-cua-hang"])
+
+    return render(
+        request,
+        "admin/store_stock_detail.html",
+        {
+            "store": store,
+            "model_slug": "ton-kho-cua-hang",
+            "model_name": "Tồn kho cửa hàng",
+            "query_value": q,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "persisted_query": persisted_query,
+            "back_url": back_url,
+            "modules": _menu_context(lang, request.user),
+            **pref,
+        },
+    )
+
+
 def admin_store_employees(request, pk):
     unauthorized = _require_module_permission(request, "giao-dich-kho", "view")
     if unauthorized:
@@ -5504,6 +5646,14 @@ def admin_list(request, model_slug):
                     conditions |= Q(**{f"{field_name}__icontains": query})
                 qs = qs.filter(conditions)
 
+    if model_slug == "san-pham":
+        qs = qs.annotate(
+            store_stock_total=Coalesce(
+                Sum("ton_kho_theo_cua_hang__ton_kho", distinct=True),
+                0,
+            )
+        )
+
     fields = [
         {"name": f.name, "verbose_name": _field_label(f, lang), "type": f.get_internal_type()}
         for f in model._meta.fields
@@ -5666,7 +5816,7 @@ def admin_list(request, model_slug):
                 else:
                     values.append({"type": "text", "text": f"{float(raw_value):.6f}"})
             elif model_slug == "san-pham" and field["name"] == "ton_kho":
-                stock_value = int(raw_value or 0)
+                stock_value = int(getattr(item, "store_stock_total", raw_value) or 0)
                 if stock_value <= 0:
                     values.append({"type": "stock", "level": "out", "text": "Hết hàng"})
                 elif stock_value <= SanPham.LOW_STOCK_THRESHOLD:
@@ -6007,11 +6157,12 @@ def admin_delete(request, model_slug, pk):
     obj = get_object_or_404(model, pk=pk)
     if request.method == "POST":
         try:
+            original_pk = obj.pk
             trash_data = _serialize_for_trash(obj)
             if model_slug == "giao-dich-kho":
                 _log_stock_audit(request, obj, "delete", "Xóa giao dịch kho")
             obj.delete()
-            _move_to_trash(obj, data=trash_data)
+            _move_to_trash(obj, data=trash_data, object_id=original_pk)
             messages.success(request, pref["t"]["deleted_successfully"])
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages) or "Không thể xóa bản ghi này.")
@@ -6045,10 +6196,13 @@ def admin_trash_list(request):
     all_rows = []
     for item in TrashRecord.objects.all():
         model_slug = _model_slug_from_label(item.model_label)
+        object_id_display = str(item.object_id or "")
+        if object_id_display.strip().lower() in {"none", "null"}:
+            object_id_display = ""
         all_rows.append(
             {
                 "id": item.pk,
-                "object_id": str(item.object_id),
+                "object_id": object_id_display or "-",
                 "model_name": _model_label(model_slug, lang, plural=False),
                 "display_name": _trash_display_name(item.data or {}, item.model_label) or "-",
                 "deleted_at": item.deleted_at,
@@ -6179,22 +6333,47 @@ def admin_trash_restore(request, pk):
             else:
                 normalized[name] = value
 
-        pk_value = trash.object_id
-        if pk_value:
+        pk_value = (trash.object_id or "").strip()
+        if pk_value.lower() in {"", "none", "null"}:
+            pk_value = None
+        if pk_value is not None:
             pk_field = model._meta.pk
             if pk_field.get_internal_type() in {"AutoField", "BigAutoField", "IntegerField", "PositiveIntegerField"}:
                 try:
                     pk_value = int(pk_value)
                 except Exception:
-                    pass
+                    pk_value = None
         instance = model(**normalized)
         if pk_value and not model.objects.filter(pk=pk_value).exists():
             instance.pk = pk_value
-        instance.save()
+
+        if model is GiaoDichKho:
+            with transaction.atomic():
+                instance.full_clean()
+                model.objects.bulk_create([instance])
+                try:
+                    sync_product_stock(instance.san_pham)
+                except Exception:
+                    pass
+                if instance.cua_hang_id:
+                    try:
+                        sync_store_stock(instance.san_pham, instance.cua_hang)
+                    except Exception:
+                        pass
+        else:
+            instance.save()
         trash.delete()
         messages.success(request, pref["t"]["saved_successfully"])
-    except Exception:
-        messages.error(request, "Không thể khôi phục bản ghi. Vui lòng kiểm tra dữ liệu.")
+    except Exception as exc:
+        detail = ""
+        if isinstance(exc, ValidationError):
+            detail = "; ".join(getattr(exc, "messages", []) or []) or str(exc)
+        else:
+            detail = str(exc)
+        if getattr(settings, "DEBUG", False) and detail:
+            messages.error(request, f"Không thể khôi phục bản ghi: {detail}")
+        else:
+            messages.error(request, "Không thể khôi phục bản ghi. Vui lòng kiểm tra dữ liệu.")
     return redirect("store:admin_trash")
 
 
@@ -6971,22 +7150,37 @@ def product_catalog(request):
     page_obj = paginator.get_page(request.GET.get("page"))
     products = list(page_obj.object_list)
 
-    selected_store_stock = {}
-    if selected_store and products:
-        selected_store_stock = {
-            row.san_pham_id: int(row.ton_kho or 0)
-            for row in TonKhoCuaHang.objects.filter(
-                cua_hang=selected_store,
-                san_pham_id__in=[product.pk for product in products],
-            )
-        }
+    product_ids = [product.pk for product in products]
+    stock_map = {}
+    if products:
+        if selected_store:
+            stock_map = {
+                row["san_pham_id"]: int(row["ton_kho"] or 0)
+                for row in TonKhoCuaHang.objects.filter(
+                    cua_hang=selected_store,
+                    san_pham_id__in=product_ids,
+                ).values("san_pham_id", "ton_kho")
+            }
+        else:
+            stock_map = {
+                row["san_pham_id"]: int(row["total_stock"] or 0)
+                for row in TonKhoCuaHang.objects.filter(san_pham_id__in=product_ids)
+                .values("san_pham_id")
+                .annotate(total_stock=Sum("ton_kho"))
+            }
 
     for product in products:
-        if selected_store:
-            product.ton_kho = selected_store_stock.get(product.pk, 0)
+        product.ton_kho = int(stock_map.get(product.pk, 0) or 0)
+        if product.ton_kho > 0:
+            product.catalog_stock_label = f"Còn {product.ton_kho}"
+            product.catalog_stock_hint = f"Còn {product.ton_kho} sản phẩm trong kho."
+            product.stock_css = "in-stock"
+        else:
+            product.catalog_stock_label = "Hết hàng"
+            product.catalog_stock_hint = "Sản phẩm đang hết hàng."
+            product.stock_css = "out-stock"
         product.display_price = _format_currency(product.gia_ban)
         product.card_gallery = _build_product_card_gallery(product)
-        _attach_stock_ui_fields(product)
 
     query_params = request.GET.copy()
     query_params.pop("page", None)
@@ -7052,9 +7246,7 @@ def product_detail(request, pk):
         item.display_price = _format_currency(item.gia_ban)
 
     selected_store_id = request.GET.get("store_id")
-    selected_store = None
-    if selected_store_id and str(selected_store_id).isdigit():
-        selected_store = CuaHang.objects.select_related("chuoi").filter(pk=int(selected_store_id)).first()
+    selected_store_id_int = int(selected_store_id) if (selected_store_id and str(selected_store_id).isdigit()) else None
 
     stock_rows = list(
         TonKhoCuaHang.objects.filter(san_pham=product)
@@ -7062,6 +7254,7 @@ def product_detail(request, pk):
         .order_by("-ton_kho", "cua_hang__chuoi__ten", "cua_hang__ten")
     )
     stock_map = {row.cua_hang_id: int(row.ton_kho or 0) for row in stock_rows}
+    total_store_stock = sum(stock_map.values())
     store_ids = set(stock_map.keys())
     store_ids.update(
         CuaHang.san_pham.through.objects.filter(sanpham_id=product.pk).values_list("cuahang_id", flat=True)
@@ -7074,7 +7267,7 @@ def product_detail(request, pk):
             .order_by("chuoi__ten", "ten")
         )
         for store in stores:
-            qty = int(stock_map.get(store.pk, 0))
+            qty = int(stock_map.get(store.pk, 0) or 0)
             branch_stock.append(
                 {
                     "id": store.pk,
@@ -7089,11 +7282,33 @@ def product_detail(request, pk):
                 }
             )
         branch_stock.sort(key=lambda item: (item["is_out"], item["chain_name"].lower(), item["store_name"].lower()))
-    if selected_store is not None:
-        branch_stock = [item for item in branch_stock if item["id"] == selected_store.pk]
+
+    branch_stock_featured = sorted(
+        branch_stock,
+        key=lambda item: (
+            item["is_out"],
+            -int(item.get("stock") or 0),
+            item.get("chain_name", "").lower(),
+            item.get("store_name", "").lower(),
+        ),
+    )[:5]
     product.branch_stock = branch_stock
-    product.available_store_count = sum(1 for item in branch_stock if item["stock"] > 0)
-    selected_store_stock = branch_stock[0]["stock"] if branch_stock else 0
+    product.available_store_count = sum(1 for item in branch_stock if int(item.get("stock") or 0) > 0)
+    selected_store_stock = stock_map.get(selected_store_id_int, 0) if selected_store_id_int is not None else 0
+
+    branch_stock_search = [
+        {
+            "id": item["id"],
+            "store_name": item.get("store_name") or "",
+            "chain_name": item.get("chain_name") or "",
+            "district": item.get("district") or "",
+            "address": item.get("address") or "",
+            "stock_label": item.get("stock_label") or "",
+            "is_out": bool(item.get("is_out")),
+            "stock": int(item.get("stock") or 0),
+        }
+        for item in branch_stock
+    ]
 
     _, cart_total_quantity, _ = _cart_items(request)
     return render(
@@ -7104,8 +7319,11 @@ def product_detail(request, pk):
             "gallery_images": gallery_images,
             "related_products": related_products,
             "branch_stock": branch_stock,
-            "selected_store": selected_store,
+            "branch_stock_featured": branch_stock_featured,
+            "selected_store_id": selected_store_id_int,
             "selected_store_stock": selected_store_stock,
+            "total_store_stock": total_store_stock,
+            "branch_stock_search": branch_stock_search,
             "cart_total_quantity": cart_total_quantity,
             **pref,
         },
@@ -7133,7 +7351,13 @@ def cart_add(request, pk):
         .select_related("cua_hang", "cua_hang__chuoi")
         .first()
     )
-    available_stock = int(stock_row.ton_kho or 0) if stock_row else 0
+    if stock_row is None:
+        messages.error(
+            request,
+            f"Chi nhánh {store.ten} chưa cập nhật tồn kho cho sản phẩm này.",
+        )
+        return redirect(next_url) if next_url else redirect("store:product_detail", pk=product.pk)
+    available_stock = int(stock_row.ton_kho or 0)
     if available_stock <= 0:
         messages.error(request, "Sản phẩm này hiện đã hết hàng.")
         return redirect(next_url) if next_url else redirect("store:product_detail", pk=product.pk)
@@ -7363,22 +7587,6 @@ def checkout_view(request):
     display_shipping_total = "Chưa tính" if shipping_pending else _format_currency(shipping_total)
     display_final_amount = f"{_format_currency(final_amount)} + ship" if shipping_pending else _format_currency(final_amount)
     if request.method == "POST":
-        for item in items:
-            available_stock = (
-                TonKhoCuaHang.objects.filter(
-                    san_pham=item["product"],
-                    cua_hang_id=item.get("store_id"),
-                )
-                .values_list("ton_kho", flat=True)
-                .first()
-                or 0
-            )
-            if item["quantity"] > int(available_stock):
-                messages.error(
-                    request,
-                    f"{item['product'].ten} tại {item['store'].ten if item.get('store') else 'chi nhánh đã chọn'} chỉ còn {available_stock} sản phẩm. Vui lòng cập nhật lại giỏ hàng.",
-                )
-                return redirect("store:cart")
         receiver_name = (request.POST.get("receiver_name") or "").strip()
         phone = (request.POST.get("phone") or "").strip()
         address = (request.POST.get("address") or "").strip()
@@ -7506,19 +7714,30 @@ def checkout_view(request):
                         (row.san_pham_id, row.cua_hang_id): row
                         for row in locked_store_rows
                     }
+                    product_running = {
+                        product_id: int(product.ton_kho or 0)
+                        for product_id, product in locked_products.items()
+                    }
+                    store_running = {
+                        (row.san_pham_id, row.cua_hang_id): int(row.ton_kho or 0)
+                        for row in locked_store_rows
+                    }
                     store_groups = _allocate_discount_to_groups(
                         _group_cart_items_by_store(items, lat_value, lng_value),
                         discount_amount,
                     )
                     created_orders = []
+                    order_items_to_create = []
+                    stock_movements_to_create = []
+                    store_stock_rows_to_create = []
+                    updated_store_stock_rows = {}
                     for group in store_groups:
                         store = group["store"]
                         for item in group["items"]:
                             locked_product = locked_products.get(item["product"].pk)
                             if locked_product is None:
                                 raise ValidationError("Một sản phẩm trong giỏ hàng không còn tồn tại.")
-                            stock_row = store_stock_map.get((item["product"].pk, store.pk))
-                            available = int(stock_row.ton_kho or 0) if stock_row else 0
+                            available = int(store_running.get((locked_product.pk, store.pk), 0))
                             if available < int(item["quantity"]):
                                 raise ValidationError(
                                     f"Cửa hàng {store.ten} không đủ tồn kho cho {item['product'].ten}."
@@ -7571,23 +7790,79 @@ def checkout_view(request):
                             )
                         for item in group["items"]:
                             locked_product = locked_products[item["product"].pk]
-                            ChiTietDonHang.objects.create(
-                                don_hang=order,
-                                san_pham=locked_product,
-                                so_luong=item["quantity"],
-                                don_gia=item["unit_price"],
+                            quantity = int(item["quantity"] or 0)
+                            if quantity <= 0:
+                                continue
+
+                            product_stock = int(product_running.get(locked_product.pk, 0))
+                            store_key = (locked_product.pk, store.pk)
+                            store_stock = int(store_running.get(store_key, 0))
+                            if product_stock < quantity or store_stock < quantity:
+                                raise ValidationError(
+                                    f"Tồn kho của {locked_product.ten} vừa thay đổi. Vui lòng cập nhật lại giỏ hàng."
+                                )
+
+                            order_items_to_create.append(
+                                ChiTietDonHang(
+                                    don_hang=order,
+                                    san_pham=locked_product,
+                                    so_luong=quantity,
+                                    don_gia=item["unit_price"],
+                                )
                             )
-                            GiaoDichKho.objects.create(
-                                san_pham=locked_product,
-                                cua_hang=store,
-                                loai="export",
-                                so_luong=item["quantity"],
-                                don_hang=order,
-                                ghi_chu=f"Xuất kho cho đơn hàng #{order.pk} từ {store.ten}",
+                            stock_movements_to_create.append(
+                                GiaoDichKho(
+                                    san_pham=locked_product,
+                                    cua_hang=store,
+                                    loai="export",
+                                    so_luong=quantity,
+                                    ton_truoc=product_stock,
+                                    ton_sau=product_stock - quantity,
+                                    don_hang=order,
+                                    created_by=request.user,
+                                    ghi_chu=f"Xuất kho cho đơn hàng #{order.pk} từ {store.ten}",
+                                )
                             )
+
+                            product_running[locked_product.pk] = product_stock - quantity
+                            store_running[store_key] = store_stock - quantity
+
                             stock_row = store_stock_map.get((locked_product.pk, store.pk))
-                            if stock_row is not None:
-                                stock_row.refresh_from_db(fields=["ton_kho"])
+                            if stock_row is None:
+                                store_stock_rows_to_create.append(
+                                    TonKhoCuaHang(
+                                        cua_hang=store,
+                                        san_pham=locked_product,
+                                        ton_kho=store_running[store_key],
+                                    )
+                                )
+                                store_stock_map[(locked_product.pk, store.pk)] = store_stock_rows_to_create[-1]
+                            else:
+                                stock_row.ton_kho = store_running[store_key]
+                                updated_store_stock_rows[(locked_product.pk, store.pk)] = stock_row
+
+                    if order_items_to_create:
+                        ChiTietDonHang.objects.bulk_create(order_items_to_create, batch_size=1000)
+                    if stock_movements_to_create:
+                        GiaoDichKho.objects.bulk_create(stock_movements_to_create, batch_size=1000)
+
+                    products_to_update = []
+                    for product_id, product in locked_products.items():
+                        new_total = int(product_running.get(product_id, int(product.ton_kho or 0)))
+                        if int(product.ton_kho or 0) != new_total:
+                            product.ton_kho = new_total
+                            products_to_update.append(product)
+                    if products_to_update:
+                        SanPham.objects.bulk_update(products_to_update, ["ton_kho"], batch_size=500)
+
+                    if store_stock_rows_to_create:
+                        TonKhoCuaHang.objects.bulk_create(store_stock_rows_to_create, batch_size=1000)
+                    if updated_store_stock_rows:
+                        TonKhoCuaHang.objects.bulk_update(
+                            list(updated_store_stock_rows.values()),
+                            ["ton_kho", "updated_at"],
+                            batch_size=1000,
+                        )
             except ValidationError as exc:
                 if hasattr(exc, "message_dict"):
                     error_text = "; ".join(

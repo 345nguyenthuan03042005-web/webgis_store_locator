@@ -681,12 +681,60 @@
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
          attribution: '&copy; OpenStreetMap'
-      }).addTo(map);
+       }).addTo(map);
 
       let marker;
+      const addressInput = document.querySelector('input[name="address"]');
+
+      async function fetchJSON(url) {
+        const res = await fetch(url, { credentials: "same-origin" });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          const msg = data && (data.error || data.message) ? (data.error || data.message) : `HTTP ${res.status}`;
+          throw new Error(msg);
+        }
+        return data;
+      }
+
+      function setDeliveryCoord(lat, lng, message) {
+        document.getElementById("lat").value = lat;
+        document.getElementById("lng").value = lng;
+        map.setView([lat, lng], 15);
+        if (marker) {
+          marker.setLatLng([lat, lng]);
+        } else {
+          marker = L.marker([lat, lng]).addTo(map);
+        }
+        document.getElementById("delivery-coord-status").innerText = message || "Đã ghim vị trí theo địa chỉ.";
+      }
+
+      async function geocodeAndPin() {
+        if (!addressInput) return;
+        const q = (addressInput.value || "").trim();
+        if (q.length < 3) {
+          document.getElementById("delivery-coord-status").innerText =
+            "Vui lòng nhập địa chỉ (ít nhất 3 ký tự) rồi nhấn Enter.";
+          return;
+        }
+
+        document.getElementById("delivery-coord-status").innerText = "Đang tìm vị trí theo địa chỉ...";
+        try {
+          const g = await fetchJSON(`/tools/geocode/?q=${encodeURIComponent(q)}`);
+          const loc = g && g.location;
+          if (!loc || loc.lat == null || loc.lon == null) {
+            document.getElementById("delivery-coord-status").innerText =
+              "Không tìm thấy vị trí phù hợp. Hãy thử nhập rõ hơn (số nhà, đường, quận, TP).";
+            return;
+          }
+          setDeliveryCoord(loc.lat, loc.lon, `Đã ghim theo địa chỉ: ${loc.display || q}`);
+        } catch (e) {
+          document.getElementById("delivery-coord-status").innerText =
+            `Không tìm được vị trí theo địa chỉ. (${e && e.message ? e.message : "Lỗi"})`;
+        }
+      }
 
       // click map
-      map.on('click', function(e) {
+       map.on('click', function(e) {
     const lat = e.latlng.lat;
     const lng = e.latlng.lng;
 
@@ -724,6 +772,15 @@
       "Đã lấy vị trí GPS";
      });
      }
+
+      // Enter ở ô địa chỉ → geocode + ghim tọa độ
+      if (addressInput) {
+        addressInput.addEventListener("keydown", function (e) {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          geocodeAndPin();
+        });
+      }
 
       // chặn submit nếu chưa chọn
     document.querySelector("main form").addEventListener("submit", function (e) {

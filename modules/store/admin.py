@@ -5,6 +5,8 @@ from django.contrib.admin.sites import NotRegistered
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.forms import UserChangeForm
 from django.contrib.auth.models import User
+from django.db.models import Sum
+from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.text import capfirst
@@ -47,12 +49,15 @@ class StockLevelFilter(admin.SimpleListFilter):
     def queryset(self, request, queryset):
         value = self.value()
         threshold = SanPham.LOW_STOCK_THRESHOLD
+        queryset = queryset.annotate(
+            store_stock_total=Coalesce(Sum("ton_kho_theo_cua_hang__ton_kho"), 0)
+        )
         if value == "out":
-            return queryset.filter(ton_kho__lte=0)
+            return queryset.filter(store_stock_total__lte=0)
         if value == "low":
-            return queryset.filter(ton_kho__gt=0, ton_kho__lte=threshold)
+            return queryset.filter(store_stock_total__gt=0, store_stock_total__lte=threshold)
         if value == "ok":
-            return queryset.filter(ton_kho__gt=threshold)
+            return queryset.filter(store_stock_total__gt=threshold)
         return queryset
 
 
@@ -312,24 +317,31 @@ class SanPhamAdmin(admin.ModelAdmin):
     autocomplete_fields = ("nhom_san_pham", "thuong_hieu", "nha_cung_cap")
     readonly_fields = ("ton_kho",)
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(
+            store_stock_total=Coalesce(Sum("ton_kho_theo_cua_hang__ton_kho"), 0)
+        )
+
     @admin.display(description="Ảnh")
     def thumb(self, obj):
         return _img(obj.hinh_anh, size=44)
 
-    @admin.display(description="Tồn kho", ordering="ton_kho")
+    @admin.display(description="Tồn kho", ordering="store_stock_total")
     def stock_badge(self, obj):
-        if obj.ton_kho <= 0:
+        qty = int(getattr(obj, "store_stock_total", 0) or 0)
+        if qty <= 0:
             bg = "#fee2e2"
             color = "#b91c1c"
             text = "Hết hàng"
-        elif obj.ton_kho <= obj.LOW_STOCK_THRESHOLD:
+        elif qty <= obj.LOW_STOCK_THRESHOLD:
             bg = "#fef3c7"
             color = "#b45309"
-            text = f"Sắp hết ({obj.ton_kho})"
+            text = f"Sắp hết ({qty})"
         else:
             bg = "#dcfce7"
             color = "#166534"
-            text = f"Còn {obj.ton_kho}"
+            text = f"Còn {qty}"
         return format_html(
             '<span style="display:inline-block;padding:4px 10px;border-radius:999px;'
             'background:{};color:{};font-weight:700;">{}</span>',

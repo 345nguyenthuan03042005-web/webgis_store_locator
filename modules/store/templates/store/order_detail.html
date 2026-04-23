@@ -150,9 +150,9 @@
     .progress-line::before {
       content: "";
       position: absolute;
-      top: 18px;
-      left: 8%;
-      right: 8%;
+      top: 21px;
+      left: calc((100% / var(--progress-steps, 5)) / 2);
+      right: calc((100% / var(--progress-steps, 5)) / 2);
       height: 4px;
       background: #e5e7eb;
       z-index: 0;
@@ -162,6 +162,9 @@
       z-index: 1;
       text-align: center;
       padding: 0 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
     .progress-node {
       width: 38px;
@@ -173,8 +176,10 @@
       background: #fff;
       border: 2px solid #d1d5db;
       color: #d1d5db;
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 900;
+      line-height: 1;
+      user-select: none;
     }
     .progress-step.done .progress-node,
     .progress-step.active .progress-node {
@@ -541,16 +546,14 @@
           </div>
 
           <div class="progress-wrap">
-            <div class="progress-line">
+            <div class="progress-line" style="--progress-steps: {{ timeline|length }};">
               {% for step in timeline %}
                 <div class="progress-step {{ step.state }}">
-                  <div class="progress-node">
+                  <div class="progress-node" aria-hidden="true">
                     {% if step.state == "done" %}
-                      Đơn hàng đã đặt
-                    {% elif step.state == "active" %}
-                      Đã xác nhận
+                      ✓
                     {% else %}
-                      Đang giao
+                      {{ forloop.counter }}
                     {% endif %}
                   </div>
                   <div class="progress-label">{{ step.label }}</div>
