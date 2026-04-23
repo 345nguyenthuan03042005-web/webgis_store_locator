@@ -154,7 +154,7 @@
       <div class="store-grid">
         {% for store in stores %}
           <article class="store-item">
-            <h2>{{ store.ten }}</h2>
+            <h2><a href="{% url 'store:store_detail_page' store.pk %}" style="color:inherit;text-decoration:none;">{{ store.ten }}</a></h2>
             <p class="muted"><strong>Chuỗi:</strong> {{ store.chuoi.ten }}</p>
             <p class="muted"><strong>Địa chỉ:</strong> {{ store.dia_chi }}</p>
             <p class="muted"><strong>Quận/Huyện:</strong> {{ store.quan_huyen }}</p>
@@ -166,6 +166,7 @@
                 {{ store.mo_cua|time:"H:i"|default:"--:--" }} - {{ store.dong_cua|time:"H:i"|default:"--:--" }}
               {% endif %}
             </p>
+            <a href="{% url 'store:store_detail_page' store.pk %}" class="page-link" style="margin-top:8px;">Xem trang cửa hàng</a>
           </article>
         {% empty %}
           <p>Chưa có dữ liệu cửa hàng.</p>
@@ -189,4 +190,3 @@
   </main>
 </body>
 </html>
-

@@ -29,13 +29,13 @@ IMAGE_MAPPING = {
 
 
 class Command(BaseCommand):
-    help = "Gan anh san pham tu thu muc media/images vao cac ban ghi san pham."
+    help = "Gán ảnh sản phẩm từ thư mục media/images vào các bản ghi sản phẩm."
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--source-dir",
             default="media/images",
-            help="Thu muc chua anh san pham, mac dinh la media/images",
+            help="Thư mục chứa ảnh sản phẩm, mặc định là media/images",
         )
 
     def handle(self, *args, **options):
@@ -51,6 +51,6 @@ class Command(BaseCommand):
 
             updated += SanPham.objects.filter(ten__in=product_names).update(hinh_anh=f"images/{filename}")
 
-        self.stdout.write(self.style.SUCCESS(f"Da cap nhat {updated} anh san pham."))
+        self.stdout.write(self.style.SUCCESS(f"Đã cập nhật {updated} ảnh sản phẩm."))
         if missing:
-            self.stdout.write(self.style.WARNING(f"Thieu {len(missing)} file anh: {', '.join(missing)}"))
+            self.stdout.write(self.style.WARNING(f"Thiếu {len(missing)} file ảnh: {', '.join(missing)}"))

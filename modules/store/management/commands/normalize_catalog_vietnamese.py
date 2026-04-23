@@ -63,10 +63,10 @@ STORE_NAME_MAP = {
 
 SUPPLIER_NAME_MAP.update(
     {
-        "GS Retail Viet Nam": "GS Retail Viá»‡t Nam",
-        "Suntory PepsiCo Vietnam": "Suntory PepsiCo Viá»‡t Nam",
-        "Coca-Cola Vietnam": "Coca-Cola Viá»‡t Nam",
-        "Acecook Vietnam": "Acecook Viá»‡t Nam",
+        "GS Retail Viet Nam": "GS Retail Việt Nam",
+        "Suntory PepsiCo Vietnam": "Suntory PepsiCo Việt Nam",
+        "Coca-Cola Vietnam": "Coca-Cola Việt Nam",
+        "Acecook Vietnam": "Acecook Việt Nam",
         "GS Retail Vietnam": "GS Retail Việt Nam",
         "Suntory PepsiCo Viet Nam": "Suntory PepsiCo Việt Nam",
         "Coca-Cola Viet Nam": "Coca-Cola Việt Nam",
@@ -82,8 +82,8 @@ PROMO_NAME_MAP = {
 }
 
 CHAIN_DESCRIPTION_MAP = {
-    "Take it easy. Chuoi cua hang tien loi mo cua 24/7, noi tieng voi do an che bien tai cho.": "Take it easy. Chuá»—i cá»­a hÃ ng tiá»‡n lá»£i má»Ÿ cá»­a 24/7, ná»•i tiáº¿ng vá»›i Ä‘á»“ Äƒn cháº¿ biáº¿n táº¡i chá»—.",
-    "Lifestyle Platform. Chuoi cua hang tien loi Han Quoc, mang den trai nghiem am thuc Han Quoc.": "Lifestyle Platform. Chuá»—i cá»­a hÃ ng tiá»‡n lá»£i HÃ n Quá»‘c, mang Ä‘áº¿n tráº£i nghiá»‡m áº©m thá»±c HÃ n Quá»‘c.",
+    "Take it easy. Chuoi cua hang tien loi mo cua 24/7, noi tieng voi do an che bien tai cho.": "Take it easy. Chuỗi cửa hàng tiện lợi mở cửa 24/7, nổi tiếng với đồ ăn chế biến tại chỗ.",
+    "Lifestyle Platform. Chuoi cua hang tien loi Han Quoc, mang den trai nghiem am thuc Han Quoc.": "Lifestyle Platform. Chuỗi cửa hàng tiện lợi Hàn Quốc, mang đến trải nghiệm ẩm thực Hàn Quốc.",
 }
 
 NAME_TOKEN_MAP = {
@@ -200,7 +200,7 @@ def _apply_text_mapping(queryset, field_name: str, mapping):
 
 
 class Command(BaseCommand):
-    help = "Chuan hoa ten danh muc san pham sang tieng Viet co dau."
+    help = "Chuẩn hóa tên danh mục sản phẩm sang tiếng Việt có dấu."
 
     def handle(self, *args, **options):
         product_updated = _apply_mapping(SanPham.objects, PRODUCT_NAME_MAP)
@@ -217,17 +217,17 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                "Da chuan hoa tieng Viet: "
-                f"{product_updated} san pham, "
-                f"{group_updated} nhom, "
-                f"{supplier_updated} nha cung cap, "
-                f"{brand_updated} thuong hieu, "
-                f"{chain_updated} chuoi cua hang, "
-                f"{store_updated} cua hang, "
-                f"{promo_updated} khuyen mai, "
-                f"{staff_updated} nhan vien, "
-                f"{staff_addr_updated} dia chi nhan vien, "
-                f"{store_addr_updated} dia chi cua hang, "
-                f"{chain_desc_updated} mo ta chuoi cua hang."
+                "Đã chuẩn hóa tiếng Việt: "
+                f"{product_updated} sản phẩm, "
+                f"{group_updated} nhóm, "
+                f"{supplier_updated} nhà cung cấp, "
+                f"{brand_updated} thương hiệu, "
+                f"{chain_updated} chuỗi cửa hàng, "
+                f"{store_updated} cửa hàng, "
+                f"{promo_updated} khuyến mãi, "
+                f"{staff_updated} nhân viên, "
+                f"{staff_addr_updated} địa chỉ nhân viên, "
+                f"{store_addr_updated} địa chỉ cửa hàng, "
+                f"{chain_desc_updated} mô tả chuỗi cửa hàng."
             )
         )

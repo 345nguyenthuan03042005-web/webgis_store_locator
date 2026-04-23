@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='khuyenmai',
             name='ma_code',
-            field=models.CharField(blank=True, db_index=True, max_length=50, null=True, verbose_name='MÃ£ voucher'),
+            field=models.CharField(blank=True, db_index=True, max_length=50, null=True, verbose_name='Mã voucher'),
         ),
         migrations.RunSQL(
             sql="UPDATE gis_store_khuyenmai SET ma_code = NULL WHERE ma_code = '';",

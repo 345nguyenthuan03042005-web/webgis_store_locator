@@ -1,6 +1,6 @@
 ﻿from django.urls import path
 from django.views.generic import RedirectView
-
+from .controllers import import_kho_excel
 from . import controllers
 
 app_name = "store"
@@ -21,7 +21,14 @@ urlpatterns = [
     path("notifications/", controllers.user_notifications, name="user_notifications"),
     path("feedback/", controllers.feedback_view, name="feedback"),
     path("stores/", controllers.store_list_page, name="stores_page"),
+    path("stores/<int:pk>/", controllers.store_detail_page, name="store_detail_page"),
     path("map/", controllers.map_page, name="map_page"),
+    path("api/geocode-address/", controllers.geocode_address_api, name="geocode_address_api"),
+    path("api/regions/provinces/", controllers.region_provinces_api, name="region_provinces_api"),
+    path("api/regions/provinces/<int:province_code>/districts/", controllers.region_districts_api, name="region_districts_api"),
+    path("api/regions/districts/<int:district_code>/wards/", controllers.region_wards_api, name="region_wards_api"),
+    path("stores/<int:pk>/reviews/", controllers.store_reviews_api, name="store_reviews_api"),
+    path("stores/<int:pk>/reviews/create/", controllers.store_reviews_create, name="store_reviews_create"),
     path("info/<slug:slug>/", controllers.info_page, name="info_page"),
     path("news/<slug:slug>/", controllers.news_detail, name="news_detail"),
 
@@ -33,6 +40,8 @@ urlpatterns = [
     path("admin/inventory/report/", controllers.admin_inventory_report, name="admin_inventory_report"),
     path("admin/settings/", controllers.admin_settings, name="admin_settings"),
     path("admin/notifications/", controllers.admin_notifications, name="admin_notifications"),
+    path("admin/notifications/<int:pk>/open/", controllers.admin_notification_open, name="admin_notification_open"),
+    path("admin/notifications/<int:pk>/", controllers.admin_notification_detail, name="admin_notification_detail"),
     path("admin/trash/", controllers.admin_trash_list, name="admin_trash"),
     path("admin/trash/<int:pk>/restore/", controllers.admin_trash_restore, name="admin_trash_restore"),
     path("admin/trash/<int:pk>/delete/", controllers.admin_trash_delete, name="admin_trash_delete"),
@@ -47,19 +56,38 @@ urlpatterns = [
     path("admin/inventory/<int:pk>/otp/", controllers.admin_inventory_verify_otp, name="admin_inventory_verify_otp"),
     path("admin/inventory/<int:pk>/print/", controllers.admin_inventory_print, name="admin_inventory_print"),
     path("admin/inventory/<int:pk>/pdf/", controllers.admin_inventory_pdf, name="admin_inventory_pdf"),
+    path("admin/ton-kho-cua-hang/", controllers.admin_store_stock_list, name="admin_store_stock_list"),
+    path("admin/ton-kho-cua-hang/<int:store_id>/", controllers.admin_store_stock_detail, name="admin_store_stock_detail"),
     path("admin/<slug:model_slug>/", controllers.admin_list, name="admin_list"),
     path("admin/<slug:model_slug>/create/", controllers.admin_create, name="admin_create"),
     path("admin/<slug:model_slug>/<int:pk>/edit/", controllers.admin_update, name="admin_update"),
     path("admin/<slug:model_slug>/<int:pk>/delete/", controllers.admin_delete, name="admin_delete"),
+    path("admin/giao-dich-kho/excel/", controllers.kho_excel_page),
+    path("admin/giao-dich-kho/excel/import/", controllers.import_kho_excel, name="import_kho_excel"),
+    path("admin/giao-dich-kho/excel/export/", controllers.export_kho_excel, name="export_kho_excel"),
+    path("admin/giao-dich-kho/excel/template/", controllers.export_template_excel, name="export_template_excel"),
     path("report/404/<str:action>/", controllers.report_404_action, name="report_404_action"),
 
     path("user/login/", controllers.UserLoginView.as_view(), name="user_login"),
     path("user/register/", controllers.user_register, name="user_register"),
+    path("user/password/reset/", controllers.user_password_reset_request, name="user_password_reset"),
+    path("user/password/reset/<uidb64>/<token>/", controllers.user_password_reset_confirm, name="user_password_reset_confirm"),
     path("user/logout/", controllers.user_logout, name="user_logout"),
     path("user/", controllers.user_dashboard, name="user_dashboard"),
     path("user/profile/", controllers.user_profile, name="user_profile"),
+    path("user/account/profile/", controllers.user_profile, name="user_profile_account"),
     path("user/address/", controllers.user_address, name="user_address"),
+    path("user/account/address/", controllers.user_address, name="user_address_account"),
     path("user/password/", controllers.user_password_change, name="user_password_change"),
+    path("user/account/password/", controllers.user_password_change, name="user_password_change_account"),
+    path("user/account/payment/", controllers.user_payment, name="user_payment"),
+    path("user/setting/notification/", controllers.user_notification_settings, name="user_notification_settings"),
+    path("user/setting/privacy/", controllers.user_privacy_settings, name="user_privacy_settings"),
+    path("user/account/kyc/", controllers.user_personal_info, name="user_personal_info"),
+    path("user/purchase/", controllers.my_orders, name="user_purchase"),
+    path("user/voucher-wallet/", controllers.user_voucher_wallet, name="user_voucher_wallet"),
+    path("user/notifications/", controllers.user_notifications, name="user_notifications_hub"),
+    path("user/notifications/<slug:category>/", controllers.user_notifications, name="user_notifications_category"),
 
     # Legacy URLs: /cms/... -> /admin/...
     path("cms/login/", RedirectView.as_view(url="/admin/login/", permanent=False)),

@@ -70,6 +70,8 @@ body[data-theme="dark"] .content {
   z-index: 2;
   box-shadow: 12px 0 28px rgba(8, 47, 44, 0.18);
   scrollbar-gutter: stable;
+  transition: transform 220ms ease;
+  will-change: transform;
 }
 .sidebar::-webkit-scrollbar {
   width: 8px;
@@ -138,9 +140,12 @@ body[data-theme="dark"] .content {
   min-height: 100vh;
 }
 .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.topbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.topbar-titles { min-width: 0; }
 .top-actions { display: flex; align-items: center; gap: 10px; }
 .top-title { font-family: "Fraunces", Georgia, serif; font-size: 34px; margin: 0; }
 .top-sub { color: var(--ink-soft); margin-top: 6px; font-size: 14px; }
+.sidebar-backdrop { display: none; }
 .settings-btn,
 .notif-btn,
 .icon-btn {
@@ -175,6 +180,7 @@ body[data-theme="dark"] .content {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.icon-btn.sidebar-toggle { display: none; }
 .notif-dot {
   position: absolute;
   top: 2px;
@@ -1264,10 +1270,46 @@ body[data-theme="dark"] .admin-coord-search { background: #0b1220; color: #e5e7e
 body[data-theme="dark"] .admin-coord-map { border-color: #334155; }
 
 @media (max-width: 1080px) {
+  body.is-sidebar-open { overflow: hidden; }
+
   .cms-layout { display: block; }
-  .sidebar { position: static; left: auto; width: auto; height: auto; }
-  .content { margin-left: 0; padding: 18px; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    height: auto;
+    transform: translateX(-105%);
+    transition: transform 220ms ease;
+    z-index: 10000;
+  }
+
+  .cms-layout.is-sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+    z-index: 9999;
+  }
+
+  .cms-layout.is-sidebar-open .sidebar-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .content { margin-left: 0; padding: 16px; }
+  .icon-btn.sidebar-toggle { display: inline-flex; }
   .top-title { font-size: 28px; }
+  .top-sub { font-size: 13px; }
 }
 
 /* Trash page */

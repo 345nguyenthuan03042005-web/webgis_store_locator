@@ -210,6 +210,35 @@
           </div>
         </section>
       {% endif %}
+      {% if model_slug == 'danh-gia-cua-hang' and review_media_items %}
+        <section
+          class="panel card"
+          style="margin-top:18px; border:1px solid rgba(15,118,110,.12); background:linear-gradient(180deg,#f8fffd,#f5fbf9);"
+        >
+          <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+              <div class="top-sub" style="text-transform:uppercase;letter-spacing:.08em;">Media review</div>
+              <h3 style="margin:6px 0 8px;">Ảnh / video đã gửi</h3>
+              <div class="top-sub">Admin có thể xem lại toàn bộ media đính kèm của đánh giá này.</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:16px;">
+            {% for media in review_media_items %}
+              <article style="border:1px solid rgba(15,23,42,.08);border-radius:18px;padding:12px;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.06);">
+                {% if media.kind == 'video' %}
+                  <video src="{{ media.url }}" controls preload="metadata" style="width:100%;height:160px;object-fit:cover;border-radius:14px;display:block;background:#0f172a;"></video>
+                {% else %}
+                  <img src="{{ media.url }}" alt="{{ media.name }}" style="width:100%;height:160px;object-fit:cover;border-radius:14px;display:block;background:#f8fafc;">
+                {% endif %}
+                <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:10px;">
+                  <strong style="font-size:14px;">{{ media.kind|upper }}</strong>
+                  <a class="btn btn-light" href="{{ media.url }}" target="_blank" rel="noopener">Mở</a>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
         <button class="btn btn-primary" type="submit">{{ t.save_changes|default:"Lưu thay đổi" }}</button>
         <a class="btn btn-light" href="{% url 'store:admin_list' model_slug %}">{{ t.back_to_list|default:"Quay lại danh sách" }}</a>

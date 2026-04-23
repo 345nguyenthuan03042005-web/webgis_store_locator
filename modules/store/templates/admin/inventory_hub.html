@@ -35,9 +35,9 @@
       <div class="top-sub">Số lượng mã sản phẩm đang được quản lý trong kho.</div>
     </article>
     <article class="panel card">
-      <p class="stat-title">Tổng tồn hiện có</p>
+      <p class="stat-title">Tổng tồn toàn hệ thống</p>
       <p class="stat-value">{{ inventory_stats.total_units }}</p>
-      <div class="top-sub">Tổng số lượng sản phẩm còn lại ở thời điểm hiện tại.</div>
+      <div class="top-sub">Tổng số lượng còn lại cộng gộp trên tất cả cửa hàng, không phải tồn của riêng một cửa hàng.</div>
     </article>
     <article class="panel card">
       <p class="stat-title">Sắp hết / Hết hàng</p>
@@ -59,8 +59,8 @@
           <div class="top-sub">Ưu tiên các sản phẩm đã hết hoặc gần chạm ngưỡng tồn tối thiểu.</div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <a class="btn btn-primary" href="{% url 'store:admin_inventory_restock' %}">Nh&#7853;p kho theo c&#7917;a h&#224;ng</a>
-          <a class="btn btn-light" href="{% url 'store:admin_list' 'giao-dich-kho' %}">{{ t.view_stock_movements|default:"Xem giao d?ch kho" }}</a>
+          <a class="btn btn-primary" href="{% url 'store:admin_inventory_restock' %}">Nhập kho theo cửa hàng</a>
+          <a class="btn btn-light" href="{% url 'store:admin_list' 'giao-dich-kho' %}">{{ t.view_stock_movements|default:"Xem giao dịch kho" }}</a>
           <a class="btn btn-light" href="{% url 'store:admin_inventory_report' %}">Báo cáo nhập/xuất</a>
         </div>
       </div>
@@ -70,7 +70,8 @@
           <thead>
             <tr>
               <th>Sản phẩm</th>
-              <th>Tồn hiện tại</th>
+              <th>Tổng tồn hệ thống</th>
+              <th>TB / cửa hàng còn hàng</th>
               <th>Xuất 30 ngày</th>
               <th>Nhập 30 ngày</th>
               <th>Trạng thái</th>
@@ -84,6 +85,12 @@
                   <div class="top-sub">{{ product.nhom_san_pham|default:"-" }} | {{ product.thuong_hieu|default:"-" }}</div>
                 </td>
                 <td>{{ product.ton_kho }}</td>
+                <td>
+                  {{ product.avg_store_stock_display }}
+                  {% if product.stores_with_stock_count %}
+                    <div class="top-sub">{{ product.stores_with_stock_count }} cửa hàng còn hàng</div>
+                  {% endif %}
+                </td>
                 <td>{{ product.export_30d }}</td>
                 <td>{{ product.import_30d }}</td>
                 <td>
@@ -94,7 +101,7 @@
               </tr>
             {% empty %}
               <tr>
-                <td colspan="5">{{ t.no_data|default:"Chưa có dữ liệu." }}</td>
+                <td colspan="6">{{ t.no_data|default:"Chưa có dữ liệu." }}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -116,7 +123,8 @@
           <thead>
             <tr>
               <th>Sản phẩm</th>
-              <th>Tồn hiện tại</th>
+              <th>Tổng tồn hệ thống</th>
+              <th>TB / cửa hàng còn hàng</th>
               <th>Xuất 30 ngày</th>
               <th>Nhập 30 ngày</th>
               <th>Gợi ý</th>
@@ -130,11 +138,17 @@
                   <div class="top-sub">{{ product.nhom_san_pham|default:"-" }} | {{ product.thuong_hieu|default:"-" }}</div>
                 </td>
                 <td>{{ product.ton_kho }}</td>
+                <td>
+                  {{ product.avg_store_stock_display }}
+                  {% if product.stores_with_stock_count %}
+                    <div class="top-sub">{{ product.stores_with_stock_count }} cửa hàng còn hàng</div>
+                  {% endif %}
+                </td>
                 <td>{{ product.export_30d }}</td>
                 <td>{{ product.import_30d }}</td>
                 <td>
                   {% if product.export_30d < product.import_30d %}
-                    <span class="inventory-badge warning">Tồn đang dâng</span>
+                    <span class="inventory-badge warning">Tồn đang tăng</span>
                   {% else %}
                     <span class="inventory-badge success">Bán ổn định</span>
                   {% endif %}
@@ -142,7 +156,7 @@
               </tr>
             {% empty %}
               <tr>
-                <td colspan="5">{{ t.no_data|default:"Chưa có dữ liệu." }}</td>
+                <td colspan="6">{{ t.no_data|default:"Chưa có dữ liệu." }}</td>
               </tr>
             {% endfor %}
           </tbody>

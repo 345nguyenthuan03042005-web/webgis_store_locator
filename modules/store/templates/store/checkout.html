@@ -6,7 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ t.checkout|default:"Thanh toán" }}</title>
   <link rel="stylesheet" href="{% static 'admin/css/style.css' %}">
-  <style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
     body {
       margin: 0;
       background:
@@ -386,15 +387,15 @@
                       data-name="{{ address.ho_ten_nguoi_nhan }}"
                       data-phone="{{ address.so_dien_thoai }}"
                       data-address="{{ address.dia_chi_day_du }}"
-                      {% if forloop.first and address.mac_dinh %}selected{% endif %}
+                      data-lat="{% if address.vi_do is not None %}{{ address.vi_do }}{% endif %}"
+                      data-lng="{% if address.kinh_do is not None %}{{ address.kinh_do }}{% endif %}"
+                      {% if selected_address_id == address.pk|stringformat:"s" or forloop.first and address.mac_dinh and not selected_address_id %}selected{% endif %}
                     >
                       {{ address.ho_ten_nguoi_nhan }} - {{ address.dia_chi_day_du }}{% if address.mac_dinh %} (Mặc định){% endif %}
                     </option>
                   {% endfor %}
                 </select>
-                <div class="top-sub" style="margin-top:8px;">
-                  Có thể quản lý thêm địa chỉ tại <a href="{% url 'store:user_address' %}">Sổ địa chỉ</a>.
-                </div>
+                <input type="hidden" name="selected_address_id" id="selected-address-id" value="{{ selected_address_id }}">
                 <div class="saved-address-shortcuts">
                   {% for address in saved_addresses %}
                     <div class="saved-address-item">
@@ -403,8 +404,6 @@
                         <span>{{ address.dia_chi_day_du }}</span>
                       </div>
                       <div class="saved-address-actions">
-                        <button class="btn btn-light" type="button" data-select-saved-address="{{ address.pk }}">D&#249;ng &#273;&#7883;a ch&#7881; n&#224;y</button>
-                        <a class="btn btn-light" href="{% url 'store:user_address' %}?edit={{ address.pk }}">S&#7917;a</a>
                       </div>
                     </div>
                   {% endfor %}
@@ -415,6 +414,34 @@
             <div class="form-group"><label>Email</label><input type="email" value="{{ initial_email }}" disabled></div>
             <div class="form-group"><label>Số điện thoại</label><input type="text" name="phone" value="{{ initial_phone }}"></div>
             <div class="form-group"><label>{{ t.delivery_address|default:"Địa chỉ giao hàng" }}</label><input type="text" name="address" value="{{ initial_address }}"></div>
+            <div class="form-group">
+            <label>Vị trí giao hàng</label>
+
+               <!-- MAP -->
+            <div id="map" style="height:300px;border-radius:16px;margin-top:10px;"></div>
+
+              <!-- HIDDEN INPUT -->
+               <input type="hidden" name="delivery_lat" id="lat">
+               <input type="hidden" name="delivery_lng" id="lng">
+
+              <!-- STATUS -->
+              <div class="top-sub" id="delivery-coord-status">
+              {% if delivery_lat and delivery_lng %}
+               Đã có tọa độ sẵn.
+               {% else %}
+                Vui lòng chọn vị trí trên bản đồ.
+              {% endif %}
+              </div>
+
+             <!-- NÚT GPS -->
+             <button type="button" onclick="getLocation()" style="margin-top:8px;">
+             📍 Lấy vị trí hiện tại
+             </button>
+
+            <div class="top-sub" style="margin-top:8px;">
+              Click vào bản đồ để chọn vị trí giao hàng.
+            </div>
+            </div>
             <div class="form-group">
               <label>Mã voucher</label>
               <div class="voucher-row">
@@ -443,20 +470,33 @@
               {% endif %}
             </div>
             <div class="form-group"><label>Ghi chú</label><textarea name="note">{{ note_value }}</textarea></div>
+            <div class="top-sub">Nếu giỏ hàng có nhiều chi nhánh khác nhau, hệ thống sẽ tự tách thành nhiều đơn và tính phí ship riêng cho từng chi nhánh.</div>
             <button class="btn btn-primary" type="submit">{{ t.place_order|default:"Đặt hàng" }}</button>
           </form>
         </section>
         <section class="panel card">
           <h3 style="margin-top:0;">{{ t.cart|default:"Giỏ hàng" }}</h3>
-          {% for item in cart_items %}
-            <div style="padding:10px 0;border-bottom:1px solid #e5e7eb;">
-              <strong>{{ item.product.ten }}</strong>
-              <div class="top-sub">{{ item.display_unit_price }} x {{ item.quantity }} = {{ item.display_line_total }}</div>
+          {% for group in store_groups %}
+            <div style="padding:12px 14px;border:1px solid #e5e7eb;border-radius:18px;background:rgba(248,250,252,.88);margin-bottom:12px;">
+              <strong>{{ group.store.ten }}</strong>
+              <div class="top-sub" style="margin-top:4px;">{{ group.store.dia_chi }}</div>
+              <div class="top-sub">Khoảng cách: {{ group.distance_label }} | Phí ship: {{ group.display_shipping_fee }}</div>
+              {% for item in group.items %}
+                <div style="padding:10px 0;border-bottom:1px solid #e5e7eb;">
+                  <strong>{{ item.product.ten }}</strong>
+                  <div class="top-sub">{{ item.display_unit_price }} x {{ item.quantity }} = {{ item.display_line_total }}</div>
+                </div>
+              {% endfor %}
+              <div class="summary-line"><span>Tạm tính chi nhánh</span><strong>{{ group.display_subtotal }}</strong></div>
+              <div class="summary-line"><span>Giảm giá phân bổ</span><strong>-{{ group.display_discount_amount }}</strong></div>
+              <div class="summary-line"><span>Phí giao hàng</span><strong>{{ group.display_shipping_fee }}</strong></div>
+              <div class="summary-line"><span>Tổng chi nhánh</span><strong>{{ group.display_final_amount }}</strong></div>
             </div>
           {% endfor %}
           <div style="margin-top:12px;font-weight:700;">{{ t.quantity|default:"Số lượng" }}: {{ cart_total_quantity }}</div>
           <div class="summary-line"><span>Tạm tính</span><strong>{{ display_subtotal_amount }}</strong></div>
           <div class="summary-line"><span>Giảm giá</span><strong>-{{ display_discount_amount }}</strong></div>
+          <div class="summary-line"><span>Phí giao hàng</span><strong>{{ display_shipping_total }}</strong></div>
           <div class="summary-line total"><span>{{ t.total_amount|default:"Tổng tiền" }}</span><span>{{ display_final_amount }}</span></div>
         </section>
       </section>
@@ -466,31 +506,73 @@
   </div>
   {% if saved_addresses %}
     <script>
-      (function () {
-        const select = document.getElementById("saved-address-select");
-        if (!select) return;
-        const receiver = document.querySelector('input[name="receiver_name"]');
-        const phone = document.querySelector('input[name="phone"]');
-        const address = document.querySelector('input[name="address"]');
-        const shortcutButtons = document.querySelectorAll('[data-select-saved-address]');
-        const applySavedAddress = () => {
-          const option = select.options[select.selectedIndex];
-          if (!option || !option.value) return;
-          if (receiver && option.dataset.name) receiver.value = option.dataset.name;
-          if (phone && option.dataset.phone) phone.value = option.dataset.phone;
-          if (address && option.dataset.address) address.value = option.dataset.address;
-        };
-        select.addEventListener("change", applySavedAddress);
-        shortcutButtons.forEach((button) => {
-          button.addEventListener("click", function () {
-            select.value = button.dataset.selectSavedAddress || "";
-            applySavedAddress();
-            select.focus();
-          });
-        });
-        if (select.value) applySavedAddress();
-      })();
-    </script>
+(function () {
+  const select = document.getElementById("saved-address-select");
+  if (!select) return;
+
+  const selectedAddressInput = document.getElementById("selected-address-id");
+  const receiver = document.querySelector('input[name="receiver_name"]');
+  const phone = document.querySelector('input[name="phone"]');
+  const address = document.querySelector('input[name="address"]');
+  const latInput = document.querySelector('input[name="delivery_lat"]');
+  const lngInput = document.querySelector('input[name="delivery_lng"]');
+  const coordStatus = document.getElementById("delivery-coord-status");
+  const shortcutButtons = document.querySelectorAll('[data-select-saved-address]');
+
+  const applySavedAddress = () => {
+    const option = select.options[select.selectedIndex];
+    if (!option || !option.value) return;
+
+    // Fill thông tin cơ bản
+    if (selectedAddressInput) selectedAddressInput.value = option.value || "";
+    if (receiver && option.dataset.name) receiver.value = option.dataset.name;
+    if (phone && option.dataset.phone) phone.value = option.dataset.phone;
+    if (address && option.dataset.address) address.value = option.dataset.address;
+
+    // 🔥 CHỈ SET LAT/LNG NẾU CÓ
+    if (option.dataset.lat && option.dataset.lng) {
+      const lat = option.dataset.lat;
+      const lng = option.dataset.lng;
+
+      if (latInput) latInput.value = lat;
+      if (lngInput) lngInput.value = lng;
+
+      // update map
+      if (typeof map !== "undefined") {
+        map.setView([lat, lng], 15);
+
+        if (typeof marker !== "undefined" && marker) {
+          marker.setLatLng([lat, lng]);
+        } else {
+          marker = L.marker([lat, lng]).addTo(map);
+        }
+      }
+
+      if (coordStatus) {
+        coordStatus.textContent = "Đã lấy tọa độ từ địa chỉ đã lưu.";
+      }
+
+    } else {
+      // ❌ KHÔNG ĐƯỢC RESET LAT/LNG
+      if (coordStatus) {
+        coordStatus.textContent = "Địa chỉ chưa có tọa độ → vui lòng chọn trên bản đồ.";
+      }
+    }
+  };
+
+  select.addEventListener("change", applySavedAddress);
+
+  shortcutButtons.forEach((button) => {
+    button.addEventListener("click", function () {
+      select.value = button.dataset.selectSavedAddress || "";
+      applySavedAddress();
+      select.focus();
+    });
+  });
+
+  if (select.value) applySavedAddress();
+})();
+</script>
   {% endif %}
   <script>
     (function () {
@@ -591,6 +673,125 @@
       }
 
     })();
+  </script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <script>
+    const map = L.map('map').setView([10.762622, 106.660172], 13);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+         attribution: '&copy; OpenStreetMap'
+       }).addTo(map);
+
+      let marker;
+      const addressInput = document.querySelector('input[name="address"]');
+
+      async function fetchJSON(url) {
+        const res = await fetch(url, { credentials: "same-origin" });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          const msg = data && (data.error || data.message) ? (data.error || data.message) : `HTTP ${res.status}`;
+          throw new Error(msg);
+        }
+        return data;
+      }
+
+      function setDeliveryCoord(lat, lng, message) {
+        document.getElementById("lat").value = lat;
+        document.getElementById("lng").value = lng;
+        map.setView([lat, lng], 15);
+        if (marker) {
+          marker.setLatLng([lat, lng]);
+        } else {
+          marker = L.marker([lat, lng]).addTo(map);
+        }
+        document.getElementById("delivery-coord-status").innerText = message || "Đã ghim vị trí theo địa chỉ.";
+      }
+
+      async function geocodeAndPin() {
+        if (!addressInput) return;
+        const q = (addressInput.value || "").trim();
+        if (q.length < 3) {
+          document.getElementById("delivery-coord-status").innerText =
+            "Vui lòng nhập địa chỉ (ít nhất 3 ký tự) rồi nhấn Enter.";
+          return;
+        }
+
+        document.getElementById("delivery-coord-status").innerText = "Đang tìm vị trí theo địa chỉ...";
+        try {
+          const g = await fetchJSON(`/tools/geocode/?q=${encodeURIComponent(q)}`);
+          const loc = g && g.location;
+          if (!loc || loc.lat == null || loc.lon == null) {
+            document.getElementById("delivery-coord-status").innerText =
+              "Không tìm thấy vị trí phù hợp. Hãy thử nhập rõ hơn (số nhà, đường, quận, TP).";
+            return;
+          }
+          setDeliveryCoord(loc.lat, loc.lon, `Đã ghim theo địa chỉ: ${loc.display || q}`);
+        } catch (e) {
+          document.getElementById("delivery-coord-status").innerText =
+            `Không tìm được vị trí theo địa chỉ. (${e && e.message ? e.message : "Lỗi"})`;
+        }
+      }
+
+      // click map
+       map.on('click', function(e) {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+
+    document.getElementById("lat").value = lat;
+    document.getElementById("lng").value = lng;
+
+    if (marker) {
+        marker.setLatLng(e.latlng);
+    } else {
+        marker = L.marker(e.latlng).addTo(map);
+      }
+
+     document.getElementById("delivery-coord-status").innerText =
+      "Đã chọn vị trí trên bản đồ";
+      });
+
+        // GPS
+        function getLocation() {
+        navigator.geolocation.getCurrentPosition((pos) => {
+         const lat = pos.coords.latitude;
+         const lng = pos.coords.longitude;
+
+        document.getElementById("lat").value = lat;
+        document.getElementById("lng").value = lng;
+
+        map.setView([lat, lng], 15);
+
+        if (marker) {
+        marker.setLatLng([lat, lng]);
+        } else {
+        marker = L.marker([lat, lng]).addTo(map);
+        }
+
+      document.getElementById("delivery-coord-status").innerText =
+      "Đã lấy vị trí GPS";
+     });
+     }
+
+      // Enter ở ô địa chỉ → geocode + ghim tọa độ
+      if (addressInput) {
+        addressInput.addEventListener("keydown", function (e) {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          geocodeAndPin();
+        });
+      }
+
+      // chặn submit nếu chưa chọn
+    document.querySelector("main form").addEventListener("submit", function (e) {
+       const lat = document.getElementById("lat").value;
+      const lng = document.getElementById("lng").value;
+
+     if (!lat || !lng) {
+       e.preventDefault();
+        alert("Vui lòng chọn vị trí giao hàng!");
+      }
+     });
   </script>
 </body>
 </html>

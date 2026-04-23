@@ -1,333 +1,731 @@
-{% load static %}
+﻿{% load static %}
 <!doctype html>
 <html lang="vi">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chi tiết Mã đơn: #{{ order.pk }}</title>
+  <title>Chi tiết mã đơn #{{ order.pk }}</title>
   <link rel="stylesheet" href="{% static 'admin/css/style.css' %}">
   <style>
     body {
       margin: 0;
-      background:
-        radial-gradient(1100px 420px at 10% -10%, rgba(197, 245, 234, .38) 0%, transparent 55%),
-        radial-gradient(900px 340px at 92% 0%, rgba(255, 232, 213, .34) 0%, transparent 58%),
-        linear-gradient(180deg, #f7fafc 0%, #edf7f5 52%, #e0f4ef 78%, #d7f0ea 100%);
-      background-attachment: fixed;
+      background: #f5f5f5;
+      color: #222;
+      font-family: "Segoe UI", Arial, Helvetica, sans-serif;
     }
-    .site-shell { min-height: 100vh; }
-    .page-wrap {
-      max-width: 1160px;
+    .order-page {
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 28px 18px 56px;
+      padding: 26px 18px 60px;
     }
-    .order-shell {
+    .order-layout {
       display: grid;
-      gap: 18px;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
     }
-    .hero-card,
-    .timeline-card,
-    .info-card,
-    .summary-card,
-    .items-card {
-      border-radius: 30px;
-      background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(245,250,249,.9));
-      border: 1px solid rgba(148,163,184,.14);
-      box-shadow: 0 20px 44px rgba(15,23,42,.08);
+    .account-side {
+      color: #555;
     }
-    .hero-card {
-      padding: 26px 28px;
-      background:
-        radial-gradient(320px 180px at 100% 0%, rgba(253, 186, 116, .16), transparent 60%),
-        linear-gradient(180deg, rgba(255,255,255,.96), rgba(244,250,249,.9));
+    .account-card {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 20px;
     }
-    .hero-head {
+    .account-avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      display: grid;
+      place-items: center;
+      color: #cbd5e1;
+    }
+    .account-avatar svg {
+      width: 24px;
+      height: 24px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+    }
+    .account-name {
+      color: #111827;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .account-link {
+      color: #9ca3af;
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .side-group {
+      display: grid;
+      gap: 4px;
+    }
+    .side-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      color: #4b5563;
+      text-decoration: none;
+      font-size: 15px;
+    }
+    .side-link.active,
+    .side-link:hover {
+      color: #ee4d2d;
+    }
+    .side-icon {
+      width: 18px;
+      text-align: center;
+      font-weight: 900;
+      color: inherit;
+    }
+    .side-sub {
+      margin-left: 28px;
+      display: grid;
+      gap: 4px;
+    }
+    .side-sub a {
+      color: #6b7280;
+      text-decoration: none;
+      padding: 4px 0;
+      font-size: 14px;
+    }
+    .side-sub a.active,
+    .side-sub a:hover {
+      color: #ee4d2d;
+    }
+
+    .order-main {
+      display: grid;
+      gap: 16px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #ededed;
+      border-radius: 2px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+    }
+    .order-topbar {
+      padding: 16px 20px;
       display: flex;
       justify-content: space-between;
-      gap: 14px;
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      min-height: 38px;
-      padding: 0 16px;
-      border-radius: 999px;
-      background: rgba(20,184,166,.12);
-      color: #0f766e;
-      font-weight: 900;
-    }
-    .timeline-card {
-      padding: 22px 24px;
-    }
-    .timeline {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #f0f0f0;
     }
-    .timeline-step {
+    .back-link {
+      color: #757575;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .order-code {
+      color: #111827;
+      font-size: 15px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .order-status {
+      color: #ee4d2d;
+      font-weight: 700;
+      border-left: 1px solid #d1d5db;
+      padding-left: 14px;
+      margin-left: 14px;
+      text-transform: uppercase;
+    }
+
+    .progress-wrap {
+      padding: 24px 22px 18px;
+    }
+    .progress-line {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat({{ timeline|length }}, minmax(0, 1fr));
+      gap: 0;
+    }
+    .progress-line::before {
+      content: "";
+      position: absolute;
+      top: 21px;
+      left: calc((100% / var(--progress-steps, 5)) / 2);
+      right: calc((100% / var(--progress-steps, 5)) / 2);
+      height: 4px;
+      background: #e5e7eb;
+      z-index: 0;
+    }
+    .progress-step {
+      position: relative;
+      z-index: 1;
       text-align: center;
-      padding: 12px 10px;
-      border-radius: 22px;
-      background: rgba(248,250,252,.88);
-      border: 1px solid rgba(226,232,240,.95);
+      padding: 0 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
-    .timeline-node {
-      width: 42px;
-      height: 42px;
-      margin: 0 auto 10px;
+    .progress-node {
+      width: 38px;
+      height: 38px;
+      margin: 0 auto 12px;
       border-radius: 50%;
       display: grid;
       place-items: center;
-      font-weight: 900;
       background: #fff;
-      border: 2px solid rgba(148,163,184,.26);
-      color: #94a3b8;
+      border: 2px solid #d1d5db;
+      color: #d1d5db;
+      font-size: 16px;
+      font-weight: 900;
+      line-height: 1;
+      user-select: none;
     }
-    .timeline-step.done .timeline-node,
-    .timeline-step.active .timeline-node {
-      color: #22c55e;
+    .progress-step.done .progress-node,
+    .progress-step.active .progress-node {
       border-color: #22c55e;
+      background: #22c55e;
+      color: #fff;
     }
-    .timeline-label {
-      font-weight: 800;
-      color: #334155;
+    .progress-label {
+      color: #111827;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.4;
     }
-    .timeline-time {
+    .progress-time {
       margin-top: 4px;
-      color: #94a3b8;
+      color: #9ca3af;
       font-size: 12px;
+      line-height: 1.4;
+      min-height: 34px;
     }
-    .order-grid {
+
+    .notice-bar {
       display: grid;
-      grid-template-columns: 360px minmax(0, 1fr);
-      gap: 18px;
+      grid-template-columns: minmax(0, 1fr) 220px;
+      gap: 16px;
+      padding: 14px 20px;
+      border-top: 1px solid #f5e7d1;
+      background: #fffdf8;
+      align-items: center;
     }
-    .stack {
+    .notice-text {
+      color: #8a6d3b;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .action-stack {
       display: grid;
+      gap: 10px;
+    }
+    .action-btn {
+      border: 1px solid #d5d5d5;
+      background: #fff;
+      color: #555;
+      padding: 12px 14px;
+      border-radius: 2px;
+      font-size: 14px;
+      font-weight: 500;
+      text-align: center;
+      text-decoration: none;
+    }
+    .action-btn.primary {
+      color: #fff;
+      background: #ee4d2d;
+      border-color: #ee4d2d;
+    }
+    .action-btn.disabled {
+      background: #f5f5f5;
+      color: #c0c0c0;
+      border-color: #e5e7eb;
+      pointer-events: none;
+    }
+
+    .delivery-card {
+      padding: 0;
+      overflow: hidden;
+    }
+    .delivery-topline {
+      height: 3px;
+      background: repeating-linear-gradient(
+        90deg,
+        #ef9aa8 0 28px,
+        #ffffff 28px 42px,
+        #8ab4f8 42px 70px,
+        #ffffff 70px 84px
+      );
+    }
+    .delivery-content {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
       gap: 18px;
+      padding: 18px 20px;
     }
-    .info-card,
-    .summary-card,
-    .items-card {
-      padding: 22px;
+    .section-title {
+      margin: 0 0 12px;
+      color: #111827;
+      font-size: 28px;
+      font-weight: 600;
     }
-    .card-title {
-      margin: 0 0 14px;
-      font-size: 22px;
-      color: #0f172a;
-      font-weight: 900;
+    .delivery-name {
+      color: #111827;
+      font-weight: 700;
+      margin-bottom: 6px;
     }
-    .info-name {
-      margin: 0 0 6px;
-      font-size: 22px;
-      color: #0f172a;
-      font-weight: 900;
+    .delivery-address {
+      color: #6b7280;
+      line-height: 1.75;
+      font-size: 14px;
     }
-    .info-line,
-    .summary-line {
-      color: #475569;
-      line-height: 1.65;
+    .timeline-feed {
+      position: relative;
+      display: grid;
+      gap: 14px;
+      padding-left: 26px;
     }
-    .summary-line {
+    .timeline-feed::before {
+      content: "";
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      left: 7px;
+      width: 2px;
+      background: #e5e7eb;
+    }
+    .timeline-entry {
+      position: relative;
+      display: grid;
+      grid-template-columns: 136px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .timeline-entry::before {
+      content: "";
+      position: absolute;
+      left: -22px;
+      top: 7px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #d1d5db;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 2px #e5e7eb;
+    }
+    .timeline-entry.active::before {
+      background: #10b981;
+      box-shadow: 0 0 0 2px #bbf7d0;
+    }
+    .timeline-entry-time {
+      color: #4b5563;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .timeline-entry-body {
+      color: #6b7280;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .timeline-entry.active .timeline-entry-body {
+      color: #059669;
+    }
+
+    .shop-card,
+    .summary-card {
+      overflow: hidden;
+    }
+    .shop-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid #f0f0f0;
       display: flex;
       justify-content: space-between;
       gap: 12px;
-      padding: 10px 0;
-      border-bottom: 1px solid rgba(226,232,240,.9);
+      align-items: center;
+      flex-wrap: wrap;
     }
-    .summary-line:last-child {
+    .shop-badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .shop-badge {
+      padding: 2px 6px;
+      font-size: 11px;
+      border-radius: 2px;
+      font-weight: 700;
+      color: #fff;
+      background: #ee4d2d;
+    }
+    .shop-mini-btn {
+      border: 1px solid #d5d5d5;
+      padding: 4px 8px;
+      border-radius: 2px;
+      color: #555;
+      text-decoration: none;
+      font-size: 12px;
+      background: #fff;
+    }
+    .product-row {
+      padding: 18px 20px;
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr) 130px;
+      gap: 16px;
+      align-items: start;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .product-thumb {
+      width: 72px;
+      height: 72px;
+      object-fit: cover;
+      border: 1px solid #f0f0f0;
+      background: #fff;
+    }
+    .product-name {
+      color: #222;
+      font-size: 15px;
+      line-height: 1.5;
+      margin-bottom: 4px;
+    }
+    .product-meta {
+      color: #757575;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .product-price {
+      text-align: right;
+      color: #ee4d2d;
+      font-size: 15px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .summary-table {
+      padding: 0 20px;
+    }
+    .summary-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 180px;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid #f5f5f5;
+      color: #555;
+      font-size: 14px;
+    }
+    .summary-row:last-child {
       border-bottom: none;
     }
-    .summary-line.total {
-      color: #0f766e;
-      font-size: 20px;
-      font-weight: 900;
-    }
-    .item-row {
-      display: grid;
-      grid-template-columns: 76px minmax(0, 1fr) auto;
-      gap: 16px;
-      align-items: center;
-      padding: 14px 0;
-      border-top: 1px solid rgba(226,232,240,.9);
-    }
-    .item-row:first-of-type {
-      border-top: none;
-    }
-    .item-thumb {
-      width: 76px;
-      height: 76px;
-      border-radius: 18px;
-      object-fit: cover;
-      background: #f8fafc;
-      border: 1px solid rgba(148,163,184,.18);
-    }
-    .item-name {
-      margin: 0 0 6px;
-      color: #0f172a;
-      font-size: 18px;
-      font-weight: 800;
-    }
-    .item-meta {
-      color: #64748b;
-      line-height: 1.55;
-    }
-    .item-price {
+    .summary-row strong {
       text-align: right;
-      font-size: 18px;
-      font-weight: 900;
-      color: #0f172a;
+      color: #111827;
+      font-weight: 500;
     }
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: #0f766e;
-      text-decoration: none;
-      font-weight: 800;
+    .summary-row.total strong {
+      color: #ee4d2d;
+      font-size: 28px;
+      font-weight: 400;
     }
-    @media (max-width: 960px) {
-      .order-grid {
+    .summary-row.total span {
+      align-self: center;
+    }
+    .payment-log-card {
+      padding: 18px 20px;
+    }
+    .payment-log-item + .payment-log-item {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #f5f5f5;
+    }
+    .payment-log-title {
+      color: #111827;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .payment-log-meta {
+      color: #6b7280;
+      font-size: 13px;
+      margin-top: 4px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 980px) {
+      .order-layout,
+      .delivery-content,
+      .notice-bar {
         grid-template-columns: 1fr;
       }
-    }
-    @media (max-width: 720px) {
-      .item-row {
-        grid-template-columns: 64px minmax(0, 1fr);
+      .account-side {
+        display: none;
       }
-      .item-price {
-        grid-column: 2;
+    }
+    @media (max-width: 760px) {
+      .progress-line {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px 0;
+      }
+      .progress-line::before {
+        display: none;
+      }
+      .product-row,
+      .timeline-entry,
+      .summary-row {
+        grid-template-columns: 1fr;
+      }
+      .product-price,
+      .summary-row strong {
         text-align: left;
       }
     }
   </style>
 </head>
 <body data-theme="light">
-  <div class="site-shell">
-    {% include 'shared/navbar.html' %}
+  {% include 'shared/navbar.html' %}
 
-    <main class="page-wrap">
-      <a class="back-link" href="{% url 'store:my_orders' %}">← Trở lại đơn hàng của tôi</a>
+  <main class="order-page">
+    {% if messages %}{% for message in messages %}<div class="msg">{{ message }}</div>{% endfor %}{% endif %}
 
-      <section class="order-shell" style="margin-top:16px;">
-        <section class="hero-card">
-          <div class="hero-head">
-            <div>
-              <p class="stat-title">Theo dõi đơn hàng</p>
-              <h1 class="top-title" style="margin:6px 0 0;">Mã đơn: #{{ order.pk }}</h1>
-              <p class="top-sub" style="margin:8px 0 0;">Đặt lúc {{ order.created_text }}. Bạn có thể xem trạng thái, địa chỉ nhận và toàn bộ sản phẩm trong đơn tại đây.</p>
+    <div class="order-layout">
+      <aside class="account-side">
+        <div class="account-card">
+          <div class="account-avatar" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="8" r="4"></circle>
+              <path d="M4 20c1.8-4 5-6 8-6s6.2 2 8 6"></path>
+            </svg>
+          </div>
+          <div>
+            <div class="account-name">{{ request.user.username }}</div>
+            <a class="account-link" href="{% url 'store:user_profile_account' %}">Sửa hồ sơ</a>
+          </div>
+        </div>
+
+        <div class="side-group">
+          <a class="side-link" href="{% url 'store:user_notifications_category' 'order' %}">
+            <span class="side-icon">!</span>
+            <span>Thông báo</span>
+          </a>
+          <div class="side-sub">
+            <a href="{% url 'store:user_notifications_category' 'order' %}">Cập nhật đơn hàng</a>
+            <a href="{% url 'store:user_notifications_category' 'promotion' %}">Khuyến mãi</a>
+            <a href="{% url 'store:user_notifications_category' 'wallet' %}">Cập nhật ví</a>
+            <a href="{% url 'store:user_notifications_category' 'shopee' %}">Cập nhật hệ thống</a>
+          </div>
+
+          <a class="side-link" href="{% url 'store:user_profile_account' %}">
+            <span class="side-icon">@</span>
+            <span>Tài khoản của tôi</span>
+          </a>
+          <div class="side-sub">
+            <a href="{% url 'store:user_profile_account' %}">Hồ sơ</a>
+            <a href="{% url 'store:user_payment' %}">Ngân hàng</a>
+            <a href="{% url 'store:user_address_account' %}">Địa chỉ</a>
+            <a href="{% url 'store:user_password_change_account' %}">Đổi mật khẩu</a>
+            <a href="{% url 'store:user_notification_settings' %}">Cài đặt thông báo</a>
+            <a href="{% url 'store:user_privacy_settings' %}">Thiết lập riêng tư</a>
+            <a href="{% url 'store:user_personal_info' %}">Thông tin cá nhân</a>
+          </div>
+
+          <a class="side-link active" href="{% url 'store:user_purchase' %}">
+            <span class="side-icon">#</span>
+            <span>Đơn mua</span>
+          </a>
+          <a class="side-link" href="{% url 'store:user_voucher_wallet' %}">
+            <span class="side-icon">%</span>
+            <span>Kho Voucher</span>
+          </a>
+        </div>
+      </aside>
+
+      <section class="order-main">
+        <section class="card">
+          <div class="order-topbar">
+            <a class="back-link" href="{% url 'store:my_orders' %}">&larr; TRỞ LẠI</a>
+            <div class="order-code">
+              Mã đơn hàng: {{ order.pk }}
+              <span class="order-status">{{ order.get_trang_thai_display }}</span>
             </div>
-            <div style="display:grid;gap:10px;justify-items:end;">
-              <span class="status-pill">{{ order.get_trang_thai_display }}</span>
-              {% if order.display_payment_status %}
-                <span class="status-pill">{{ order.display_payment_status }}</span>
+          </div>
+
+          <div class="progress-wrap">
+            <div class="progress-line" style="--progress-steps: {{ timeline|length }};">
+              {% for step in timeline %}
+                <div class="progress-step {{ step.state }}">
+                  <div class="progress-node" aria-hidden="true">
+                    {% if step.state == "done" %}
+                      ✓
+                    {% else %}
+                      {{ forloop.counter }}
+                    {% endif %}
+                  </div>
+                  <div class="progress-label">{{ step.label }}</div>
+                  <div class="progress-time">
+                    {% if step.time %}
+                      {{ step.time|date:"H:i d-m-Y" }}
+                    {% else %}
+                      Chờ cập nhật
+                    {% endif %}
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="notice-bar">
+            <div class="notice-text">
+              Ngày nhận hàng dự kiến từ <strong>{{ timeline.3.time|default:order.created_at|date:"d-m-Y" }}</strong>.
+              {% if order.display_store_name and order.display_store_name != "-" %}
+                Đơn hàng đang được cửa hàng <strong>{{ order.display_store_name }}</strong> xử lý.
               {% endif %}
+              {% if order.display_payment_status %}
+                Trạng thái thanh toán hiện tại: <strong>{{ order.display_payment_status }}</strong>.
+              {% endif %}
+            </div>
+            <div class="action-stack">
+              <span class="action-btn disabled">Đã nhận hàng</span>
+              <span class="action-btn disabled">Yêu cầu trả hàng/hoàn tiền</span>
+              <a class="action-btn" href="{% url 'store:stores_page' %}">Liên hệ cửa hàng</a>
             </div>
           </div>
         </section>
 
-        <section class="timeline-card">
-          <div class="timeline">
-            {% for step in timeline %}
-              <div class="timeline-step {{ step.state }}">
-                <div class="timeline-node">{% if step.state == "done" %}✓{% elif step.state == "active" %}●{% else %}○{% endif %}</div>
-                <div class="timeline-label">{{ step.label }}</div>
-                <div class="timeline-time">
-                  {% if step.time %}
-                    {{ step.time|date:"H:i d/m/Y" }}
-                  {% else %}
-                    Chờ cập nhật
-                  {% endif %}
+        <section class="card delivery-card">
+          <div class="delivery-topline"></div>
+          <div class="delivery-content">
+            <div>
+              <h2 class="section-title">Địa Chỉ Nhận Hàng</h2>
+              <div class="delivery-name">{{ order.ho_ten_nguoi_nhan }}</div>
+              <div class="delivery-address">
+                {{ order.so_dien_thoai }}<br>
+                {{ order.dia_chi_giao_hang }}
+              </div>
+              {% if order.vi_do_giao_hang and order.kinh_do_giao_hang %}
+                <div class="delivery-address" style="margin-top:10px;">
+                  Tọa độ: {{ order.vi_do_giao_hang|floatformat:6 }}, {{ order.kinh_do_giao_hang|floatformat:6 }}
+                </div>
+              {% endif %}
+              {% if order.ghi_chu %}
+                <div class="delivery-address" style="margin-top:10px;">
+                  Ghi chú: {{ order.ghi_chu }}
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="timeline-feed">
+              {% for step in timeline reversed %}
+                <div class="timeline-entry {% if forloop.first %}active{% endif %}">
+                  <div class="timeline-entry-time">
+                    {% if step.time %}
+                      {{ step.time|date:"H:i d-m-Y" }}
+                    {% else %}
+                      Chờ cập nhật
+                    {% endif %}
+                  </div>
+                  <div class="timeline-entry-body">
+                    {{ step.label }}
+                    {% if forloop.first and order.display_store_name and order.display_store_name != "-" %}
+                      <br>{{ order.display_store_name }} đang tiếp tục xử lý đơn hàng của bạn.
+                    {% endif %}
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+
+        <section class="card shop-card">
+          <div class="shop-head">
+            <div class="shop-badges">
+              <span class="shop-badge">Mall</span>
+              <strong>{{ order.display_store_name }}</strong>
+              <a class="shop-mini-btn" href="{% url 'store:stores_page' %}">Chi tiết</a>
+              <a class="shop-mini-btn" href="{% url 'store:stores_page' %}">Xem Shop</a>
+            </div>
+          </div>
+
+          {% for item in order.items.all %}
+            <div class="product-row">
+              {% if item.san_pham.hinh_anh %}
+                <img class="product-thumb" src="{{ item.san_pham.hinh_anh.url }}" alt="{{ item.san_pham.ten }}">
+              {% else %}
+                <div class="product-thumb"></div>
+              {% endif %}
+              <div>
+                <div class="product-name">{{ item.san_pham.ten }}</div>
+                <div class="product-meta">Phân loại hàng: {{ item.san_pham.nhom_san_pham|default:"Tiêu chuẩn" }}</div>
+                <div class="product-meta">x{{ item.so_luong }}</div>
+              </div>
+              <div class="product-price">{{ item.display_line_total }}</div>
+            </div>
+          {% endfor %}
+        </section>
+
+        <section class="card summary-card">
+          <div class="summary-table">
+            <div class="summary-row">
+              <span>Tổng tiền hàng</span>
+              <strong>{{ order.display_subtotal_amount }}</strong>
+            </div>
+            <div class="summary-row">
+              <span>Phí vận chuyển</span>
+              <strong>0 đ</strong>
+            </div>
+            {% if order.giam_gia %}
+              <div class="summary-row">
+                <span>Giảm giá</span>
+                <strong>-{{ order.display_discount_amount }}</strong>
+              </div>
+            {% endif %}
+            {% if order.ma_voucher_ap_dung %}
+              <div class="summary-row">
+                <span>Voucher đã áp dụng</span>
+                <strong>{{ order.ma_voucher_ap_dung }}</strong>
+              </div>
+            {% endif %}
+            <div class="summary-row">
+              <span>Phương thức thanh toán</span>
+              <strong>{{ order.display_payment_method }}</strong>
+            </div>
+            <div class="summary-row">
+              <span>Trạng thái thanh toán</span>
+              <strong>{{ order.display_payment_status }}</strong>
+            </div>
+            {% if order.ma_giao_dich_thanh_toan %}
+              <div class="summary-row">
+                <span>Mã giao dịch</span>
+                <strong>{{ order.ma_giao_dich_thanh_toan }}</strong>
+              </div>
+            {% endif %}
+            {% if order.anh_bien_lai %}
+              <div class="summary-row">
+                <span>Biên lai</span>
+                <strong><a href="{{ order.anh_bien_lai.url }}" target="_blank" rel="noopener">Xem biên lai</a></strong>
+              </div>
+            {% endif %}
+            <div class="summary-row total">
+              <span>Thành tiền</span>
+              <strong>{{ order.display_total_amount }}</strong>
+            </div>
+          </div>
+        </section>
+
+        {% if payment_review_logs %}
+          <section class="card payment-log-card">
+            <h3 style="margin:0 0 10px; font-size:18px; color:#111827;">Lịch sử xác nhận thanh toán</h3>
+            {% for log in payment_review_logs %}
+              <div class="payment-log-item">
+                <div class="payment-log-title">{{ log.get_hanh_dong_display }}</div>
+                <div class="payment-log-meta">
+                  {{ log.created_at|date:"d/m/Y H:i" }}{% if log.performed_by %} | {{ log.performed_by.username }}{% endif %}
+                  {% if log.ghi_chu %}<br>{{ log.ghi_chu }}{% endif %}
                 </div>
               </div>
             {% endfor %}
-          </div>
-        </section>
-
-        <section class="order-grid">
-          <div class="stack">
-            <section class="info-card">
-              <h2 class="card-title">Địa chỉ nhận hàng</h2>
-              <p class="info-name">{{ order.ho_ten_nguoi_nhan }}</p>
-              <div class="info-line">{{ order.so_dien_thoai }}</div>
-              <div class="info-line">{{ order.dia_chi_giao_hang }}</div>
-              <div class="info-line" style="margin-top:12px;"><strong>Cửa hàng xử lý:</strong> {{ order.display_store_name }}</div>
-              {% if order.vi_do_giao_hang and order.kinh_do_giao_hang %}
-                <div class="info-line" style="margin-top:12px;"><strong>Tọa độ:</strong> {{ order.vi_do_giao_hang|floatformat:6 }}, {{ order.kinh_do_giao_hang|floatformat:6 }}</div>
-              {% endif %}
-              {% if order.ghi_chu %}
-                <div class="info-line" style="margin-top:12px;"><strong>Ghi chú:</strong> {{ order.ghi_chu }}</div>
-              {% endif %}
-            </section>
-
-            <section class="summary-card">
-              <h2 class="card-title">Tóm tắt thanh toán</h2>
-              <div class="summary-line"><span>Tổng số lượng</span><strong>{{ order.tong_so_luong }}</strong></div>
-              <div class="summary-line"><span>Trạng thái</span><strong>{{ order.get_trang_thai_display }}</strong></div>
-              <div class="summary-line"><span>Phương thức</span><strong>{{ order.display_payment_method }}</strong></div>
-              <div class="summary-line"><span>Thanh toán</span><strong>{{ order.display_payment_status }}</strong></div>
-              <div class="summary-line"><span>Thời gian đặt</span><strong>{{ order.created_text }}</strong></div>
-              <div class="summary-line"><span>Tạm tính</span><strong>{{ order.display_subtotal_amount }}</strong></div>
-              {% if order.ma_voucher_ap_dung %}
-                <div class="summary-line"><span>Voucher</span><strong>{{ order.ma_voucher_ap_dung }}</strong></div>
-              {% endif %}
-              {% if order.giam_gia %}
-                <div class="summary-line"><span>Giảm giá</span><strong>-{{ order.display_discount_amount }}</strong></div>
-              {% endif %}
-              {% if order.ma_giao_dich_thanh_toan %}
-                <div class="summary-line"><span>Mã giao dịch</span><strong>{{ order.ma_giao_dich_thanh_toan }}</strong></div>
-              {% endif %}
-              {% if order.anh_bien_lai %}
-                <div class="summary-line"><span>Biên lai</span><strong><a href="{{ order.anh_bien_lai.url }}" target="_blank" rel="noopener">Xem biên lai</a></strong></div>
-              {% endif %}
-              <div class="summary-line total"><span>Thành tiền</span><span>{{ order.display_total_amount }}</span></div>
-            </section>
-          </div>
-
-          <div class="stack">
-            <section class="items-card">
-              <h2 class="card-title">Sản phẩm trong đơn</h2>
-              {% for item in order.items.all %}
-                <div class="item-row">
-                  {% if item.san_pham.hinh_anh %}
-                    <img class="item-thumb" src="{{ item.san_pham.hinh_anh.url }}" alt="{{ item.san_pham.ten }}">
-                  {% else %}
-                    <div class="item-thumb"></div>
-                  {% endif %}
-                  <div>
-                    <p class="item-name">{{ item.san_pham.ten }}</p>
-                    <div class="item-meta">Số lượng: {{ item.so_luong }}</div>
-                    <div class="item-meta">Đơn giá: {{ item.display_unit_price }}</div>
-                  </div>
-                  <div class="item-price">{{ item.display_line_total }}</div>
-                </div>
-              {% endfor %}
-            </section>
-
-            {% if payment_review_logs %}
-              <section class="items-card">
-                <h2 class="card-title">Lịch sử xác nhận thanh toán</h2>
-                {% for log in payment_review_logs %}
-                  <div class="item-row" style="grid-template-columns:minmax(0,1fr);">
-                    <div>
-                      <p class="item-name" style="font-size:16px;">{{ log.get_hanh_dong_display }}</p>
-                      <div class="item-meta">{{ log.created_at|date:"d/m/Y H:i" }}{% if log.performed_by %} | {{ log.performed_by.username }}{% endif %}</div>
-                      {% if log.ghi_chu %}
-                        <div class="item-meta" style="margin-top:6px;">{{ log.ghi_chu }}</div>
-                      {% endif %}
-                    </div>
-                  </div>
-                {% endfor %}
-              </section>
-            {% endif %}
-          </div>
-        </section>
+          </section>
+        {% endif %}
       </section>
-    </main>
+    </div>
+  </main>
 
-    {% include 'shared/footer.html' %}
-  </div>
+  {% include 'shared/footer.html' %}
 </body>
 </html>
+

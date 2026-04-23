@@ -243,6 +243,79 @@
       font-weight: 800;
       color: #1f2937;
     }
+    .branch-stock-panel {
+      margin-top: 4px;
+      padding: 16px;
+      border-radius: 20px;
+      background: rgba(248, 250, 252, .9);
+      border: 1px solid rgba(15, 23, 42, .08);
+    }
+    .branch-stock-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .branch-stock-title {
+      font-size: 15px;
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .branch-stock-sub {
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .branch-stock-list {
+      display: grid;
+      gap: 10px;
+    }
+    .branch-stock-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(148, 163, 184, .18);
+    }
+    .branch-stock-name {
+      font-size: 14px;
+      font-weight: 900;
+      color: #1f2937;
+    }
+    .branch-stock-meta {
+      margin-top: 4px;
+      color: #64748b;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .branch-stock-qty {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 92px;
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      font-weight: 900;
+      font-size: 14px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .branch-stock-qty.in-stock {
+      background: rgba(16,185,129,.12);
+      color: #047857;
+      border-color: rgba(16,185,129,.24);
+    }
+    .branch-stock-qty.out-stock {
+      background: rgba(239,68,68,.1);
+      color: #b91c1c;
+      border-color: rgba(239,68,68,.2);
+    }
     .actions {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -445,16 +518,65 @@
             </div>
             <div class="hero-summary">
               <div class="price">{{ product.display_price }}</div>
-              <div class="stock-row">
-                <span class="stock-badge {% if product.ton_kho > 0 %}in-stock{% else %}out-stock{% endif %}">
-                  {{ product.stock_label }}
-                </span>
-                <span class="stock-hint">{{ product.stock_hint }}</span>
-              </div>
               <p class="desc">
                 {{ product.ten }} là lựa chọn phù hợp cho nhu cầu mua nhanh tại cửa hàng tiện lợi.
                 Bạn có thể xem ảnh sản phẩm, thông tin cơ bản và thêm trực tiếp vào giỏ hàng ngay tại đây.
               </p>
+
+              {% if branch_stock %}
+                <div class="branch-stock-panel">
+                  <div class="branch-stock-header">
+                    <div class="branch-stock-title">Tồn kho theo từng chi nhánh</div>
+                    <div class="branch-stock-sub">Có hàng tại {{ product.available_store_count }}/{{ branch_stock|length }} cửa hàng</div>
+                  </div>
+
+                  {{ branch_stock_search|json_script:"branch-stock-search-data" }}
+
+                  <div style="display:grid;gap:10px;margin-top:12px;">
+                    <div style="display:grid;grid-template-columns:1fr 110px;gap:10px;align-items:center;">
+                      <input
+                        id="branch-store-search"
+                        type="text"
+                        placeholder="Nhập tên/địa chỉ cửa hàng..."
+                        style="width:100%;padding:12px 14px;border-radius:14px;border:1px solid rgba(148,163,184,.3);font-weight:700;background:#fff;"
+                      >
+                      <button
+                        id="branch-store-search-btn"
+                        type="button"
+                        class="cta-btn cta-secondary"
+                        style="padding:12px 14px;border-radius:14px;"
+                      >
+                        Tìm
+                      </button>
+                    </div>
+
+                    <div id="branch-store-search-results" style="display:none;"></div>
+                  </div>
+
+                  <div class="branch-stock-list">
+                    {% if branch_stock_featured %}
+                      {% for item in branch_stock_featured %}
+                        <div class="branch-stock-item">
+                          <div>
+                            <div class="branch-stock-name">{{ item.store_name }}</div>
+                            <div class="branch-stock-meta">
+                              {{ item.chain_name }}{% if item.district %} · {{ item.district }}{% endif %}<br>
+                              {{ item.address }}
+                            </div>
+                          </div>
+                          <span class="branch-stock-qty {% if item.is_out %}out-stock{% else %}in-stock{% endif %}">
+                            {{ item.stock_label }}
+                          </span>
+                        </div>
+                      {% endfor %}
+                    {% else %}
+                      <div style="padding:12px 14px;border-radius:14px;border:1px dashed rgba(148,163,184,.35);background:rgba(255,255,255,.6);font-weight:800;color:#64748b;">
+                        Hiện chưa có cửa hàng còn hàng.
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              {% endif %}
 
               <div class="detail-grid">
                 <div class="detail-item">
@@ -466,29 +588,56 @@
                   <div class="value">SP-{{ product.pk }}</div>
                 </div>
                 <div class="detail-item">
-                  <div class="label">Tồn kho</div>
-                  <div class="value">{{ product.ton_kho }} sản phẩm</div>
+                  <div class="label">Tồn kho tổng</div>
+                  <div class="value">
+                    {% if total_store_stock > 0 %}{{ total_store_stock }} sản phẩm{% else %}Hết hàng{% endif %}
+                  </div>
                 </div>
                 <div class="detail-item">
                   <div class="label">Thương hiệu</div>
                   <div class="value">{{ product.thuong_hieu|default:"-" }}</div>
                 </div>
               </div>
-
+              
               <div class="actions">
-                {% if product.ton_kho <= 0 %}
+                {% if not branch_stock %}
                   <button class="cta-btn cta-secondary is-out-stock" type="button" disabled>Hết hàng</button>
                 {% else %}
-                  <form method="post" action="{% url 'store:cart_add' product.pk %}">
-                    {% csrf_token %}
-                    <input type="hidden" name="next" value="{% url 'store:product_detail' product.pk %}">
-                    <button class="cta-btn cta-secondary" type="submit">{{ t.add_to_cart|default:"Thêm vào giỏ" }}</button>
-                  </form>
-                  <form method="post" action="{% url 'store:cart_add' product.pk %}">
-                    {% csrf_token %}
-                    <input type="hidden" name="next" value="{% url 'store:checkout' %}">
-                    <button class="cta-btn cta-primary" type="submit">{{ t.buy_now|default:"Mua ngay" }}</button>
-                  </form>
+                  <div style="display:grid;gap:10px;width:100%;margin-bottom:12px;grid-column:1/-1;">
+                    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;">
+                      <div style="grid-column:1/-1;font-size:13px;font-weight:800;color:#475569;">
+                        Chọn chi nhánh mua hàng
+                      </div>
+
+                      <select id="selected-store"
+                        style="width:100%;height:52px;padding:0 16px;border-radius:16px;border:1px solid rgba(148,163,184,.3);font-weight:700;background:#fff;">
+                        {% for stock in branch_stock %}
+                          <option value="{{ stock.store.pk }}"
+                            {% if selected_store_id == stock.store.pk %}selected{% elif not selected_store_id and forloop.first %}selected{% endif %}>
+                            {{ stock.store.ten }}{% if stock.store.chuoi %} - {{ stock.store.chuoi.ten }}{% endif %} |{{ stock.stock_label }}
+                          </option>
+                        {% endfor %}
+                      </select>
+
+                      <form method="post" action="{% url 'store:cart_add' product.pk %}" style="margin:0;">
+                        {% csrf_token %}
+                        <input type="hidden" name="store_id" value="{% if selected_store_id %}{{ selected_store_id }}{% else %}{{ branch_stock.0.store.pk }}{% endif %}">
+                        <input type="hidden" name="next" value="{% url 'store:product_detail' product.pk %}">
+                        <button class="cta-btn cta-secondary" type="submit" style="width:100%;height:52px;border-radius:16px;">
+                          {{ t.add_to_cart|default:"Thêm vào giỏ" }}
+                        </button>
+                      </form>
+
+                      <form method="post" action="{% url 'store:cart_add' product.pk %}" style="margin:0;grid-column:1/-1;">
+                        {% csrf_token %}
+                        <input type="hidden" name="store_id" value="{% if selected_store_id %}{{ selected_store_id }}{% else %}{{ branch_stock.0.store.pk }}{% endif %}">
+                        <input type="hidden" name="next" value="{% url 'store:checkout' %}">
+                        <button class="cta-btn cta-primary" type="submit" style="width:100%;border-radius:16px;">
+                          {{ t.buy_now|default:"Mua ngay" }}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
                 {% endif %}
               </div>
             </div>
@@ -526,5 +675,122 @@
   </div>
 
   <script src="/static/store/js/product_gallery.js"></script>
+  <script>
+    (function () {
+      const storeSelect = document.getElementById("selected-store");
+      const storeSearch = document.getElementById("branch-store-search");
+      const storeSearchBtn = document.getElementById("branch-store-search-btn");
+      const storeSearchResults = document.getElementById("branch-store-search-results");
+      const storeSearchDataEl = document.getElementById("branch-stock-search-data");
+      let storeSearchData = [];
+
+      if (storeSearchDataEl) {
+        try {
+          storeSearchData = JSON.parse(storeSearchDataEl.textContent || "[]") || [];
+        } catch (e) {
+          storeSearchData = [];
+        }
+      }
+
+      function syncStore() {
+        if (!storeSelect) return;
+        const storeId = storeSelect.value || "";
+        document.querySelectorAll('input[name="store_id"]').forEach((input) => {
+            input.value = storeId;
+        });
+      }
+
+      function renderSearchResults(matches) {
+        if (!storeSearchResults) return;
+        if (!matches.length) {
+          storeSearchResults.style.display = "none";
+          storeSearchResults.innerHTML = "";
+          return;
+        }
+        storeSearchResults.style.display = "grid";
+        storeSearchResults.style.gap = "8px";
+        storeSearchResults.style.padding = "10px";
+        storeSearchResults.style.border = "1px solid rgba(148,163,184,.22)";
+        storeSearchResults.style.borderRadius = "14px";
+        storeSearchResults.style.background = "rgba(255,255,255,.9)";
+
+        storeSearchResults.innerHTML = matches
+          .map((m) => {
+            return (
+              '<div style="text-align:left;border:1px solid rgba(148,163,184,.22);background:#fff;border-radius:14px;padding:10px 12px;font-weight:800;color:#0f172a;">' +
+              '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;">' +
+              '<div style="min-width:0;">' +
+              '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + m.title + '</div>' +
+              '<div style="margin-top:2px;font-weight:700;color:#64748b;font-size:12px;">' + m.subtitle + '</div>' +
+              '</div>' +
+              '<span style="flex:0 0 auto;font-weight:900;font-size:12px;padding:6px 10px;border-radius:999px;' +
+                (m.isOut ? 'background:rgba(239,68,68,.1);color:#b91c1c;border:1px solid rgba(239,68,68,.2);' : 'background:rgba(16,185,129,.12);color:#047857;border:1px solid rgba(16,185,129,.24);') +
+              '">' + m.stock + '</span>' +
+              '</div>' +
+              '</div>'
+            );
+          })
+          .join("");
+      }
+
+      function runSearch() {
+        if (!storeSearch) return;
+        const q = (storeSearch.value || "").trim().toLowerCase();
+        if (!q) {
+          renderSearchResults([]);
+          return;
+        }
+        if (!storeSearchResults) return;
+
+        const matches = [];
+        for (const item of storeSearchData) {
+          const haystack = (
+            (item.store_name || "") +
+            " " +
+            (item.chain_name || "") +
+            " " +
+            (item.district || "") +
+            " " +
+            (item.address || "")
+          )
+            .trim()
+            .toLowerCase();
+          if (!haystack.includes(q)) continue;
+
+          const title = (item.store_name || "").trim() + (item.chain_name ? " - " + item.chain_name : "");
+          const subtitleParts = [];
+          if (item.district) subtitleParts.push(item.district);
+          if (item.address) subtitleParts.push(item.address);
+          const subtitle = subtitleParts.join(" · ");
+
+          matches.push({
+            title: title || "-",
+            subtitle: subtitle || "",
+            stock: (item.stock_label || "").trim(),
+            isOut: !!item.is_out,
+          });
+          if (matches.length >= 8) break;
+        }
+
+        if (!matches.length) {
+          storeSearchResults.style.display = "block";
+          storeSearchResults.style.padding = "10px 12px";
+          storeSearchResults.style.border = "1px dashed rgba(148,163,184,.35)";
+          storeSearchResults.style.borderRadius = "14px";
+          storeSearchResults.style.background = "rgba(255,255,255,.6)";
+          storeSearchResults.innerHTML =
+            '<div style="font-weight:800;color:#64748b;">Không tìm thấy cửa hàng phù hợp.</div>';
+          return;
+        }
+
+        renderSearchResults(matches);
+      }
+
+      if (storeSelect) storeSelect.addEventListener("change", syncStore);
+      if (storeSearch) storeSearch.addEventListener("input", runSearch);
+      if (storeSearchBtn) storeSearchBtn.addEventListener("click", runSearch);
+      syncStore();
+    })();
+  </script>
 </body>
 </html>

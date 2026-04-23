@@ -322,78 +322,78 @@
 </head>
 <body>
   <div class="actions">
-    <button class="btn btn-close" type="button" onclick="window.close()">Dong</button>
-    <button class="btn btn-print" type="button" onclick="window.print()">In phieu</button>
-    <a class="btn btn-print" href="{% url 'store:admin_inventory_pdf' movement.pk %}" style="text-decoration:none;display:inline-flex;align-items:center;">Tai PDF</a>
+    <button class="btn btn-close" type="button" onclick="window.close()">Đóng</button>
+    <button class="btn btn-print" type="button" onclick="window.print()">In phiếu</button>
+    <a class="btn btn-print" href="{% url 'store:admin_inventory_pdf' movement.pk %}" style="text-decoration:none;display:inline-flex;align-items:center;">Tải PDF</a>
   </div>
 
   <main class="page">
     <header class="header">
       <div>
         <div class="brand">SmartGIS</div>
-        <div class="subtitle">Phieu nhap kho noi bo</div>
+        <div class="subtitle">Phiếu nhập kho nội bộ</div>
       </div>
       <div class="doc-code">
-        <div class="chip">Chung tu noi bo</div>
+        <div class="chip">Chứng từ nội bộ</div>
         <strong>PNK-{{ movement.pk }}</strong>
-        <div class="subtitle">In luc {{ generated_at|date:"d/m/Y H:i" }}</div>
+        <div class="subtitle">In lúc {{ generated_at|date:"d/m/Y H:i" }}</div>
       </div>
     </header>
 
     <section class="section">
-      <h2 class="section-title">Thong tin chung</h2>
+      <h2 class="section-title">Thông tin chung</h2>
       <div class="info-grid">
         <div class="info-item">
-          <div class="info-label">San pham</div>
+          <div class="info-label">Sản phẩm</div>
           <div class="info-value">{{ movement.san_pham.ten }}</div>
         </div>
         <div class="info-item">
-          <div class="info-label">Thoi gian tao phieu</div>
+          <div class="info-label">Thời gian tạo phiếu</div>
           <div class="info-value">{{ movement.created_at|date:"d/m/Y H:i" }}</div>
         </div>
         <div class="info-item">
-          <div class="info-label">Nhan vien ky</div>
+          <div class="info-label">Nhân viên ký</div>
           <div class="info-value">{{ movement.nhan_vien.ho_ten|default:"-" }}</div>
         </div>
         <div class="info-item">
-          <div class="info-label">Cua hang</div>
+          <div class="info-label">Cửa hàng</div>
           <div class="info-value">{{ movement.nhan_vien.cua_hang.ten|default:"-" }}</div>
         </div>
         <div class="info-item">
-          <div class="info-label">Nguoi tao tren he thong</div>
+          <div class="info-label">Người tạo trên hệ thống</div>
           <div class="info-value">{{ movement.created_by.username|default:"-" }}</div>
         </div>
         <div class="info-item">
-          <div class="info-label">Ton kho</div>
+          <div class="info-label">Tồn kho</div>
           <div class="info-value">{{ movement.ton_truoc }} -> {{ movement.ton_sau }}</div>
         </div>
       </div>
     </section>
 
     <section class="section">
-      <h2 class="section-title">Tong hop so lieu</h2>
+      <h2 class="section-title">Tổng hợp số liệu</h2>
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-label">So luong nhap</div>
+          <div class="stat-label">Số lượng nhập</div>
           <div class="stat-value">{{ movement.so_luong }}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Ton truoc</div>
+          <div class="stat-label">Tồn trước</div>
           <div class="stat-value">{{ movement.ton_truoc }}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Ton sau</div>
+          <div class="stat-label">Tồn sau</div>
           <div class="stat-value">{{ movement.ton_sau }}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Trang thai</div>
-          <div class="stat-value" style="font-size:18px;">Nhap kho</div>
+          <div class="stat-label">Trạng thái</div>
+          <div class="stat-value" style="font-size:18px;">Nhập kho</div>
         </div>
       </div>
     </section>
 
     <section class="section">
-      <h2 class="section-title">Ma tra cuu</h2>
+      <h2 class="section-title">Mã tra cứu</h2>
       <div class="scan-grid">
         <div class="barcode-card">
           <div class="barcode-wrap">
@@ -404,10 +404,10 @@
             {% endif %}
           </div>
           <div class="barcode-code">{{ document_code }}</div>
-          <div class="barcode-hint">Dung ma nay de tim nhanh phieu nhap kho trong he thong.</div>
+          <div class="barcode-hint">Dùng mã này để tìm nhanh phiếu nhập kho trong hệ thống.</div>
         </div>
         <div class="qr-card">
-          <div class="barcode-hint" style="margin-top:0;">Quet QR de mo thang phieu in.</div>
+          <div class="barcode-hint" style="margin-top:0;">Quét QR để mở thẳng phiếu in.</div>
           <div class="qr-wrap">
             {% if qr_svg %}
               {{ qr_svg|safe }}
@@ -421,36 +421,36 @@
     </section>
 
     <section class="section">
-      <h2 class="section-title">Ghi chu</h2>
-      <div class="notes">{{ movement.ghi_chu|default:"Khong co ghi chu." }}</div>
+      <h2 class="section-title">Ghi chú</h2>
+      <div class="notes">{{ movement.ghi_chu|default:"Không có ghi chú." }}</div>
     </section>
 
     <section class="section">
-      <h2 class="section-title">Xac nhan</h2>
+      <h2 class="section-title">Xác nhận</h2>
       <div class="approval-grid">
         <div class="approval-card">
-          <div class="approval-title">Chu ky nhan vien</div>
+          <div class="approval-title">Chữ ký nhân viên</div>
           <div class="signature-box">
             {% if movement.chu_ky %}
-              <img src="{{ movement.chu_ky.url }}" alt="Chu ky nhan vien">
+              <img src="{{ movement.chu_ky.url }}" alt="Chữ ký nhân viên">
             {% else %}
-              <div>Chua co chu ky</div>
+              <div>Chưa có chữ ký</div>
             {% endif %}
           </div>
         </div>
         <div class="approval-card">
-          <div class="approval-title">Thong tin xac nhan</div>
+          <div class="approval-title">Thông tin xác nhận</div>
           <div class="approval-meta">
             <div>
-              <strong>Nhan vien ky</strong>
+              <strong>Nhân viên ký</strong>
               <div>{{ movement.nhan_vien.ho_ten|default:"-" }}</div>
             </div>
             <div>
-              <strong>Nguoi tao tren he thong</strong>
+              <strong>Người tạo trên hệ thống</strong>
               <div>{{ movement.created_by.username|default:"-" }}</div>
             </div>
             <div>
-              <strong>Chuoi / Cua hang</strong>
+              <strong>Chuỗi / Cửa hàng</strong>
               <div>{{ movement.nhan_vien.cua_hang.chuoi.ten|default:"-" }} / {{ movement.nhan_vien.cua_hang.ten|default:"-" }}</div>
             </div>
           </div>
@@ -459,8 +459,8 @@
     </section>
 
     <div class="footer-note">
-      <div>Chung tu duoc tao tu he thong SmartGIS.</div>
-      <div>Vui long doi chieu hang hoa va luu kem chu ky khi can.</div>
+      <div>Chứng từ được tạo từ hệ thống SmartGIS.</div>
+      <div>Vui lòng đối chiếu hàng hóa và lưu kèm chữ ký khi cần.</div>
     </div>
   </main>
 </body>
