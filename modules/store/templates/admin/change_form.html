@@ -80,6 +80,42 @@
           {% endif %}
         </div>
       {% endfor %}
+      {% if model_slug == 'giao-dich-kho' %}
+        <div class="form-row">
+          <label for="id_audit_reason">Lý do điều chỉnh</label>
+          <textarea id="id_audit_reason" name="audit_reason" rows="3" placeholder="Ví dụ: kiểm kê định kỳ, nhập bù hàng hư, điều chỉnh sai lệch..."></textarea>
+          <div class="top-sub">Ghi lại lý do thay đổi tồn kho để dễ audit sau này.</div>
+        </div>
+      {% endif %}
+      {% if model_slug == 'giao-dich-kho' %}
+        <section
+          class="panel card"
+          style="margin-top:18px; border:1px solid rgba(15,23,42,.08); background:#f8fafc;"
+        >
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+            <h3 style="margin:6px 0;">Log ký & OTP</h3>
+            <span class="top-sub">Tự động ghi, chỉ xem</span>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-top:12px;">
+            <div>
+              <div class="top-sub">Thời gian ký</div>
+              <div><strong>{{ form.instance.signed_at|date:"d/m/Y H:i"|default:"-" }}</strong></div>
+            </div>
+            <div>
+              <div class="top-sub">Người ký</div>
+              <div><strong>{{ form.instance.signed_by|default:"-" }}</strong></div>
+            </div>
+            <div>
+              <div class="top-sub">IP ký</div>
+              <div><strong>{{ form.instance.signed_ip|default:"-" }}</strong></div>
+            </div>
+            <div>
+              <div class="top-sub">Email nhận OTP</div>
+              <div><strong>{{ form.instance.otp_recipient_email|default:"-" }}</strong></div>
+            </div>
+          </div>
+        </section>
+      {% endif %}
       {% if model_slug == 'san-pham' and file_previews.gallery_items %}
         <section
           class="panel card"
@@ -189,5 +225,85 @@
   {% endif %}
   {% if model_slug == 'khuyen-mai' %}
     <script src="{% static 'store/js/voucher_admin_preview.js' %}"></script>
+  {% endif %}
+  {% if model_slug == 'giao-dich-kho' %}
+    <script>
+      (function() {
+        const storeSelect = document.getElementById("id_cua_hang");
+        const employeeSelect = document.getElementById("id_nhan_vien");
+        const typeSelect = document.getElementById("id_loai");
+        const orderSelect = document.getElementById("id_don_hang");
+        if (!storeSelect || !employeeSelect) return;
+
+        const buildEndpoint = (storeId) => `/admin/stores/${storeId}/employees/`;
+        const employeeStoreEndpoint = (employeeId) => `/admin/employees/${employeeId}/store/`;
+        const resetEmployees = () => {
+          employeeSelect.innerHTML = '<option value="">---------</option>';
+          employeeSelect.setAttribute("disabled", "disabled");
+        };
+        const setEmployees = (items, selectedId = null) => {
+          const current = selectedId || employeeSelect.value;
+          employeeSelect.innerHTML = '<option value="">---------</option>';
+          items.forEach((item) => {
+            const opt = document.createElement("option");
+            opt.value = item.id;
+            opt.textContent = item.ho_ten;
+            if (String(item.id) === String(current)) opt.selected = true;
+            employeeSelect.appendChild(opt);
+          });
+          employeeSelect.removeAttribute("disabled");
+        };
+
+        const loadEmployees = (selectedId = null) => {
+          const storeId = storeSelect.value;
+          if (!storeId) {
+            resetEmployees();
+            return;
+          }
+          fetch(buildEndpoint(storeId), { credentials: "same-origin" })
+            .then((res) => res.json())
+            .then((data) => setEmployees(data.employees || [], selectedId))
+            .catch(() => resetEmployees());
+        };
+
+        const syncStoreFromEmployee = () => {
+          const employeeId = employeeSelect.value;
+          if (!employeeId) return;
+          fetch(employeeStoreEndpoint(employeeId), { credentials: "same-origin" })
+            .then((res) => res.json())
+            .then((data) => {
+              if (!data || !data.id) return;
+              if (storeSelect.value !== String(data.id)) {
+                storeSelect.value = String(data.id);
+                loadEmployees(employeeId);
+              }
+            })
+            .catch(() => {});
+        };
+
+        const toggleOrderField = () => {
+          if (!typeSelect || !orderSelect) return;
+          const row = orderSelect.closest(".form-row");
+          if (!row) return;
+          if (typeSelect.value === "import") {
+            row.style.display = "none";
+          } else {
+            row.style.display = "";
+          }
+        };
+
+        storeSelect.addEventListener("change", loadEmployees);
+        employeeSelect.addEventListener("change", syncStoreFromEmployee);
+        if (typeSelect) {
+          typeSelect.addEventListener("change", toggleOrderField);
+        }
+        if (!storeSelect.value) {
+          resetEmployees();
+        } else if (employeeSelect.options.length <= 1) {
+          loadEmployees();
+        }
+        toggleOrderField();
+      })();
+    </script>
   {% endif %}
 {% endblock %}

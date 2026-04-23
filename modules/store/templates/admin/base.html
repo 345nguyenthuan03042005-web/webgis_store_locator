@@ -37,8 +37,10 @@
           </a>
         {% endif %}
 
-        <div class="menu-label">{{ t.data|default:"Dữ liệu" }}</div>
         {% for module in modules %}
+          {% ifchanged module.section_label %}
+            <div class="menu-label">{{ module.section_label }}</div>
+          {% endifchanged %}
           <a href="{% url 'store:admin_list' module.slug %}" class="{% if module.slug == model_slug %}active{% endif %}">
             {{ module.name }} <span class="chip">{{ module.count }}</span>
           </a>
