@@ -1,10 +1,32 @@
 ﻿from xml.parsers.expat import errors
 
+import os
+import uuid
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
+
+
+def _runtime_upload_path(folder: str, filename: str) -> str:
+    base_name = os.path.basename(filename or "upload.bin")
+    stem, ext = os.path.splitext(base_name)
+    safe_stem = stem or "upload"
+    return f"runtime/{folder}/{safe_stem}_{uuid.uuid4().hex[:10]}{ext.lower()}"
+
+
+def product_image_upload_to(instance, filename: str) -> str:
+    return _runtime_upload_path("images", filename)
+
+
+def about_image_upload_to(instance, filename: str) -> str:
+    return _runtime_upload_path("about", filename)
+
+
+def receipt_image_upload_to(instance, filename: str) -> str:
+    return _runtime_upload_path("receipts", filename)
 
 
 class ThuongHieu(models.Model):
@@ -79,7 +101,7 @@ class SanPham(models.Model):
 
     hinh_anh = models.ImageField(
         "Hình ảnh sản phẩm",
-        upload_to="images/",
+        upload_to=product_image_upload_to,
         null=True,
         blank=True,
     )
@@ -129,7 +151,7 @@ class HinhAnhSanPham(models.Model):
     )
     hinh_anh = models.ImageField(
         "Ảnh sản phẩm",
-        upload_to="images/",
+        upload_to=product_image_upload_to,
         null=True,
         blank=True,
     )
@@ -488,10 +510,10 @@ class TrangGioiThieu(models.Model):
     tieu_de = models.CharField("Tiêu đề", max_length=180, default="Giới thiệu hệ thống")
     mo_ta_ngan = models.TextField("Mô tả ngắn", blank=True)
     noi_dung = models.TextField("Nội dung", blank=True)
-    anh_bia = models.ImageField("Ảnh bìa", upload_to="about/", null=True, blank=True)
-    anh_noi_dung_1 = models.ImageField("Ảnh nội dung 1", upload_to="about/", null=True, blank=True)
-    anh_noi_dung_2 = models.ImageField("Ảnh nội dung 2", upload_to="about/", null=True, blank=True)
-    anh_noi_dung_3 = models.ImageField("Ảnh nội dung 3", upload_to="about/", null=True, blank=True)
+    anh_bia = models.ImageField("Ảnh bìa", upload_to=about_image_upload_to, null=True, blank=True)
+    anh_noi_dung_1 = models.ImageField("Ảnh nội dung 1", upload_to=about_image_upload_to, null=True, blank=True)
+    anh_noi_dung_2 = models.ImageField("Ảnh nội dung 2", upload_to=about_image_upload_to, null=True, blank=True)
+    anh_noi_dung_3 = models.ImageField("Ảnh nội dung 3", upload_to=about_image_upload_to, null=True, blank=True)
     cap_nhat_luc = models.DateTimeField("Cập nhật lúc", auto_now=True)
 
     class Meta:
@@ -511,7 +533,7 @@ class TrangGioiThieuHinhAnh(models.Model):
     )
     nhom = models.CharField("Nhóm ảnh", max_length=50, blank=True, db_index=True)
     tieu_de = models.CharField("Tiêu đề ảnh", max_length=150, blank=True)
-    hinh_anh = models.ImageField("Hình ảnh", upload_to="about/")
+    hinh_anh = models.ImageField("Hình ảnh", upload_to=about_image_upload_to)
     chu_thich = models.CharField("Chú thích", max_length=150, blank=True)
     thu_tu = models.PositiveIntegerField("Thứ tự", default=0)
 
@@ -603,7 +625,7 @@ class DonHang(models.Model):
     ma_voucher_ap_dung = models.CharField("Mã voucher áp dụng", max_length=50, blank=True)
     anh_bien_lai = models.ImageField(
         "Ảnh biên lai chuyển khoản",
-        upload_to="receipts/",
+        upload_to=receipt_image_upload_to,
         null=True,
         blank=True,
     )

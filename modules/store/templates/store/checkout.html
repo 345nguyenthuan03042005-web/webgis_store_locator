@@ -421,8 +421,8 @@
             <div id="map" style="height:300px;border-radius:16px;margin-top:10px;"></div>
 
               <!-- HIDDEN INPUT -->
-               <input type="hidden" name="delivery_lat" id="lat">
-               <input type="hidden" name="delivery_lng" id="lng">
+               <input type="hidden" name="delivery_lat" id="lat" value="{{ delivery_lat }}">
+               <input type="hidden" name="delivery_lng" id="lng" value="{{ delivery_lng }}">
 
               <!-- STATUS -->
               <div class="top-sub" id="delivery-coord-status">
@@ -432,6 +432,7 @@
                 Vui lòng chọn vị trí trên bản đồ.
               {% endif %}
               </div>
+              <div class="top-sub" id="shipping-preview-status" style="margin-top:6px;"></div>
 
              <!-- NÚT GPS -->
              <button type="button" onclick="getLocation()" style="margin-top:8px;">
@@ -477,10 +478,10 @@
         <section class="panel card">
           <h3 style="margin-top:0;">{{ t.cart|default:"Giỏ hàng" }}</h3>
           {% for group in store_groups %}
-            <div style="padding:12px 14px;border:1px solid #e5e7eb;border-radius:18px;background:rgba(248,250,252,.88);margin-bottom:12px;">
+            <div style="padding:12px 14px;border:1px solid #e5e7eb;border-radius:18px;background:rgba(248,250,252,.88);margin-bottom:12px;" data-store-group-id="{{ group.store.pk }}">
               <strong>{{ group.store.ten }}</strong>
               <div class="top-sub" style="margin-top:4px;">{{ group.store.dia_chi }}</div>
-              <div class="top-sub">Khoảng cách: {{ group.distance_label }} | Phí ship: {{ group.display_shipping_fee }}</div>
+              <div class="top-sub" data-store-distance-line>Khoảng cách: {{ group.distance_label }} | Phí ship: <span data-store-shipping-fee>{{ group.display_shipping_fee }}</span></div>
               {% for item in group.items %}
                 <div style="padding:10px 0;border-bottom:1px solid #e5e7eb;">
                   <strong>{{ item.product.ten }}</strong>
@@ -488,16 +489,16 @@
                 </div>
               {% endfor %}
               <div class="summary-line"><span>Tạm tính chi nhánh</span><strong>{{ group.display_subtotal }}</strong></div>
-              <div class="summary-line"><span>Giảm giá phân bổ</span><strong>-{{ group.display_discount_amount }}</strong></div>
-              <div class="summary-line"><span>Phí giao hàng</span><strong>{{ group.display_shipping_fee }}</strong></div>
-              <div class="summary-line"><span>Tổng chi nhánh</span><strong>{{ group.display_final_amount }}</strong></div>
+              <div class="summary-line"><span>Giảm giá phân bổ</span><strong data-store-discount-amount>-{{ group.display_discount_amount }}</strong></div>
+              <div class="summary-line"><span>Phí giao hàng</span><strong data-store-shipping-fee>{{ group.display_shipping_fee }}</strong></div>
+              <div class="summary-line"><span>Tổng chi nhánh</span><strong data-store-final-amount>{{ group.display_final_amount }}</strong></div>
             </div>
           {% endfor %}
           <div style="margin-top:12px;font-weight:700;">{{ t.quantity|default:"Số lượng" }}: {{ cart_total_quantity }}</div>
           <div class="summary-line"><span>Tạm tính</span><strong>{{ display_subtotal_amount }}</strong></div>
-          <div class="summary-line"><span>Giảm giá</span><strong>-{{ display_discount_amount }}</strong></div>
-          <div class="summary-line"><span>Phí giao hàng</span><strong>{{ display_shipping_total }}</strong></div>
-          <div class="summary-line total"><span>{{ t.total_amount|default:"Tổng tiền" }}</span><span>{{ display_final_amount }}</span></div>
+          <div class="summary-line"><span>Giảm giá</span><strong id="checkout-discount-amount">-{{ display_discount_amount }}</strong></div>
+          <div class="summary-line"><span>Phí giao hàng</span><strong id="checkout-shipping-total">{{ display_shipping_total }}</strong></div>
+          <div class="summary-line total"><span>{{ t.total_amount|default:"Tổng tiền" }}</span><span id="checkout-final-amount">{{ display_final_amount }}</span></div>
         </section>
       </section>
     </main>
@@ -550,6 +551,10 @@
 
       if (coordStatus) {
         coordStatus.textContent = "Đã lấy tọa độ từ địa chỉ đã lưu.";
+      }
+
+      if (typeof refreshShippingPreview === "function") {
+        refreshShippingPreview();
       }
 
     } else {
@@ -696,6 +701,67 @@
         return data;
       }
 
+      async function refreshShippingPreview() {
+        const lat = document.getElementById("lat").value;
+        const lng = document.getElementById("lng").value;
+        const statusEl = document.getElementById("shipping-preview-status");
+        const voucherInput = document.querySelector('input[name="voucher_code"]');
+
+        if (!lat || !lng) {
+          if (statusEl) statusEl.innerText = "";
+          return;
+        }
+
+        if (statusEl) statusEl.innerText = "Đang cập nhật phí ship...";
+
+        try {
+          const params = new URLSearchParams({
+            delivery_lat: lat,
+            delivery_lng: lng,
+          });
+          const voucherCode = (voucherInput?.value || "").trim();
+          if (voucherCode) params.set("voucher_code", voucherCode);
+
+          const data = await fetchJSON(`/api/checkout/shipping-preview/?${params.toString()}`);
+          if (!data || !data.ok) {
+            throw new Error(data && data.error ? data.error : "Không thể tính phí ship.");
+          }
+
+          (data.store_groups || []).forEach((group) => {
+            const container = document.querySelector(`[data-store-group-id="${group.store_id}"]`);
+            if (!container) return;
+
+            const distanceLine = container.querySelector("[data-store-distance-line]");
+            if (distanceLine) {
+              distanceLine.innerHTML = `Khoảng cách: ${group.distance_label} | Phí ship: <span data-store-shipping-fee>${group.display_shipping_fee}</span>`;
+            }
+
+            container.querySelectorAll("[data-store-shipping-fee]").forEach((el) => {
+              el.textContent = group.display_shipping_fee;
+            });
+
+            const discountEl = container.querySelector("[data-store-discount-amount]");
+            if (discountEl) discountEl.textContent = `-${group.display_discount_amount}`;
+
+            const finalEl = container.querySelector("[data-store-final-amount]");
+            if (finalEl) finalEl.textContent = group.display_final_amount;
+          });
+
+          const discountTotalEl = document.getElementById("checkout-discount-amount");
+          const shippingTotalEl = document.getElementById("checkout-shipping-total");
+          const finalAmountEl = document.getElementById("checkout-final-amount");
+          if (discountTotalEl) discountTotalEl.textContent = `-${data.display_discount_amount}`;
+          if (shippingTotalEl) shippingTotalEl.textContent = data.display_shipping_total;
+          if (finalAmountEl) finalAmountEl.textContent = data.display_final_amount;
+
+          if (statusEl) statusEl.innerText = "Đã cập nhật phí ship.";
+        } catch (e) {
+          if (statusEl) {
+            statusEl.innerText = `Không cập nhật được phí ship. ${e && e.message ? e.message : ""}`.trim();
+          }
+        }
+      }
+
       function setDeliveryCoord(lat, lng, message) {
         document.getElementById("lat").value = lat;
         document.getElementById("lng").value = lng;
@@ -706,6 +772,7 @@
           marker = L.marker([lat, lng]).addTo(map);
         }
         document.getElementById("delivery-coord-status").innerText = message || "Đã ghim vị trí theo địa chỉ.";
+        refreshShippingPreview();
       }
 
       async function geocodeAndPin() {
@@ -719,14 +786,14 @@
 
         document.getElementById("delivery-coord-status").innerText = "Đang tìm vị trí theo địa chỉ...";
         try {
-          const g = await fetchJSON(`/tools/geocode/?q=${encodeURIComponent(q)}`);
-          const loc = g && g.location;
+          const g = await fetchJSON(`/api/geocode-address/?q=${encodeURIComponent(q)}&limit=1`);
+          const loc = g && Array.isArray(g.results) ? g.results[0] : null;
           if (!loc || loc.lat == null || loc.lon == null) {
             document.getElementById("delivery-coord-status").innerText =
               "Không tìm thấy vị trí phù hợp. Hãy thử nhập rõ hơn (số nhà, đường, quận, TP).";
             return;
           }
-          setDeliveryCoord(loc.lat, loc.lon, `Đã ghim theo địa chỉ: ${loc.display || q}`);
+          setDeliveryCoord(loc.lat, loc.lon, `Đã ghim theo địa chỉ: ${loc.display_name || q}`);
         } catch (e) {
           document.getElementById("delivery-coord-status").innerText =
             `Không tìm được vị trí theo địa chỉ. (${e && e.message ? e.message : "Lỗi"})`;
@@ -749,6 +816,7 @@
 
      document.getElementById("delivery-coord-status").innerText =
       "Đã chọn vị trí trên bản đồ";
+     refreshShippingPreview();
       });
 
         // GPS
@@ -770,6 +838,7 @@
 
       document.getElementById("delivery-coord-status").innerText =
       "Đã lấy vị trí GPS";
+      refreshShippingPreview();
      });
      }
 
@@ -782,16 +851,26 @@
         });
       }
 
-      // chặn submit nếu chưa chọn
+      // chặn submit nếu chưa chọn, nhưng vẫn cho phép preview voucher
     document.querySelector("main form").addEventListener("submit", function (e) {
-       const lat = document.getElementById("lat").value;
+      const submitter = e.submitter;
+      const isVoucherPreview = submitter && submitter.name === "preview_voucher";
+      if (isVoucherPreview) {
+        return;
+      }
+
+      const lat = document.getElementById("lat").value;
       const lng = document.getElementById("lng").value;
 
-     if (!lat || !lng) {
-       e.preventDefault();
+      if (!lat || !lng) {
+        e.preventDefault();
         alert("Vui lòng chọn vị trí giao hàng!");
       }
-     });
+    });
+
+      if (document.getElementById("lat").value && document.getElementById("lng").value) {
+        refreshShippingPreview();
+      }
   </script>
 </body>
 </html>

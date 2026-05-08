@@ -237,6 +237,9 @@
                           {% if item.object.is_active %}Khóa admin{% else %}Mở khóa admin{% endif %}
                         </button>
                       {% endif %}
+                      <button class="btn btn-danger" type="submit" name="action" value="delete_user" onclick="return confirm('Bạn có chắc muốn xóa tài khoản {{ item.object.username }}?');">
+                        Xóa tài khoản
+                      </button>
                     {% endif %}
                   </form>
                 </td>

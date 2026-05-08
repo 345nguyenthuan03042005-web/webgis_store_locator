@@ -2363,12 +2363,18 @@ def _purge_expired_trash():
 
 
 def _serialize_for_trash(obj):
-    data = model_to_dict(obj)
-    # Ensure file fields are stored as plain paths
+    data = {}
     for field in obj._meta.fields:
+        if isinstance(field, dj_models.ForeignKey):
+            data[field.name] = getattr(obj, field.attname)
+            continue
         if field.get_internal_type() in {"ImageField", "FileField"}:
             value = getattr(obj, field.name)
             data[field.name] = str(value) if value else ""
+            continue
+        data[field.name] = field.value_from_object(obj)
+    for field in obj._meta.many_to_many:
+        data[field.name] = list(getattr(obj, field.name).values_list("pk", flat=True))
     data = json.loads(json.dumps(data, cls=DjangoJSONEncoder))
     data.pop("id", None)
     return data
@@ -3031,6 +3037,30 @@ def _user_header_notifications(user):
     return notifications
 
 
+def _order_status_ui_text(order):
+    return {
+        "pending": "Chờ thanh toán" if order.trang_thai == "pending" and order.trang_thai_thanh_toan == "unpaid" else "Chờ xử lý",
+        "confirmed": "Đã xác nhận",
+        "shipping": "Chờ giao hàng",
+        "delivered": "Đã giao",
+        "done": "Hoàn thành",
+        "cancelled": "Đã hủy",
+    }.get(order.trang_thai, order.get_trang_thai_display())
+
+
+def _order_status_notification_text(order):
+    status_text = _order_status_ui_text(order)
+    if order.trang_thai == "done":
+        return f"Đơn #{order.pk} đã hoàn thành", status_text.lower()
+    if order.trang_thai == "delivered":
+        return f"Đơn #{order.pk} đã giao", status_text.lower()
+    if order.trang_thai == "cancelled":
+        return f"Đơn #{order.pk} đã hủy", status_text.lower()
+    if order.trang_thai == "confirmed":
+        return f"Đơn #{order.pk} đã xác nhận", status_text.lower()
+    return f"Đơn #{order.pk} đang {status_text.lower()}", status_text.lower()
+
+
 def _admin_header_notifications(limit=4):
     notifications = []
     for notice in Notification.objects.filter(resolved=False).order_by("-created_at")[:limit]:
@@ -3216,7 +3246,8 @@ def _user_all_notifications(user, limit=None):
                 extra_image = product.hinh_anh_phu.all().first()
                 thumb_url = extra_image.hinh_anh.url if extra_image and extra_image.hinh_anh else ""
 
-        status_label = order.get_trang_thai_display()
+        status_label = _order_status_ui_text(order)
+        notification_title, notification_status_text = _order_status_notification_text(order)
         action_label = "Xem chi tiết"
         accent = "warm"
         if order.trang_thai == "done":
@@ -3228,9 +3259,9 @@ def _user_all_notifications(user, limit=None):
 
         notifications.append(
             {
-                "title": f"Đơn #{order.pk} đang {status_label.lower()}",
+                "title": notification_title,
                 "body": f"{item_name} • {timezone.localtime(order.created_at).strftime('%d/%m/%Y %H:%M')}",
-                "message": f"Đơn hàng #{order.pk} với sản phẩm {item_name} hiện ở trạng thái {status_label.lower()}.",
+                "message": f"Đơn hàng #{order.pk} với sản phẩm {item_name} hiện ở trạng thái {notification_status_text}.",
                 "href": reverse("store:order_detail", args=[order.pk]),
                 "is_new": order.created_at >= timezone.now() - timedelta(days=2),
                 "created_at": order.created_at,
@@ -3370,7 +3401,7 @@ def _build_user_notification_feed(user):
                 if extra and extra.hinh_anh:
                     thumb_url = extra.hinh_anh.url
 
-        order_status = order.get_trang_thai_display()
+        order_status = _order_status_ui_text(order)
         notifications.append(
             {
                 "category": "order",
@@ -5739,6 +5770,35 @@ def admin_user_management(request):
             if query_params:
                 redirect_url = f"{redirect_url}?{'&'.join(query_params)}"
             return redirect(redirect_url)
+        elif action == "delete_user":
+            user = get_object_or_404(User, pk=request.POST.get("user_id"))
+            if user.is_superuser:
+                messages.error(request, "Không thể xóa tài khoản superuser.")
+            elif user.pk == request.user.pk:
+                messages.error(request, "Bạn không thể tự xóa tài khoản của chính mình.")
+            else:
+                username = user.username
+                full_name = user.get_full_name().strip() or "-"
+                email = user.email or "-"
+                user.delete()
+                _create_admin_notification(
+                    f"Đã xóa tài khoản #{request.POST.get('user_id')}",
+                    f"Tài khoản {username} ({full_name}) - {email} đã được xóa khỏi hệ thống.",
+                    level="warning",
+                    path=reverse("store:admin_user_management"),
+                    method="DELETE",
+                    status_code=200,
+                )
+                messages.success(request, f"Đã xóa tài khoản {username}.")
+            redirect_url = reverse("store:admin_user_management")
+            query_params = []
+            if query:
+                query_params.append(f"q={query}")
+            if filter_field:
+                query_params.append(f"f={filter_field}")
+            if query_params:
+                redirect_url = f"{redirect_url}?{'&'.join(query_params)}"
+            return redirect(redirect_url)
 
     user_qs = User.objects.order_by("username")
     if query:
@@ -6859,6 +6919,7 @@ def admin_trash_restore(request, pk):
         model = apps.get_model(trash.model_label)
         payload = dict(trash.data or {})
         normalized = {}
+        m2m_payload = {}
         for field in model._meta.fields:
             name = field.name
             if name not in payload:
@@ -6901,6 +6962,14 @@ def admin_trash_restore(request, pk):
                     normalized[name] = bool(value)
             else:
                 normalized[name] = value
+        for field in model._meta.many_to_many:
+            raw_values = payload.get(field.name)
+            if not isinstance(raw_values, (list, tuple)):
+                continue
+            valid_ids = list(
+                field.remote_field.model.objects.filter(pk__in=raw_values).values_list("pk", flat=True)
+            )
+            m2m_payload[field.name] = valid_ids
 
         pk_value = (trash.object_id or "").strip()
         if pk_value.lower() in {"", "none", "null"}:
@@ -6931,6 +7000,8 @@ def admin_trash_restore(request, pk):
                         pass
         else:
             instance.save()
+            for field_name, related_ids in m2m_payload.items():
+                getattr(instance, field_name).set(related_ids)
         trash.delete()
         messages.success(request, pref["t"]["saved_successfully"])
     except Exception as exc:
@@ -8520,6 +8591,87 @@ def checkout_view(request):
     )
 
 
+def checkout_shipping_preview_api(request):
+    user = getattr(request, "user", None)
+    if not user or not user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "unauthorized"}, status=403)
+
+    items, total_quantity, total_amount = _cart_items(request)
+    if not items:
+        return JsonResponse({"ok": False, "error": "cart_empty"}, status=400)
+
+    raw_lat = (request.GET.get("delivery_lat") or "").strip()
+    raw_lng = (request.GET.get("delivery_lng") or "").strip()
+    voucher_code = _normalize_voucher_code(request.GET.get("voucher_code"))
+
+    try:
+        lat_value = _parse_latitude(raw_lat) if raw_lat else None
+        lng_value = _parse_longitude(raw_lng) if raw_lng else None
+    except ValidationError as exc:
+        return JsonResponse({"ok": False, "error": "; ".join(exc.messages)}, status=400)
+
+    if (lat_value is None) ^ (lng_value is None):
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Vui lòng nhập đủ cả vĩ độ và kinh độ giao hàng, hoặc để trống cả hai.",
+            },
+            status=400,
+        )
+
+    subtotal_amount = Decimal(total_amount or 0)
+    discount_amount = Decimal("0")
+    voucher_error = ""
+    applied_voucher = None
+    if voucher_code:
+        try:
+            applied_voucher, discount_amount = _resolve_checkout_voucher(voucher_code, items, subtotal_amount)
+        except ValidationError as exc:
+            voucher_error = "; ".join(exc.messages) or "Voucher không hợp lệ."
+
+    store_groups = _allocate_discount_to_groups(
+        _group_cart_items_by_store(items, lat_value, lng_value),
+        discount_amount,
+    )
+    shipping_total = sum(((group["shipping_fee"] or Decimal("0")) for group in store_groups), Decimal("0"))
+    shipping_pending = any(group.get("shipping_pending") for group in store_groups)
+    final_amount = max(subtotal_amount - discount_amount, Decimal("0")) + shipping_total
+    display_shipping_total = "Chưa tính" if shipping_pending else _format_currency(shipping_total)
+    display_final_amount = (
+        f"{_format_currency(max(subtotal_amount - discount_amount, Decimal('0')))} + ship"
+        if shipping_pending
+        else _format_currency(final_amount)
+    )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "cart_total_quantity": total_quantity,
+            "subtotal_amount": str(subtotal_amount),
+            "display_subtotal_amount": _format_currency(subtotal_amount),
+            "discount_amount": str(discount_amount),
+            "display_discount_amount": _format_currency(discount_amount),
+            "shipping_total": str(shipping_total),
+            "display_shipping_total": display_shipping_total,
+            "final_amount": str(final_amount),
+            "display_final_amount": display_final_amount,
+            "shipping_pending": shipping_pending,
+            "applied_voucher_code": applied_voucher.ma_code if applied_voucher else "",
+            "voucher_error": voucher_error,
+            "store_groups": [
+                {
+                    "store_id": group["store"].pk,
+                    "distance_label": group["distance_label"],
+                    "display_shipping_fee": group["display_shipping_fee"],
+                    "display_discount_amount": group["display_discount_amount"],
+                    "display_final_amount": group["display_final_amount"],
+                }
+                for group in store_groups
+            ],
+        }
+    )
+
+
 def my_orders(request):
     unauthorized = _require_customer_account(request)
     if unauthorized:
@@ -8568,14 +8720,7 @@ def my_orders(request):
                 order.primary_thumb = ""
         for item in order.items.all():
             item.display_unit_price = _format_currency(item.don_gia)
-        order.status_ui = {
-            "pending": "Chờ thanh toán" if order.trang_thai == "pending" and order.trang_thai_thanh_toan == "unpaid" else "Chờ xử lý",
-            "confirmed": u("\u0110\u00e3 x\u00e1c nh\u1eadn"),
-            "shipping": u("Ch\u1edd giao h\u00e0ng"),
-            "delivered": u("\u0110\u00e3 giao"),
-            "done": u("Ho\u00e0n th\u00e0nh"),
-            "cancelled": u("\u0110\u00e3 h\u1ee7y"),
-        }.get(order.trang_thai, order.get_trang_thai_display())
+        order.status_ui = _order_status_ui_text(order)
     status_tabs = [
         {"key": "all", "label": u("T\u1ea5t c\u1ea3")},
         {"key": "unpaid", "label": u("Ch\u1edd thanh to\u00e1n")},
@@ -8783,6 +8928,14 @@ def user_privacy_settings(request):
     if request.method == "POST":
         privacy_state["delete_requested"] = True
         _save_user_privacy_state(request, privacy_state)
+        _create_admin_notification(
+            f"Yêu cầu xóa tài khoản #{request.user.pk}",
+            f"Người dùng {request.user.username} đã gửi yêu cầu xóa tài khoản. Email: {request.user.email or '-'}",
+            level="warning",
+            path=reverse("store:admin_user_management"),
+            method="POST",
+            status_code=202,
+        )
         messages.success(request, u("Y\u00eau c\u1ea7u x\u00f3a t\u00e0i kho\u1ea3n \u0111\u00e3 \u0111\u01b0\u1ee3c ghi nh\u1eadn."))
         return redirect("store:user_privacy_settings")
 
@@ -9000,7 +9153,7 @@ def import_kho_excel(request):
     file = request.FILES.get("file")
 
     if not file:
-        messages.error(request, "Ch??a ch???n file")
+        messages.error(request, "Chưa chọn file")
         return redirect("/admin/giao-dich-kho/excel/")
 
     try:
@@ -9010,7 +9163,7 @@ def import_kho_excel(request):
 
         required = {"san_pham", "loai", "so_luong"}
         if not required.issubset(df.columns):
-            messages.error(request, f"Thi???u c???t b???t bu???c: {required}")
+            messages.error(request, f"Thiếu cột bắt buộc: {required}")
             return redirect("/admin/giao-dich-kho/excel/")
 
         errors = []
@@ -9019,11 +9172,11 @@ def import_kho_excel(request):
         for i, row in df.iterrows():
             try:
                 if pd.isna(row["san_pham"]):
-                    raise ValueError("Thi???u san_pham")
+                    raise ValueError("Thiếu san_pham")
 
                 san_pham_id = int(row["san_pham"])
                 if not SanPham.objects.filter(id=san_pham_id).exists():
-                    raise ValueError("S???n ph???m kh??ng t???n t???i")
+                    raise ValueError("Sản phẩm không tồn tại")
 
                 loai_raw = str(row["loai"]).strip().lower()
                 if loai_raw in ["import", "nhap"]:
@@ -9031,14 +9184,14 @@ def import_kho_excel(request):
                 elif loai_raw in ["export", "xuat"]:
                     loai = "export"
                 else:
-                    raise ValueError("loai ph???i l?? import/export")
+                    raise ValueError("loai phải là import/export")
 
                 if pd.isna(row["so_luong"]):
-                    raise ValueError("Thi???u so_luong")
+                    raise ValueError("Thiếu so_luong")
 
                 so_luong = int(row["so_luong"])
                 if so_luong <= 0:
-                    raise ValueError("so_luong ph???i > 0")
+                    raise ValueError("so_luong phải > 0")
 
                 nhan_vien_id = None
                 if "nhan_vien_id" in df.columns and pd.notna(row.get("nhan_vien_id")):
@@ -9047,7 +9200,7 @@ def import_kho_excel(request):
                     nhan_vien_id = int(row["nhan_vien"])
 
                 if nhan_vien_id and not NhanVien.objects.filter(id=nhan_vien_id).exists():
-                    raise ValueError("Nh??n vi??n kh??ng t???n t???i")
+                    raise ValueError("Nhân viên không tồn tại")
 
                 cua_hang_id = None
                 if "cua_hang_id" in df.columns and pd.notna(row.get("cua_hang_id")):
@@ -9056,7 +9209,7 @@ def import_kho_excel(request):
                     cua_hang_id = int(row["cua_hang"])
 
                 if cua_hang_id and not CuaHang.objects.filter(id=cua_hang_id).exists():
-                    raise ValueError("C???a h??ng kh??ng t???n t???i")
+                    raise ValueError("Cửa hàng không tồn tại")
 
                 ghi_chu = ""
                 if "ghi_chu" in df.columns and pd.notna(row.get("ghi_chu")):
@@ -9073,10 +9226,10 @@ def import_kho_excel(request):
                     )
                 )
             except Exception as e:
-                errors.append(f"D??ng {i+2}: {str(e)}")
+                errors.append(f"Dòng {i+2}: {str(e)}")
 
         if errors:
-            messages.error(request, "Import loi:\\n" + "\\n".join(errors))
+            messages.error(request, "Import lỗi:\n" + "\n".join(errors))
             return redirect("/admin/giao-dich-kho/excel/")
 
         with transaction.atomic():
@@ -9084,7 +9237,7 @@ def import_kho_excel(request):
                 obj._skip_signature = True
                 obj.save()
 
-        messages.success(request, f"Import th??nh c??ng {len(staged_movements)} d??ng")
+        messages.success(request, f"Import thành công {len(staged_movements)} dòng")
         return redirect("/admin/giao-dich-kho/")
 
     except Exception as e:

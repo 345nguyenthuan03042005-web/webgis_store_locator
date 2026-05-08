@@ -15,6 +15,7 @@ urlpatterns = [
     path("cart/remove/<int:pk>/", controllers.cart_remove, name="cart_remove"),
     path("cart/clear/", controllers.cart_clear, name="cart_clear"),
     path("checkout/", controllers.checkout_view, name="checkout"),
+    path("api/checkout/shipping-preview/", controllers.checkout_shipping_preview_api, name="checkout_shipping_preview_api"),
     path("orders/", controllers.my_orders, name="my_orders"),
     path("orders/<int:pk>/", controllers.order_detail, name="order_detail"),
     path("payments/momo/<int:pk>/", controllers.momo_demo_payment, name="momo_demo_payment"),

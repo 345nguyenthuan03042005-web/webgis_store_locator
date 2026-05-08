@@ -2483,10 +2483,13 @@ document.getElementById("btnReset").onclick = ()=>{
 
 document.getElementById("btnSortNear").onclick = sortByNearest;
 
-const btnExport = document.getElementById("btnExport");
-if(btnExport) btnExport.onclick = ()=>{
+function handleExportCsv(){
   const items = (STORES_VIEW && STORES_VIEW.length) ? STORES_VIEW : STORES;
   if(!items.length){ setStatus("Không có dữ liệu để export.", false); return; }
+  if(!window.StoreCsvExporter || typeof window.StoreCsvExporter.exportCsv !== "function"){
+    setStatus("Tính năng export CSV chưa sẵn sàng.", false);
+    return;
+  }
 
   const columns = [
     { key: "id", label: "id" },
@@ -2518,7 +2521,10 @@ if(btnExport) btnExport.onclick = ()=>{
     filename: window.StoreCsvExporter.buildFilename("stores_export", getActiveBrandParam() || "ALL"),
   });
   setStatus(`Đã export ${normalizedItems.length} dòng CSV ✅`, true);
-};
+}
+
+const btnExport = document.getElementById("btnExport");
+if(btnExport) btnExport.onclick = handleExportCsv;
 
 document.getElementById("btnHistory").onclick = ()=>{
   try{
@@ -2543,7 +2549,7 @@ if(mapQuickNearby){
 
 const mapQuickExport = document.getElementById("mapQuickExport");
 if(mapQuickExport){
-  mapQuickExport.onclick = ()=> document.getElementById("btnExport").click();
+  mapQuickExport.onclick = handleExportCsv;
 }
 
 document.getElementById("btnCopyCoord").onclick = async ()=>{
